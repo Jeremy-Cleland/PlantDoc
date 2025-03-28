@@ -1,0 +1,196 @@
+# Main configuration file for the CBAM Classification project
+
+# Import default configurations
+defaults:
+  - model: cbam_resnet18 # Model configuration
+  - hydra: default # Hydra configuration
+  - _self_
+
+# General project info
+project_name: CBAM Classification
+version: 1.0.0
+
+# Hydra configuration for output paths
+hydra:
+  run:
+    dir: ${paths.experiment_dir}
+
+# Path information
+paths:
+  # Base directories
+  project_root: ${hydra:runtime.cwd}
+  output_dir: ${project_root}/outputs
+
+  # Experiment setup
+  experiment_name: cbam_default
+  timestamp: "${now:%Y%m%d_%H%M%S}"
+  experiment_dir: ${paths.output_dir}/${paths.experiment_name}
+
+  # Data directories
+  raw_dir: ${project_root}/data/raw
+  preprocessed_dir: ${project_root}/data/preprocessed
+
+  # Artifact directories
+  logs_dir: ${paths.experiment_dir}/logs
+  checkpoints_dir: ${paths.experiment_dir}/checkpoints
+  reports_dir: ${paths.experiment_dir}/reports
+  plots_dir: ${paths.reports_dir}/plots
+
+# Logging configuration
+logging:
+  level: INFO
+  use_colors: true
+
+# Data configuration
+data:
+  dataset_name: PlantDisease
+  train_val_test_split: [0.7, 0.15, 0.15] # Split ratios
+  random_seed: 42
+
+# Dataloader configuration
+loader:
+  batch_size: 32
+  num_workers: 4
+  pin_memory: true
+  drop_last: false
+  prefetch_factor: 2
+
+# Training configuration
+training:
+  epochs: 100
+  use_mixed_precision: true
+  deterministic: false # Set to true for reproducibility (slower)
+  gradient_clip_val: 1.0
+  log_every_n_steps: 50
+
+# Optimizer configuration (default values, can be overridden for specific models)
+optimizer:
+  name: adam
+  lr: 0.001
+  weight_decay: 0.0001
+  beta1: 0.9
+  beta2: 0.999
+  differential_lr: true
+  differential_lr_factor: 0.1
+
+# Loss function configuration
+loss:
+  name: weighted_cross_entropy
+  label_smoothing: 0.1
+  reduction: mean
+
+# Learning rate scheduler configuration
+scheduler:
+  name: cosine
+  min_lr: 0.00001
+  warmup_epochs: 5
+  step_mode: epoch # 'epoch' or 'step'
+
+# Early stopping configuration
+callbacks:
+  early_stopping:
+    enabled: true
+    monitor: val_loss
+    patience: 10
+    mode: min
+    min_delta: 0.0001
+
+  model_checkpoint:
+    enabled: true
+    monitor: val_loss
+    mode: min
+    save_best_only: true
+    save_last: true
+
+# Transfer learning configuration
+transfer_learning:
+  enabled: true
+  initial_frozen_epochs: 5
+  finetune_lr_factor: 0.1
+
+# Progressive resizing configuration
+progressive_resizing:
+  enabled: false
+  schedule:
+    - { size: [224, 224], epochs: 20 }
+    - { size: [256, 256], epochs: 30 }
+    - { size: [300, 300], epochs: 50 }
+
+# Image preprocessing configuration
+preprocessing:
+  resize: [256, 256]
+  center_crop: [224, 224]
+  normalize:
+    mean: [0.485, 0.456, 0.406] # ImageNet mean
+    std: [0.229, 0.224, 0.225] # ImageNet std
+
+# Augmentation configuration
+augmentation:
+  train:
+    horizontal_flip: true
+    vertical_flip: false
+    random_rotate: 15
+    random_resized_crop:
+      scale: [0.8, 1.0]
+      ratio: [0.75, 1.33]
+    color_jitter:
+      brightness: 0.2
+      contrast: 0.2
+      saturation: 0.2
+      hue: 0.1
+    random_brightness_contrast:
+      brightness_limit: 0.2
+      contrast_limit: 0.2
+      p: 0.5
+    shift_scale_rotate:
+      shift_limit: 0.1
+      scale_limit: 0.1
+      rotate_limit: 15
+      p: 0.5
+    cutout:
+      num_holes: 8
+      max_h_size: 32
+      max_w_size: 32
+      p: 0.5
+
+# Model-specific configurations are in the model folder
+
+# Reporting configuration
+reporting:
+  generate_plots: true
+  generate_report: true
+  save_confusion_matrix: true
+  save_class_metrics: true
+  save_training_metrics: true
+
+# Hardware configuration
+hardware:
+  mps:
+    # Memory management for MPS backend
+    memory:
+      clear_cache_freq: 10 # Clear cache every N batches
+      deep_clean_after_val: true # Deep clean after validation
+      monitor: false # Log memory usage
+      enable_sync_for_timing: true # Enable sync for accurate timing
+
+    # Profiling options
+    profiling:
+      enabled: false
+
+    # Model optimization options
+    model:
+      use_channels_last: true # Use channels_last memory format
+
+# Data quality settings for validation, analysis, and visualization
+prepare_data:
+  output_dir: ${paths.output_dir}/data_quality
+  run_analysis_after_validation: true
+  run_visualization_after_analysis: true
+  generate_combined_report: true
+  dry_run: false
+  fix_extensions: true
+  verify_images: true
+  fix_folders: false
+  sample_size: 5000
+  random_seed: 42
+  create_plots: true

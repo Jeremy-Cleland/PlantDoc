@@ -1,0 +1,39 @@
+project_root: ${hydra:runtime.cwd}
+
+data:
+  data_dir: data/raw
+  output_dir: ${output_dir}/data_dir/preprocessed
+  train_dir: ${data.data_dir}/train
+  val_dir: ${data.data_dir}/val
+  test_dir: ${data.data_dir}/test
+
+paths:
+  output_dir: ${project_root}/outputs
+  experiment_name: CBAM_v1
+  experiment_dir: ${paths.output_dir}/models/${paths.experiment_name}
+  model_dir: ${paths.experiment_dir}
+  # Data directories
+  raw_dir: ${project_root}/data/raw
+  preprocessed_dir: ${paths.data_dir}/preprocessed
+  train_dir: ${paths.preprocessed_dir}/train
+  val_dir: ${paths.preprocessed_dir}/val
+  test_dir: ${paths.preprocessed_dir}/test
+  # Artifact directories
+  logs_dir: ${paths.model_dir}/logs
+  tensorboard_dir: ${paths.model_dir}/tb
+  checkpoint_dir: ${paths.model_dir}/checkpoints
+  reports_dir: ${paths.model_dir}/reports
+
+hydra:
+  job:
+    chdir: true
+  output_subdir: null # Don't create .hydra subdir
+  run:
+    dir: ${paths.model_dir} # 👈 Make Hydra's run dir align with your model_dir
+  sweep:
+    dir: ${paths.output_dir}/models/experiments/${model.name}_${now:%Y%m%d_%H%M%S}
+    subdir: ${hydra.job.num}
+
+logging:
+  level: INFO
+  use_colors: true
