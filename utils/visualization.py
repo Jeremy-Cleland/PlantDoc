@@ -11,9 +11,10 @@ import seaborn as sns
 import torch
 import torch.nn.functional as F
 from matplotlib.figure import Figure
-from plantdoc.utils.logging import get_logger
-from plantdoc.utils.paths import ensure_dir
 from sklearn.metrics import confusion_matrix
+
+from utils.logger import get_logger
+from utils.paths import ensure_dir
 
 logger = get_logger(__name__)
 

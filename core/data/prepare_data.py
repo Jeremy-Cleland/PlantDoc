@@ -1,7 +1,4 @@
-# Path: plantdoc/core/data/prepare_data.py
-
-
-# Path: plantdoc/core/data/prepare_data.py
+# Path: core/data/prepare_data.py
 # Description: Consolidates dataset validation, analysis, and visualization tasks.
 
 import json
@@ -21,12 +18,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+import torch
 from omegaconf import DictConfig
 from PIL import Image, UnidentifiedImageError
-from plantdoc.core.data.transforms import get_transforms
-
-# Assuming these utilities and transforms are available in your project structure
-from plantdoc.utils.logging import get_logger
 from scipy.cluster.hierarchy import dendrogram, linkage
 from sklearn.cluster import AgglomerativeClustering
 from sklearn.decomposition import PCA
@@ -35,13 +29,19 @@ from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.preprocessing import StandardScaler
 from tqdm import tqdm
 
+from core.data.transforms import get_transforms
+
+# Assuming these utilities and transforms are available in your project structure
+from utils.logger import get_logger
+
 # Import basic plotting functions if they are separate, otherwise define inline or import
-# Example: from plantdoc.utils.visualization import basic_plots, advanced_plots
+# Example: from utils.visualization import basic_plots, advanced_plots
 # For simplicity here, plotting functions are included below where needed.
 
 logger = get_logger(__name__)
 
 # --- Helper Functions (from validation script) ---
+
 
 def fix_filename(filename: str) -> str:
     """Fix problematic filenames by removing spaces and special characters."""
@@ -52,6 +52,7 @@ def fix_filename(filename: str) -> str:
     while "__" in clean_name:
         clean_name = clean_name.replace("__", "_")
     return clean_name
+
 
 def check_folder_name(folder_name: str) -> Tuple[bool, str, List[str]]:
     """Check folder name best practices."""
@@ -80,11 +81,12 @@ def check_folder_name(folder_name: str) -> Tuple[bool, str, List[str]]:
             suggested_name = suggested_name.replace("__", "_")
     return has_issues, suggested_name, issues
 
+
 def validate_image(file_path: Path) -> bool:
     """Verify that an image file can be opened and is valid."""
     try:
         with Image.open(file_path) as img:
-            img.verify() # Verify image header and structure
+            img.verify()  # Verify image header and structure
         # Optionally, try to fully load to catch more subtle issues
         # with Image.open(file_path) as img:
         #     img.load()
@@ -94,16 +96,21 @@ def validate_image(file_path: Path) -> bool:
         return False
     except Exception as e:
         logger.warning(f"Unexpected error validating image {file_path}: {e}")
-        return False # Treat unexpected errors as invalid
+        return False  # Treat unexpected errors as invalid
+
 
 def rename_file_with_unique_name(file_path: Path, new_file_path: Path) -> Path:
     """Rename a file, adding timestamp if the target exists."""
     if new_file_path.exists() and file_path.resolve() != new_file_path.resolve():
         timestamp = int(time.time() * 1000)
-        new_file_path = new_file_path.with_name(f"{new_file_path.stem}_{timestamp}{new_file_path.suffix}")
+        new_file_path = new_file_path.with_name(
+            f"{new_file_path.stem}_{timestamp}{new_file_path.suffix}"
+        )
     return new_file_path
 
+
 # --- Validation Core Function ---
+
 
 def run_validation(cfg: DictConfig) -> Dict[str, Any]:
     """
@@ -116,7 +123,7 @@ def run_validation(cfg: DictConfig) -> Dict[str, Any]:
         Dictionary containing the scan results.
     """
     prep_cfg = cfg.prepare_data
-    data_dir = Path(cfg.paths.raw_dir) # Validate the raw data
+    data_dir = Path(cfg.paths.raw_dir)  # Validate the raw data
     output_dir = Path(prep_cfg.output_dir) / "validation"
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -130,31 +137,38 @@ def run_validation(cfg: DictConfig) -> Dict[str, Any]:
         logger.info("DRY RUN MODE: No changes will be made.")
 
     stats = {
-        "total_files": 0, "renamed_files": 0, "problematic_files": 0,
-        "class_stats": {}, "extension_stats": Counter(),
-        "folder_issues": 0, "folder_suggestions": {},
+        "total_files": 0,
+        "renamed_files": 0,
+        "problematic_files": 0,
+        "class_stats": {},
+        "extension_stats": Counter(),
+        "folder_issues": 0,
+        "folder_suggestions": {},
     }
-    valid_extensions = ('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff')
+    valid_extensions = (".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tiff")
 
     if not data_dir.is_dir():
         logger.error(f"Data directory not found: {data_dir}")
         return {"error": f"Data directory not found: {data_dir}"}
 
-    class_dirs = [d for d in data_dir.iterdir() if d.is_dir() and not d.name.startswith(".")]
+    class_dirs = [
+        d for d in data_dir.iterdir() if d.is_dir() and not d.name.startswith(".")
+    ]
     class_dirs.sort(key=lambda x: x.name)
     logger.info(f"Found {len(class_dirs)} potential class directories.")
 
     # --- Folder Name Check ---
     logger.info("Checking folder names...")
     folder_renames = {}
-    current_class_dirs = list(class_dirs) # Copy to modify list if renaming
+    current_class_dirs = list(class_dirs)  # Copy to modify list if renaming
     for i, folder_path in enumerate(class_dirs):
         folder_name = folder_path.name
         has_issues, suggested_name, issues = check_folder_name(folder_name)
         if has_issues:
             stats["folder_issues"] += 1
             stats["folder_suggestions"][folder_name] = {
-                "suggested_name": suggested_name, "issues": issues
+                "suggested_name": suggested_name,
+                "issues": issues,
             }
             if fix_folders and not dry_run:
                 new_path = data_dir / suggested_name
@@ -166,11 +180,17 @@ def run_validation(cfg: DictConfig) -> Dict[str, Any]:
                     logger.info(f"Renaming folder: {folder_path} -> {new_path}")
                     folder_path.rename(new_path)
                     folder_renames[folder_name] = suggested_name
-                    current_class_dirs[i] = new_path # Update path in the list for file iteration
+                    current_class_dirs[i] = (
+                        new_path  # Update path in the list for file iteration
+                    )
                 except Exception as e:
-                    logger.error(f"Error renaming folder {folder_name} to {suggested_name}: {e}")
+                    logger.error(
+                        f"Error renaming folder {folder_name} to {suggested_name}: {e}"
+                    )
             else:
-                 logger.warning(f"Folder '{folder_name}' has issues: {issues}. Suggested: '{suggested_name}'")
+                logger.warning(
+                    f"Folder '{folder_name}' has issues: {issues}. Suggested: '{suggested_name}'"
+                )
 
     # --- File Processing ---
     logger.info("Processing files within class directories...")
@@ -193,7 +213,7 @@ def run_validation(cfg: DictConfig) -> Dict[str, Any]:
                     is_valid_ext = ext in valid_extensions
                     if not is_valid_ext:
                         logger.debug(f"Skipping non-image file: {file_path}")
-                        continue # Skip non-image files entirely
+                        continue  # Skip non-image files entirely
 
                     # Image Verification (Do this BEFORE potential rename)
                     is_problematic = False
@@ -207,13 +227,17 @@ def run_validation(cfg: DictConfig) -> Dict[str, Any]:
                             # continue # Uncomment to skip fixing problematic files
 
                     # File Renaming Logic
-                    has_spaces_or_special = any(c in filename for c in " ()[]{}!@#$%^&*+=")
+                    has_spaces_or_special = any(
+                        c in filename for c in " ()[]{}!@#$%^&*+="
+                    )
                     needs_ext_fix = ext != ".jpg"
                     needs_rename = has_spaces_or_special or needs_ext_fix
 
                     if needs_rename and fix_extensions:
                         if is_problematic and not dry_run:
-                            logger.warning(f"Skipping rename for problematic file: {file_path}")
+                            logger.warning(
+                                f"Skipping rename for problematic file: {file_path}"
+                            )
                             continue
 
                         base_name = file_path.stem
@@ -222,7 +246,9 @@ def run_validation(cfg: DictConfig) -> Dict[str, Any]:
 
                         new_filename = f"{base_name}.jpg"
                         new_file_path = class_dir_path / new_filename
-                        new_file_path = rename_file_with_unique_name(file_path, new_file_path)
+                        new_file_path = rename_file_with_unique_name(
+                            file_path, new_file_path
+                        )
 
                         if file_path != new_file_path:
                             if not dry_run:
@@ -230,19 +256,25 @@ def run_validation(cfg: DictConfig) -> Dict[str, Any]:
                                     # Use copy and remove for potentially safer operation across filesystems
                                     shutil.copy2(file_path, new_file_path)
                                     file_path.unlink()
-                                    logger.debug(f"Renamed: {filename} -> {new_file_path.name}")
+                                    logger.debug(
+                                        f"Renamed: {filename} -> {new_file_path.name}"
+                                    )
                                     stats["renamed_files"] += 1
                                     class_renamed_count += 1
                                 except Exception as e:
-                                    logger.error(f"Error renaming {file_path} to {new_file_path}: {e}")
+                                    logger.error(
+                                        f"Error renaming {file_path} to {new_file_path}: {e}"
+                                    )
                             else:
-                                logger.info(f"[Dry Run] Would rename: {filename} -> {new_file_path.name}")
+                                logger.info(
+                                    f"[Dry Run] Would rename: {filename} -> {new_file_path.name}"
+                                )
                                 stats["renamed_files"] += 1
                                 class_renamed_count += 1
 
         except Exception as e:
             logger.error(f"Error processing directory {class_dir_path}: {e}")
-            continue # Skip to the next class directory
+            continue  # Skip to the next class directory
 
         stats["class_stats"][class_name]["total"] = class_file_count
         stats["class_stats"][class_name]["renamed"] = class_renamed_count
@@ -267,8 +299,10 @@ def run_validation(cfg: DictConfig) -> Dict[str, Any]:
     logger.info(f"Folders with Naming Issues: {stats['folder_issues']}")
     logger.info("Extension Counts:")
     for ext, count in sorted(stats["extension_stats"].items()):
-         logger.info(f"  {ext}: {count}")
-    if dry_run and (stats['renamed_files'] > 0 or (stats['folder_issues'] > 0 and fix_folders)):
+        logger.info(f"  {ext}: {count}")
+    if dry_run and (
+        stats["renamed_files"] > 0 or (stats["folder_issues"] > 0 and fix_folders)
+    ):
         logger.info("Run with prepare_data.dry_run=False to apply fixes.")
     logger.info("--- Validation Complete ---")
 
@@ -276,6 +310,7 @@ def run_validation(cfg: DictConfig) -> Dict[str, Any]:
 
 
 # --- Helper Functions (from analysis script) ---
+
 
 def extract_image_metadata(image_path: Path) -> Optional[Dict[str, Any]]:
     """Extract metadata from an image file."""
@@ -288,34 +323,47 @@ def extract_image_metadata(image_path: Path) -> Optional[Dict[str, Any]]:
             try:
                 file_size_kb = image_path.stat().st_size / 1024
             except Exception:
-                 file_size_kb = -1 # Indicate error
+                file_size_kb = -1  # Indicate error
 
             # Basic color info (requires loading image data)
             try:
                 img_array = np.array(img.convert("RGB"))
                 mean_rgb = np.mean(img_array, axis=(0, 1))
                 std_rgb = np.std(img_array, axis=(0, 1))
-                brightness = mean_rgb.mean() # Simple brightness estimate
+                brightness = mean_rgb.mean()  # Simple brightness estimate
             except Exception as e:
-                 logger.debug(f"Could not get color info for {image_path}: {e}")
-                 mean_rgb = [-1,-1,-1]
-                 std_rgb = [-1,-1,-1]
-                 brightness = -1
+                logger.debug(f"Could not get color info for {image_path}: {e}")
+                mean_rgb = [-1, -1, -1]
+                std_rgb = [-1, -1, -1]
+                brightness = -1
 
             return {
-                "path": str(image_path), "class": image_path.parent.name,
-                "width": width, "height": height, "aspect_ratio": aspect_ratio,
-                "format": img_format, "mode": img_mode, "file_size_kb": file_size_kb,
-                "mean_r": mean_rgb[0], "mean_g": mean_rgb[1], "mean_b": mean_rgb[2],
-                "std_r": std_rgb[0], "std_g": std_rgb[1], "std_b": std_rgb[2],
+                "path": str(image_path),
+                "class": image_path.parent.name,
+                "width": width,
+                "height": height,
+                "aspect_ratio": aspect_ratio,
+                "format": img_format,
+                "mode": img_mode,
+                "file_size_kb": file_size_kb,
+                "mean_r": mean_rgb[0],
+                "mean_g": mean_rgb[1],
+                "mean_b": mean_rgb[2],
+                "std_r": std_rgb[0],
+                "std_g": std_rgb[1],
+                "std_b": std_rgb[2],
                 "brightness": brightness,
             }
     except Exception as e:
         logger.error(f"Error processing metadata for {image_path}: {e}")
         return None
 
+
 def create_summary_report(
-    df: pd.DataFrame, class_counts: Dict[str, int], file_extensions: Dict[str, int], output_dir: Path
+    df: pd.DataFrame,
+    class_counts: Dict[str, int],
+    file_extensions: Dict[str, int],
+    output_dir: Path,
 ) -> None:
     """Generate a summary report (Markdown) of dataset statistics."""
     report_path = output_dir / "analysis_summary_report.md"
@@ -339,27 +387,41 @@ def create_summary_report(
         f.write("\n## Class Distribution\n\n")
         f.write("| Class | Image Count | Percentage |\n")
         f.write("|---|---|---|\n")
-        for class_name, count in sorted(class_counts.items(), key=lambda item: item[1], reverse=True):
+        for class_name, count in sorted(
+            class_counts.items(), key=lambda item: item[1], reverse=True
+        ):
             perc = count / total_images * 100 if total_images > 0 else 0
             f.write(f"| {class_name} | {count:,} | {perc:.2f}% |\n")
 
         if not df.empty:
             f.write("\n## Image Properties (Sampled)\n\n")
             f.write("### Dimensions\n")
-            f.write(f"- **Width:** Min={df['width'].min():,}, Median={df['width'].median():,.0f}, Max={df['width'].max():,}\n")
-            f.write(f"- **Height:** Min={df['height'].min():,}, Median={df['height'].median():,.0f}, Max={df['height'].max():,}\n")
-            f.write(f"- **Aspect Ratio:** Min={df['aspect_ratio'].min():.2f}, Median={df['aspect_ratio'].median():.2f}, Max={df['aspect_ratio'].max():.2f}\n")
+            f.write(
+                f"- **Width:** Min={df['width'].min():,}, Median={df['width'].median():,.0f}, Max={df['width'].max():,}\n"
+            )
+            f.write(
+                f"- **Height:** Min={df['height'].min():,}, Median={df['height'].median():,.0f}, Max={df['height'].max():,}\n"
+            )
+            f.write(
+                f"- **Aspect Ratio:** Min={df['aspect_ratio'].min():.2f}, Median={df['aspect_ratio'].median():.2f}, Max={df['aspect_ratio'].max():.2f}\n"
+            )
 
             f.write("\n### File Size\n")
-            f.write(f"- **Size (KB):** Min={df['file_size_kb'].min():.2f}, Median={df['file_size_kb'].median():.2f}, Max={df['file_size_kb'].max():.2f}\n")
+            f.write(
+                f"- **Size (KB):** Min={df['file_size_kb'].min():.2f}, Median={df['file_size_kb'].median():.2f}, Max={df['file_size_kb'].max():.2f}\n"
+            )
 
             f.write("\n### Color & Brightness\n")
-            f.write(f"- **Avg RGB:** ({df['mean_r'].mean():.1f}, {df['mean_g'].mean():.1f}, {df['mean_b'].mean():.1f})\n")
+            f.write(
+                f"- **Avg RGB:** ({df['mean_r'].mean():.1f}, {df['mean_g'].mean():.1f}, {df['mean_b'].mean():.1f})\n"
+            )
             f.write(f"- **Avg Brightness:** {df['brightness'].mean():.1f}\n")
 
     logger.info("Analysis summary report generated.")
 
+
 # --- Analysis Core Function ---
+
 
 def run_analysis(cfg: DictConfig) -> Tuple[Optional[pd.DataFrame], Dict[str, Any]]:
     """
@@ -374,7 +436,7 @@ def run_analysis(cfg: DictConfig) -> Tuple[Optional[pd.DataFrame], Dict[str, Any
             - Dictionary with dataset statistics.
     """
     prep_cfg = cfg.prepare_data
-    data_dir = Path(cfg.paths.raw_dir) # Analyze the raw (potentially fixed) data
+    data_dir = Path(cfg.paths.raw_dir)  # Analyze the raw (potentially fixed) data
     output_dir = Path(prep_cfg.output_dir) / "analysis"
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -393,10 +455,12 @@ def run_analysis(cfg: DictConfig) -> Tuple[Optional[pd.DataFrame], Dict[str, Any
     class_counts = {}
     file_extensions = Counter()
     all_image_paths = []
-    valid_extensions = ('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff')
+    valid_extensions = (".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tiff")
 
     try:
-        class_dirs = [d for d in data_dir.iterdir() if d.is_dir() and not d.name.startswith(".")]
+        class_dirs = [
+            d for d in data_dir.iterdir() if d.is_dir() and not d.name.startswith(".")
+        ]
         class_dirs.sort(key=lambda x: x.name)
         logger.info(f"Found {len(class_dirs)} classes for analysis.")
 
@@ -410,8 +474,8 @@ def run_analysis(cfg: DictConfig) -> Tuple[Optional[pd.DataFrame], Dict[str, Any
             class_counts[class_dir.name] = count
 
     except Exception as e:
-         logger.error(f"Error scanning directories for analysis: {e}")
-         return None, {"error": "Failed to scan directories."}
+        logger.error(f"Error scanning directories for analysis: {e}")
+        return None, {"error": "Failed to scan directories."}
 
     total_images = len(all_image_paths)
     logger.info(f"Found {total_images} total image files for potential analysis.")
@@ -421,7 +485,9 @@ def run_analysis(cfg: DictConfig) -> Tuple[Optional[pd.DataFrame], Dict[str, Any
 
     # --- Sample Images for Detailed Metadata Extraction ---
     if total_images > sample_size:
-        logger.info(f"Sampling {sample_size} images for detailed analysis (seed={random_seed}).")
+        logger.info(
+            f"Sampling {sample_size} images for detailed analysis (seed={random_seed})."
+        )
         sampled_paths = random.sample(all_image_paths, sample_size)
     else:
         logger.info(f"Analyzing all {total_images} images.")
@@ -431,15 +497,22 @@ def run_analysis(cfg: DictConfig) -> Tuple[Optional[pd.DataFrame], Dict[str, Any
     metadata_list = []
     logger.info(f"Extracting metadata from {len(sampled_paths)} images...")
     with ThreadPoolExecutor(max_workers=os.cpu_count()) as executor:
-        future_to_path = {executor.submit(extract_image_metadata, path): path for path in sampled_paths}
-        for future in tqdm(as_completed(future_to_path), total=len(sampled_paths), desc="Extracting metadata"):
+        future_to_path = {
+            executor.submit(extract_image_metadata, path): path
+            for path in sampled_paths
+        }
+        for future in tqdm(
+            as_completed(future_to_path),
+            total=len(sampled_paths),
+            desc="Extracting metadata",
+        ):
             result = future.result()
             if result:
                 metadata_list.append(result)
 
     if not metadata_list:
-         logger.warning("No metadata could be extracted from sampled images.")
-         df = pd.DataFrame()
+        logger.warning("No metadata could be extracted from sampled images.")
+        df = pd.DataFrame()
     else:
         df = pd.DataFrame(metadata_list)
         metadata_csv_path = output_dir / "image_metadata_sample.csv"
@@ -448,7 +521,6 @@ def run_analysis(cfg: DictConfig) -> Tuple[Optional[pd.DataFrame], Dict[str, Any
             logger.info(f"Saved sampled image metadata to {metadata_csv_path}")
         except Exception as e:
             logger.error(f"Failed to save metadata CSV: {e}")
-
 
     # --- Calculate Overall Statistics ---
     dataset_stats = {
@@ -466,7 +538,7 @@ def run_analysis(cfg: DictConfig) -> Tuple[Optional[pd.DataFrame], Dict[str, Any
             "max_height": int(df["height"].max()) if not df.empty else None,
             "median_height": float(df["height"].median()) if not df.empty else None,
         },
-         "aspect_ratio_stats (sample)": {
+        "aspect_ratio_stats (sample)": {
             "min": float(df["aspect_ratio"].min()) if not df.empty else None,
             "max": float(df["aspect_ratio"].max()) if not df.empty else None,
             "median": float(df["aspect_ratio"].median()) if not df.empty else None,
@@ -477,8 +549,16 @@ def run_analysis(cfg: DictConfig) -> Tuple[Optional[pd.DataFrame], Dict[str, Any
             "median_kb": float(df["file_size_kb"].median()) if not df.empty else None,
         },
         "color_info_stats (sample)": {
-            "avg_mean_rgb": [df['mean_r'].mean(), df['mean_g'].mean(), df['mean_b'].mean()] if not df.empty else None,
-            "avg_std_rgb": [df['std_r'].mean(), df['std_g'].mean(), df['std_b'].mean()] if not df.empty else None,
+            "avg_mean_rgb": [
+                df["mean_r"].mean(),
+                df["mean_g"].mean(),
+                df["mean_b"].mean(),
+            ]
+            if not df.empty
+            else None,
+            "avg_std_rgb": [df["std_r"].mean(), df["std_g"].mean(), df["std_b"].mean()]
+            if not df.empty
+            else None,
             "avg_brightness": float(df["brightness"].mean()) if not df.empty else None,
         },
     }
@@ -489,7 +569,16 @@ def run_analysis(cfg: DictConfig) -> Tuple[Optional[pd.DataFrame], Dict[str, Any
     try:
         with open(stats_path, "w") as f:
             # Convert numpy types for JSON
-            sanitized_stats = json.loads(json.dumps(dataset_stats, default=lambda x: int(x) if isinstance(x, np.integer) else float(x) if isinstance(x, np.floating) else str(x)))
+            sanitized_stats = json.loads(
+                json.dumps(
+                    dataset_stats,
+                    default=lambda x: int(x)
+                    if isinstance(x, np.integer)
+                    else float(x)
+                    if isinstance(x, np.floating)
+                    else str(x),
+                )
+            )
             json.dump(sanitized_stats, f, indent=2)
     except Exception as e:
         logger.error(f"Failed to save analysis stats JSON: {e}")
@@ -503,7 +592,11 @@ def run_analysis(cfg: DictConfig) -> Tuple[Optional[pd.DataFrame], Dict[str, Any
         try:
             # Plot Class Distribution
             plt.figure(figsize=(max(12, len(class_counts) * 0.5), 8))
-            sns.barplot(x=list(class_counts.keys()), y=list(class_counts.values()), palette="viridis")
+            sns.barplot(
+                x=list(class_counts.keys()),
+                y=list(class_counts.values()),
+                palette="viridis",
+            )
             plt.xticks(rotation=90, fontsize=10)
             plt.title("Class Distribution")
             plt.ylabel("Number of Images")
@@ -513,7 +606,15 @@ def run_analysis(cfg: DictConfig) -> Tuple[Optional[pd.DataFrame], Dict[str, Any
 
             # Plot Image Dimensions (Width vs Height)
             plt.figure(figsize=(10, 8))
-            sns.scatterplot(data=df, x="width", y="height", hue="class", alpha=0.6, legend=False, s=20)
+            sns.scatterplot(
+                data=df,
+                x="width",
+                y="height",
+                hue="class",
+                alpha=0.6,
+                legend=False,
+                s=20,
+            )
             plt.title("Image Dimensions (Width vs Height) - Sampled")
             plt.xlabel("Width (pixels)")
             plt.ylabel("Height (pixels)")
@@ -551,11 +652,15 @@ def run_analysis(cfg: DictConfig) -> Tuple[Optional[pd.DataFrame], Dict[str, Any
 
 # --- Helper Functions (from visualization script) ---
 
-def extract_features_for_viz(image_path: Path, target_size=(224, 224)) -> Optional[Tuple[List[float], str]]:
+
+def extract_features_for_viz(
+    image_path: Path, target_size=(224, 224)
+) -> Optional[Tuple[List[float], str]]:
     """Extract simple features from an image for visualization (t-SNE, clustering)."""
     try:
         img = cv2.imread(str(image_path))
-        if img is None: return None, None
+        if img is None:
+            return None, None
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         img = cv2.resize(img, target_size)
 
@@ -571,39 +676,58 @@ def extract_features_for_viz(image_path: Path, target_size=(224, 224)) -> Option
         features.extend([np.mean(magnitude), np.std(magnitude)])
         # Simple histogram
         hist = cv2.calcHist([gray], [0], None, [8], [0, 256])
-        features.extend( (hist.flatten() / (hist.sum() + 1e-6)).tolist() ) # Normalize safely
+        features.extend(
+            (hist.flatten() / (hist.sum() + 1e-6)).tolist()
+        )  # Normalize safely
 
         return features, image_path.parent.name
     except Exception as e:
         logger.error(f"Error extracting features for viz from {image_path}: {e}")
         return None, None
 
-def sample_images_for_viz(data_dir: Path, n_per_class: int = 30, max_classes: Optional[int] = None, random_seed: int = 42) -> Tuple[List[Path], List[str]]:
+
+def sample_images_for_viz(
+    data_dir: Path,
+    n_per_class: int = 30,
+    max_classes: Optional[int] = None,
+    random_seed: int = 42,
+) -> Tuple[List[Path], List[str]]:
     """Sample images for visualization tasks like t-SNE."""
     random.seed(random_seed)
     all_image_paths = []
     labels_list = []
-    valid_extensions = ('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff')
+    valid_extensions = (".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tiff")
 
-    class_dirs = [d for d in data_dir.iterdir() if d.is_dir() and not d.name.startswith(".")]
+    class_dirs = [
+        d for d in data_dir.iterdir() if d.is_dir() and not d.name.startswith(".")
+    ]
     class_dirs.sort(key=lambda x: x.name)
 
     if max_classes and len(class_dirs) > max_classes:
-        logger.info(f"Sampling {max_classes} classes out of {len(class_dirs)} for visualization.")
+        logger.info(
+            f"Sampling {max_classes} classes out of {len(class_dirs)} for visualization."
+        )
         class_dirs = random.sample(class_dirs, max_classes)
 
     logger.info(f"Sampling up to {n_per_class} images per class for visualization...")
     for class_dir in class_dirs:
-        image_files = [item for item in class_dir.iterdir() if item.is_file() and item.suffix.lower() in valid_extensions]
+        image_files = [
+            item
+            for item in class_dir.iterdir()
+            if item.is_file() and item.suffix.lower() in valid_extensions
+        ]
         sampled_images = random.sample(image_files, min(n_per_class, len(image_files)))
         all_image_paths.extend(sampled_images)
         labels_list.extend([class_dir.name] * len(sampled_images))
 
-    logger.info(f"Sampled {len(all_image_paths)} images from {len(class_dirs)} classes for visualization.")
+    logger.info(
+        f"Sampled {len(all_image_paths)} images from {len(class_dirs)} classes for visualization."
+    )
     return all_image_paths, labels_list
 
 
 # --- Visualization Core Function ---
+
 
 def run_visualization(cfg: DictConfig):
     """
@@ -620,19 +744,28 @@ def run_visualization(cfg: DictConfig):
     # Sample size for t-SNE/clustering often different from metadata analysis
     # Use a specific config or reuse sample_size
     n_per_class_viz = prep_cfg.get("n_per_class_viz", 30)
-    max_classes_viz = prep_cfg.get("max_classes_viz", None) # Limit classes for viz if needed
+    max_classes_viz = prep_cfg.get(
+        "max_classes_viz", None
+    )  # Limit classes for viz if needed
     random_seed = prep_cfg.random_seed
 
     logger.info(f"Starting dataset visualization generation in: {output_dir}")
-    logger.info(f"Sampling: {n_per_class_viz} images/class, Max classes: {max_classes_viz}, Seed: {random_seed}")
+    logger.info(
+        f"Sampling: {n_per_class_viz} images/class, Max classes: {max_classes_viz}, Seed: {random_seed}"
+    )
 
     # --- Sample Images and Extract Features ---
     sampled_paths, sampled_labels = sample_images_for_viz(
-        data_dir, n_per_class=n_per_class_viz, max_classes=max_classes_viz, random_seed=random_seed
+        data_dir,
+        n_per_class=n_per_class_viz,
+        max_classes=max_classes_viz,
+        random_seed=random_seed,
     )
 
     if not sampled_paths:
-        logger.warning("No images sampled for visualization. Skipping feature extraction and related plots.")
+        logger.warning(
+            "No images sampled for visualization. Skipping feature extraction and related plots."
+        )
         features = None
         labels = None
     else:
@@ -640,17 +773,26 @@ def run_visualization(cfg: DictConfig):
         features_list = []
         labels_list = []
         with ThreadPoolExecutor(max_workers=os.cpu_count()) as executor:
-            future_to_path = {executor.submit(extract_features_for_viz, path): path for path in sampled_paths}
-            for future in tqdm(as_completed(future_to_path), total=len(sampled_paths), desc="Extracting viz features"):
+            future_to_path = {
+                executor.submit(extract_features_for_viz, path): path
+                for path in sampled_paths
+            }
+            for future in tqdm(
+                as_completed(future_to_path),
+                total=len(sampled_paths),
+                desc="Extracting viz features",
+            ):
                 feature_set, class_name = future.result()
                 if feature_set is not None:
                     features_list.append(feature_set)
                     labels_list.append(class_name)
 
         if not features_list:
-             logger.warning("Feature extraction for visualization failed. Skipping related plots.")
-             features = None
-             labels = None
+            logger.warning(
+                "Feature extraction for visualization failed. Skipping related plots."
+            )
+            features = None
+            labels = None
         else:
             features = np.array(features_list)
             labels = np.array(labels_list)
@@ -663,25 +805,31 @@ def run_visualization(cfg: DictConfig):
     # 1. Image Grid
     try:
         logger.info("Generating image grid...")
-        n_grid_classes = min(len(np.unique(sampled_labels)) if labels is not None else 10, 10)
-        create_image_grid_viz(data_dir, output_dir, n_per_class=5, max_classes=n_grid_classes)
+        n_grid_classes = min(
+            len(np.unique(sampled_labels)) if labels is not None else 10, 10
+        )
+        create_image_grid_viz(
+            data_dir, output_dir, n_per_class=5, max_classes=n_grid_classes
+        )
     except Exception as e:
         logger.error(f"Failed to create image grid: {e}", exc_info=True)
 
     # 2. t-SNE Plot (if features extracted)
     if features is not None and labels is not None:
         try:
-             logger.info("Generating t-SNE plot...")
-             create_tsne_viz(features, labels, output_dir, random_seed)
+            logger.info("Generating t-SNE plot...")
+            create_tsne_viz(features, labels, output_dir, random_seed)
         except Exception as e:
-             logger.error(f"Failed to create t-SNE plot: {e}", exc_info=True)
+            logger.error(f"Failed to create t-SNE plot: {e}", exc_info=True)
 
         # 3. Hierarchical Clustering (if features extracted)
         try:
             logger.info("Generating hierarchical clustering plot...")
             create_hierarchical_clustering_viz(features, labels, output_dir)
         except Exception as e:
-            logger.error(f"Failed to create hierarchical clustering plot: {e}", exc_info=True)
+            logger.error(
+                f"Failed to create hierarchical clustering plot: {e}", exc_info=True
+            )
 
         # 4. Similarity Matrix (if features extracted)
         try:
@@ -694,7 +842,9 @@ def run_visualization(cfg: DictConfig):
     try:
         logger.info("Generating augmentation visualization...")
         # Need the augmentation config part from main cfg
-        create_augmentation_viz(cfg, data_dir, output_dir, num_samples=3, random_seed=random_seed)
+        create_augmentation_viz(
+            cfg, data_dir, output_dir, num_samples=3, random_seed=random_seed
+        )
     except Exception as e:
         logger.error(f"Failed to create augmentation visualization: {e}", exc_info=True)
 
@@ -703,18 +853,29 @@ def run_visualization(cfg: DictConfig):
 
 # --- Visualization Plotting Functions (Internal Helpers for run_visualization) ---
 
-def create_image_grid_viz(data_dir: Path, output_dir: Path, n_per_class: int = 5, max_classes: int = 10):
+
+def create_image_grid_viz(
+    data_dir: Path, output_dir: Path, n_per_class: int = 5, max_classes: int = 10
+):
     """Internal helper to create image grid plot."""
-    class_dirs = [d for d in data_dir.iterdir() if d.is_dir() and not d.name.startswith(".")]
+    class_dirs = [
+        d for d in data_dir.iterdir() if d.is_dir() and not d.name.startswith(".")
+    ]
     class_dirs.sort(key=lambda x: x.name)
-    if len(class_dirs) > max_classes: class_dirs = random.sample(class_dirs, max_classes)
-    if not class_dirs: return
+    if len(class_dirs) > max_classes:
+        class_dirs = random.sample(class_dirs, max_classes)
+    if not class_dirs:
+        return
 
     fig = plt.figure(figsize=(n_per_class * 2.5, len(class_dirs) * 2.5))
-    valid_extensions = ('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff')
+    valid_extensions = (".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tiff")
 
     for i, class_dir in enumerate(class_dirs):
-        image_files = [item for item in class_dir.iterdir() if item.is_file() and item.suffix.lower() in valid_extensions]
+        image_files = [
+            item
+            for item in class_dir.iterdir()
+            if item.is_file() and item.suffix.lower() in valid_extensions
+        ]
         selected_images = random.sample(image_files, min(n_per_class, len(image_files)))
 
         for j, img_path in enumerate(selected_images):
@@ -723,12 +884,27 @@ def create_image_grid_viz(data_dir: Path, output_dir: Path, n_per_class: int = 5
                 img = Image.open(img_path)
                 ax.imshow(np.array(img))
             except Exception as e:
-                 logger.warning(f"Could not load image {img_path} for grid: {e}")
-                 ax.text(0.5, 0.5, 'Error', horizontalalignment='center', verticalalignment='center')
+                logger.warning(f"Could not load image {img_path} for grid: {e}")
+                ax.text(
+                    0.5,
+                    0.5,
+                    "Error",
+                    horizontalalignment="center",
+                    verticalalignment="center",
+                )
             ax.axis("off")
             if j == 0:
-                 simple_class = class_dir.name.replace("___", " - ").replace("_", " ")[:25]
-                 ax.set_ylabel(simple_class, fontsize=10, rotation=0, labelpad=40, va='center', ha='right')
+                simple_class = class_dir.name.replace("___", " - ").replace("_", " ")[
+                    :25
+                ]
+                ax.set_ylabel(
+                    simple_class,
+                    fontsize=10,
+                    rotation=0,
+                    labelpad=40,
+                    va="center",
+                    ha="right",
+                )
 
     plt.suptitle("Sample Images by Class", fontsize=16, y=0.99)
     plt.tight_layout(rect=[0, 0, 1, 0.97])
@@ -736,7 +912,10 @@ def create_image_grid_viz(data_dir: Path, output_dir: Path, n_per_class: int = 5
     plt.savefig(output_dir / "viz_image_grid.png", dpi=150, bbox_inches="tight")
     plt.close(fig)
 
-def create_tsne_viz(features: np.ndarray, labels: np.ndarray, output_dir: Path, random_seed: int):
+
+def create_tsne_viz(
+    features: np.ndarray, labels: np.ndarray, output_dir: Path, random_seed: int
+):
     """Internal helper to create t-SNE plot."""
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(features)
@@ -748,15 +927,19 @@ def create_tsne_viz(features: np.ndarray, labels: np.ndarray, output_dir: Path, 
         pca = PCA(n_components=n_pca, random_state=random_seed)
         X_pca = pca.fit_transform(X_scaled)
     else:
-        X_pca = X_scaled # Skip PCA if too few samples/features
+        X_pca = X_scaled  # Skip PCA if too few samples/features
 
     logger.info("Running t-SNE...")
     perplexity_val = min(30, X_pca.shape[0] - 1)
     if perplexity_val <= 1:
-        logger.warning(f"Perplexity ({perplexity_val}) too low for t-SNE, skipping plot.")
+        logger.warning(
+            f"Perplexity ({perplexity_val}) too low for t-SNE, skipping plot."
+        )
         return
 
-    tsne = TSNE(n_components=2, random_state=random_seed, perplexity=perplexity_val, n_iter=300)
+    tsne = TSNE(
+        n_components=2, random_state=random_seed, perplexity=perplexity_val, n_iter=300
+    )
     X_tsne = tsne.fit_transform(X_pca)
 
     df_tsne = pd.DataFrame({"x": X_tsne[:, 0], "y": X_tsne[:, 1], "class": labels})
@@ -768,24 +951,37 @@ def create_tsne_viz(features: np.ndarray, labels: np.ndarray, output_dir: Path, 
 
     for class_name, group in df_tsne.groupby("class"):
         simple_name = class_name.replace("___", "-").replace("_", " ")[:30]
-        plt.scatter(group["x"], group["y"], label=simple_name, color=class_to_color[class_name], alpha=0.7, s=50)
+        plt.scatter(
+            group["x"],
+            group["y"],
+            label=simple_name,
+            color=class_to_color[class_name],
+            alpha=0.7,
+            s=50,
+        )
 
     plt.legend(bbox_to_anchor=(1.02, 1), loc="upper left", fontsize=8)
     plt.title("t-SNE Visualization of Image Features (Sampled)", fontsize=16)
     plt.xlabel("t-SNE Feature 1")
     plt.ylabel("t-SNE Feature 2")
     plt.grid(True, alpha=0.3)
-    plt.tight_layout(rect=[0, 0, 0.85, 1]) # Adjust for legend
+    plt.tight_layout(rect=[0, 0, 0.85, 1])  # Adjust for legend
     plt.savefig(output_dir / "viz_tsne.png", dpi=150, bbox_inches="tight")
     plt.close()
 
-def create_hierarchical_clustering_viz(features: np.ndarray, labels: np.ndarray, output_dir: Path):
+
+def create_hierarchical_clustering_viz(
+    features: np.ndarray, labels: np.ndarray, output_dir: Path
+):
     """Internal helper to create hierarchical clustering plot."""
     class_features = {}
     for i, label in enumerate(labels):
         class_features.setdefault(label, []).append(features[i])
-    class_mean_features = {cls: np.mean(feats, axis=0) for cls, feats in class_features.items() if feats}
-    if not class_mean_features: return
+    class_mean_features = {
+        cls: np.mean(feats, axis=0) for cls, feats in class_features.items() if feats
+    }
+    if not class_mean_features:
+        return
 
     class_names = list(class_mean_features.keys())
     feature_matrix = np.array([class_mean_features[cls] for cls in class_names])
@@ -797,72 +993,130 @@ def create_hierarchical_clustering_viz(features: np.ndarray, labels: np.ndarray,
         return
 
     plt.figure(figsize=(12, max(8, len(class_names) * 0.3)))
-    simple_class_names = [name.replace("___", "-").replace("_", " ")[:40] for name in class_names]
-    dendrogram(linked, orientation="right", labels=simple_class_names, leaf_font_size=10)
+    simple_class_names = [
+        name.replace("___", "-").replace("_", " ")[:40] for name in class_names
+    ]
+    dendrogram(
+        linked, orientation="right", labels=simple_class_names, leaf_font_size=10
+    )
     plt.title("Hierarchical Clustering of Class Mean Features", fontsize=16)
     plt.xlabel("Distance")
-    plt.grid(True, axis='x', alpha=0.3)
+    plt.grid(True, axis="x", alpha=0.3)
     plt.tight_layout()
-    plt.savefig(output_dir / "viz_hierarchical_clustering.png", dpi=150, bbox_inches="tight")
+    plt.savefig(
+        output_dir / "viz_hierarchical_clustering.png", dpi=150, bbox_inches="tight"
+    )
     plt.close()
 
-def create_similarity_matrix_viz(features: np.ndarray, labels: np.ndarray, output_dir: Path):
+
+def create_similarity_matrix_viz(
+    features: np.ndarray, labels: np.ndarray, output_dir: Path
+):
     """Internal helper to create similarity matrix plot."""
     class_features = {}
     for i, label in enumerate(labels):
         class_features.setdefault(label, []).append(features[i])
-    class_mean_features = {cls: np.mean(feats, axis=0) for cls, feats in class_features.items() if feats}
-    if not class_mean_features: return
+    class_mean_features = {
+        cls: np.mean(feats, axis=0) for cls, feats in class_features.items() if feats
+    }
+    if not class_mean_features:
+        return
 
     class_names = list(class_mean_features.keys())
     feature_matrix = np.array([class_mean_features[cls] for cls in class_names])
 
     similarity_matrix = cosine_similarity(feature_matrix)
-    simple_class_names = [name.replace("___", "-").replace("_", " ")[:30] for name in class_names]
-    df_similarity = pd.DataFrame(similarity_matrix, index=simple_class_names, columns=simple_class_names)
+    simple_class_names = [
+        name.replace("___", "-").replace("_", " ")[:30] for name in class_names
+    ]
+    df_similarity = pd.DataFrame(
+        similarity_matrix, index=simple_class_names, columns=simple_class_names
+    )
 
-    plt.figure(figsize=(max(12, len(class_names)*0.5), max(10, len(class_names)*0.5)))
-    sns.heatmap(df_similarity, cmap="viridis", annot=False, fmt=".2f", linewidths=.5, square=True)
-    plt.title("Class Similarity Matrix (Cosine Similarity of Mean Features)", fontsize=14)
+    plt.figure(
+        figsize=(max(12, len(class_names) * 0.5), max(10, len(class_names) * 0.5))
+    )
+    sns.heatmap(
+        df_similarity,
+        cmap="viridis",
+        annot=False,
+        fmt=".2f",
+        linewidths=0.5,
+        square=True,
+    )
+    plt.title(
+        "Class Similarity Matrix (Cosine Similarity of Mean Features)", fontsize=14
+    )
     plt.xticks(rotation=90, fontsize=8)
     plt.yticks(fontsize=8)
     plt.tight_layout()
     plt.savefig(output_dir / "viz_similarity_matrix.png", dpi=150, bbox_inches="tight")
     plt.close()
 
-def create_augmentation_viz(cfg: DictConfig, data_dir: Path, output_dir: Path, num_samples: int = 3, random_seed: int = 42):
+
+def create_augmentation_viz(
+    cfg: DictConfig,
+    data_dir: Path,
+    output_dir: Path,
+    num_samples: int = 3,
+    random_seed: int = 42,
+):
     """Internal helper to visualize augmentations."""
     random.seed(random_seed)
     # Use get_transforms to get the configured training augmentations
     try:
         # Pass only relevant parts of config if needed, or full cfg if get_transforms handles it
-        train_transforms = get_transforms(cfg, split='train')
+        train_transforms = get_transforms(cfg, split="train")
         # Extract individual transforms for display (this might be tricky depending on Compose structure)
         # Or define a fixed set of augmentations to showcase here:
         showcase_augmentations = {
-            "Original": A.Compose([A.Resize(256, 256)]), # Just resize
+            "Original": A.Compose([A.Resize(256, 256)]),  # Just resize
             "HorizontalFlip": A.Compose([A.Resize(256, 256), A.HorizontalFlip(p=1.0)]),
             "Rotate": A.Compose([A.Resize(256, 256), A.Rotate(limit=45, p=1.0)]),
-            "BrightnessContrast": A.Compose([A.Resize(256, 256), A.RandomBrightnessContrast(p=1.0)]),
-            "ShiftScaleRotate": A.Compose([A.Resize(256, 256), A.ShiftScaleRotate(p=1.0)]),
-            "CoarseDropout": A.Compose([A.Resize(256, 256), A.CoarseDropout(max_holes=8, max_height=32, max_width=32, p=1.0)])
+            "BrightnessContrast": A.Compose(
+                [A.Resize(256, 256), A.RandomBrightnessContrast(p=1.0)]
+            ),
+            "ShiftScaleRotate": A.Compose(
+                [A.Resize(256, 256), A.ShiftScaleRotate(p=1.0)]
+            ),
+            "CoarseDropout": A.Compose(
+                [
+                    A.Resize(256, 256),
+                    A.CoarseDropout(max_holes=8, max_height=32, max_width=32, p=1.0),
+                ]
+            ),
         }
         num_augments = len(showcase_augmentations)
     except Exception as e:
-        logger.error(f"Could not get/define transforms for augmentation viz: {e}. Skipping.")
+        logger.error(
+            f"Could not get/define transforms for augmentation viz: {e}. Skipping."
+        )
         return
 
-    class_dirs = [d for d in data_dir.iterdir() if d.is_dir() and not d.name.startswith(".")]
-    if not class_dirs: return
+    class_dirs = [
+        d for d in data_dir.iterdir() if d.is_dir() and not d.name.startswith(".")
+    ]
+    if not class_dirs:
+        return
     selected_classes = random.sample(class_dirs, min(num_samples, len(class_dirs)))
-    valid_extensions = ('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff')
+    valid_extensions = (".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tiff")
 
-    fig, axes = plt.subplots(len(selected_classes), num_augments, figsize=(num_augments * 2.5, len(selected_classes) * 2.5))
-    if len(selected_classes) == 1: axes = np.expand_dims(axes, axis=0) # Handle single sample case
+    fig, axes = plt.subplots(
+        len(selected_classes),
+        num_augments,
+        figsize=(num_augments * 2.5, len(selected_classes) * 2.5),
+    )
+    if len(selected_classes) == 1:
+        axes = np.expand_dims(axes, axis=0)  # Handle single sample case
 
     for i, class_dir in enumerate(selected_classes):
-        image_files = [item for item in class_dir.iterdir() if item.is_file() and item.suffix.lower() in valid_extensions]
-        if not image_files: continue
+        image_files = [
+            item
+            for item in class_dir.iterdir()
+            if item.is_file() and item.suffix.lower() in valid_extensions
+        ]
+        if not image_files:
+            continue
         img_path = random.choice(image_files)
 
         try:
@@ -879,11 +1133,20 @@ def create_augmentation_viz(cfg: DictConfig, data_dir: Path, output_dir: Path, n
                 ax.imshow(augmented)
             except Exception as e:
                 logger.warning(f"Error applying {aug_name} to {img_path}: {e}")
-                ax.imshow(image) # Show original on error
-                ax.set_title(f"{aug_name}\n(Error)", fontsize=8, color='red')
+                ax.imshow(image)  # Show original on error
+                ax.set_title(f"{aug_name}\n(Error)", fontsize=8, color="red")
             ax.axis("off")
-            if i == 0: ax.set_title(aug_name, fontsize=10)
-            if j == 0: ax.set_ylabel(class_dir.name[:20], fontsize=10, rotation=0, labelpad=40, va='center', ha='right')
+            if i == 0:
+                ax.set_title(aug_name, fontsize=10)
+            if j == 0:
+                ax.set_ylabel(
+                    class_dir.name[:20],
+                    fontsize=10,
+                    rotation=0,
+                    labelpad=40,
+                    va="center",
+                    ha="right",
+                )
 
     plt.suptitle("Sample Data Augmentations", fontsize=16, y=0.99)
     plt.tight_layout(rect=[0, 0, 1, 0.96])
@@ -893,6 +1156,7 @@ def create_augmentation_viz(cfg: DictConfig, data_dir: Path, output_dir: Path, n
 
 
 # --- Main Orchestration Function ---
+
 
 def run_prepare_data(cfg: DictConfig):
     """
@@ -921,53 +1185,204 @@ def run_prepare_data(cfg: DictConfig):
         logger.info("--- Running Step 2: Dataset Analysis ---")
         analysis_results_df, analysis_stats = run_analysis(cfg)
     else:
-        logger.info("--- Skipping Step 2: Dataset Analysis (run_analysis_after_validation=False) ---")
+        logger.info(
+            "--- Skipping Step 2: Dataset Analysis (run_analysis_after_validation=False) ---"
+        )
 
     # --- Step 3: Visualization (Conditional) ---
     if prep_cfg.run_visualization_after_analysis:
         if analysis_stats.get("error"):
-             logger.warning("Skipping visualization because analysis failed.")
+            logger.warning("Skipping visualization because analysis failed.")
         else:
             logger.info("--- Running Step 3: Dataset Visualization ---")
-            run_visualization(cfg) # Pass df/stats if needed by viz funcs
+            run_visualization(cfg)  # Pass df/stats if needed by viz funcs
     else:
-        logger.info("--- Skipping Step 3: Dataset Visualization (run_visualization_after_analysis=False) ---")
+        logger.info(
+            "--- Skipping Step 3: Dataset Visualization (run_visualization_after_analysis=False) ---"
+        )
 
     # --- Step 4: Combined Report (Optional) ---
     if prep_cfg.generate_combined_report:
-        logger.info("--- Running Step 4: Generating Combined Report (Placeholder) ---")
-        # TODO: Implement combined report generation
-        # - Could involve merging the validation JSON, analysis JSON/Markdown,
-        #   and adding links/references to the visualization PNGs.
-        # - Example: Create a main README.md in main_output_dir summarizing all findings.
+        logger.info("--- Running Step 4: Generating Combined Report ---")
+        # Implementation for combined report generation
         combined_report_path = main_output_dir / "DATA_PREPARATION_REPORT.md"
         try:
             with open(combined_report_path, "w") as f:
                 f.write("# Data Preparation Pipeline Report\n\n")
                 f.write(f"Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
                 f.write(f"Data Source: {cfg.paths.raw_dir}\n\n")
-                f.write("## Summary\n\n")
-                if validation_results.get("error"): f.write("- Validation: FAILED\n")
-                else: f.write("- Validation: COMPLETED\n")
-                if prep_cfg.run_analysis_after_validation:
-                    if analysis_stats.get("error"): f.write("- Analysis: FAILED\n")
-                    else: f.write("- Analysis: COMPLETED\n")
-                if prep_cfg.run_visualization_after_analysis and not analysis_stats.get("error"):
-                     f.write("- Visualization: COMPLETED\n")
 
+                # Summary section
+                f.write("## Summary\n\n")
+                if validation_results.get("error"):
+                    f.write("- Validation: FAILED\n")
+                    f.write(f"  - Error: {validation_results.get('error')}\n")
+                else:
+                    f.write("- Validation: COMPLETED\n")
+                    f.write(
+                        f"  - Valid images: {validation_results.get('valid_count', 'N/A')}\n"
+                    )
+                    f.write(
+                        f"  - Invalid images: {validation_results.get('invalid_count', 'N/A')}\n"
+                    )
+
+                if prep_cfg.run_analysis_after_validation:
+                    if analysis_stats.get("error"):
+                        f.write("- Analysis: FAILED\n")
+                        f.write(f"  - Error: {analysis_stats.get('error')}\n")
+                    else:
+                        f.write("- Analysis: COMPLETED\n")
+                        f.write(
+                            f"  - Total classes: {len(analysis_stats.get('class_distribution', {}))}\n"
+                        )
+                        f.write(
+                            f"  - Total samples: {analysis_stats.get('total_images', 'N/A')}\n"
+                        )
+                        f.write(
+                            f"  - Class balance: {analysis_stats.get('class_balance_status', 'N/A')}\n"
+                        )
+
+                if prep_cfg.run_visualization_after_analysis and not analysis_stats.get(
+                    "error"
+                ):
+                    f.write("- Visualization: COMPLETED\n")
+                    f.write(
+                        "  - Generated class distribution plots, sample images, and data characteristics\n"
+                    )
+
+                # Details section
                 f.write("\n## Details\n\n")
-                f.write("- **Validation Report:** See `validation/validation_report.json`\n")
-                if prep_cfg.run_analysis_after_validation and not analysis_stats.get("error"):
-                     f.write("- **Analysis Stats:** See `analysis/dataset_analysis_stats.json`\n")
-                     f.write("- **Analysis Summary:** See `analysis/analysis_summary_report.md`\n")
-                     if prep_cfg.create_plots: f.write("- **Analysis Plots:** See `analysis/plots/`\n")
-                if prep_cfg.run_visualization_after_analysis and not analysis_stats.get("error"):
-                     f.write("- **Visualizations:** See `visualizations/`\n")
-            logger.info(f"Generated combined report stub: {combined_report_path}")
+
+                # Validation details
+                f.write("### Validation Results\n\n")
+                f.write("- **Report Location:** `validation/validation_report.json`\n")
+                if not validation_results.get("error"):
+                    f.write("- **Validation Status:** PASSED\n")
+                    f.write(
+                        f"- **Valid images:** {validation_results.get('valid_count', 'N/A')}\n"
+                    )
+                    f.write(
+                        f"- **Invalid images:** {validation_results.get('invalid_count', 'N/A')}\n"
+                    )
+                    if validation_results.get("invalid_files"):
+                        f.write("- **Example Invalid Files:**\n")
+                        for file in list(validation_results.get("invalid_files", []))[
+                            :5
+                        ]:
+                            f.write(f"  - {file}\n")
+                        if len(validation_results.get("invalid_files", [])) > 5:
+                            f.write(
+                                f"  - ... and {len(validation_results.get('invalid_files', [])) - 5} more\n"
+                            )
+
+                # Analysis details
+                if prep_cfg.run_analysis_after_validation and not analysis_stats.get(
+                    "error"
+                ):
+                    f.write("\n### Analysis Results\n\n")
+                    f.write(
+                        "- **Stats Report:** `analysis/dataset_analysis_stats.json`\n"
+                    )
+                    f.write(
+                        "- **Summary Report:** `analysis/analysis_summary_report.md`\n"
+                    )
+
+                    if analysis_stats.get("class_distribution"):
+                        f.write("\n**Class Distribution:**\n\n")
+                        f.write("| Class | Count | Percentage |\n")
+                        f.write("|-------|-------|------------|\n")
+
+                        total = analysis_stats.get("total_images", 0)
+                        for cls, count in list(
+                            analysis_stats.get("class_distribution", {}).items()
+                        )[:10]:
+                            percentage = (count / total * 100) if total > 0 else 0
+                            f.write(f"| {cls} | {count} | {percentage:.2f}% |\n")
+
+                        if len(analysis_stats.get("class_distribution", {})) > 10:
+                            f.write(f"| ... | ... | ... |\n")
+
+                    if prep_cfg.create_plots:
+                        f.write("\n**Generated Plots:**\n\n")
+                        f.write(
+                            "- Class Distribution: `analysis/plots/class_distribution.png`\n"
+                        )
+                        f.write(
+                            "- Image Size Distribution: `analysis/plots/image_size_distribution.png`\n"
+                        )
+                        f.write(
+                            "- Color Distribution: `analysis/plots/color_distribution.png`\n"
+                        )
+
+                # Visualization details
+                if prep_cfg.run_visualization_after_analysis and not analysis_stats.get(
+                    "error"
+                ):
+                    f.write("\n### Visualization Results\n\n")
+                    f.write("- **Visualization Directory:** `visualizations/`\n")
+                    f.write("- **Contents:**\n")
+                    f.write("  - Class samples: `visualizations/class_samples/`\n")
+                    f.write("  - Grid visualization: `visualizations/class_grid.png`\n")
+                    f.write(
+                        "  - Data characteristics: `visualizations/data_characteristics.png`\n"
+                    )
+
+                # Recommendations
+                f.write("\n## Recommendations\n\n")
+
+                # Check class balance
+                if analysis_stats.get("class_balance_status") == "IMBALANCED":
+                    f.write(
+                        "- **Class Imbalance:** The dataset has significant class imbalance.\n"
+                    )
+                    f.write("  - Consider data augmentation for minority classes\n")
+                    f.write(
+                        "  - Consider using weighted loss functions during training\n"
+                    )
+                    f.write(
+                        "  - Consider resampling techniques (undersampling majority classes or oversampling minority classes)\n"
+                    )
+
+                # Check image quality issues
+                if validation_results.get("invalid_count", 0) > 0:
+                    f.write(
+                        "- **Data Quality:** There are invalid images in the dataset.\n"
+                    )
+                    f.write("  - Review and fix corrupt images\n")
+                    f.write(
+                        "  - Consider implementing more robust data loading with error handling\n"
+                    )
+
+                # Check if any class has too few samples
+                min_samples_per_class = 50  # Threshold for minimum samples
+                if analysis_stats.get("class_distribution"):
+                    small_classes = [
+                        cls
+                        for cls, count in analysis_stats.get(
+                            "class_distribution", {}
+                        ).items()
+                        if count < min_samples_per_class
+                    ]
+                    if small_classes:
+                        f.write(
+                            f"- **Small Classes:** {len(small_classes)} classes have fewer than {min_samples_per_class} samples.\n"
+                        )
+                        f.write("  - Consider collecting more data for these classes\n")
+                        f.write(
+                            "  - Consider using transfer learning or few-shot learning techniques\n"
+                        )
+
+                f.write(
+                    "\n*This report was automatically generated by the data preparation pipeline.*\n"
+                )
+
+            logger.info(
+                f"Generated comprehensive combined report: {combined_report_path}"
+            )
         except Exception as e:
             logger.error(f"Failed to generate combined report: {e}")
 
-
     elapsed_time = time.time() - start_time
-    logger.info(f"===== Data Preparation Pipeline Finished in {elapsed_time:.2f} seconds =====")
-
+    logger.info(
+        f"===== Data Preparation Pipeline Finished in {elapsed_time:.2f} seconds ====="
+    )

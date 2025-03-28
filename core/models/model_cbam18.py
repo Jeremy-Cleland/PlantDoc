@@ -6,11 +6,12 @@ CBAM-Only ResNet18 model for plant disease classification.
 
 import torch
 import torch.nn as nn
-from models.backbones.cbam_resnet18 import CBAMResNet18Backbone
-from models.heads.residual import ResidualHead
-from plantdoc.utils.logging import get_logger
 
-from .base import BaseMode
+from core.models.backbones.cbam_resnet18 import CBAMResNet18Backbone
+from core.models.heads.residual import ResidualHead
+from utils.logger import get_logger
+
+from .base import BaseModel
 from .registry import register_model
 
 logger = get_logger(__name__)

@@ -7,7 +7,8 @@ import random
 
 import numpy as np
 import torch
-from plantdoc.utils.logging import get_logger
+
+from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -15,10 +16,10 @@ logger = get_logger(__name__)
 def set_seed(seed: int, deterministic: bool = False) -> None:
     """
     Set seeds for reproducibility.
-    
+
     This sets seeds for random, numpy, torch, and other libraries
     to ensure reproducible results.
-    
+
     Args:
         seed: Seed number
         deterministic: Whether to set deterministic algorithms in torch
@@ -26,17 +27,17 @@ def set_seed(seed: int, deterministic: bool = False) -> None:
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
-    
+
     # Set CUDA seeds if available
     if torch.cuda.is_available():
         torch.cuda.manual_seed(seed)
         torch.cuda.manual_seed_all(seed)
-    
+
     # Set deterministic behavior (note: this may impact performance)
     if deterministic:
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
-        
+
         # Set deterministic algorithms for ops with non-deterministic implementations
         os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
         torch.use_deterministic_algorithms(True, warn_only=True)

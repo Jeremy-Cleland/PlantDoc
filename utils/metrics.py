@@ -15,7 +15,6 @@ import pandas as pd
 import seaborn as sns
 import torch
 import torch.nn as nn
-from plantdoc.utils.logging import get_logger
 from sklearn.metrics import (
     accuracy_score,
     classification_report,
@@ -25,6 +24,8 @@ from sklearn.metrics import (
     precision_score,
     recall_score,
 )
+
+from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
