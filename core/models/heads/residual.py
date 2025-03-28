@@ -5,7 +5,8 @@ Residual head implementation for plant disease classification.
 
 import torch
 import torch.nn as nn
-from plantdoc.utils.logging import get_logger
+
+from utils.logger import get_logger
 
 logger = get_logger(__name__)
 

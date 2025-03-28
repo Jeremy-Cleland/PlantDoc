@@ -1,5 +1,5 @@
 """
-Training callbacks for
+Training callbacks for plant disease classification.
 
 Provides basic callbacks for early stopping, model checkpointing,
 learning rate scheduling, and metrics logging.

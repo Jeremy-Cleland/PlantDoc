@@ -6,8 +6,9 @@ CBAM-Only ResNet18 backbone for plant disease classification.
 import torch
 import torch.nn as nn
 import torchvision.models as models
-from plantdoc.core.models.backbones.blocks import BasicBlock, make_layer
-from plantdoc.utils.logging import get_logger
+
+from core.models.backbones.blocks import BasicBlock, make_layer
+from utils.logger import get_logger
 
 logger = get_logger(__name__)
 

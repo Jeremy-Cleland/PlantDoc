@@ -2,6 +2,7 @@
 Command-line interface for the CBAM Classification project.
 """
 
+import datetime
 import os
 import sys
 from pathlib import Path
@@ -29,37 +30,63 @@ def train(
         "configs/config.yaml", "--config", "-c", help="Path to configuration file"
     ),
     experiment_name: str = typer.Option(
-        None, "--experiment", "-e", help="Experiment name (overrides config value)"
+        None, "--experiment", "-e", help="Experiment name"
     ),
-    model_name: str = typer.Option(
-        None, "--model", "-m", help="Model name (overrides config value)"
-    ),
-    epochs: Optional[int] = typer.Option(
-        None, "--epochs", help="Number of epochs (overrides config value)"
-    ),
+    model_name: str = typer.Option(None, "--model", "-m", help="Model name"),
+    epochs: Optional[int] = typer.Option(None, "--epochs", help="Number of epochs"),
 ):
-    """
-    Run the training pipeline.
-
-    This command trains a model using the specified configuration.
-    """
-    # Load configuration using Hydra
+    """Run the training pipeline."""
+    # Load the config with Hydra, but set up paths manually
     with hydra.initialize_config_module(config_module="configs"):
         cfg = hydra.compose(config_name="config")
 
-    # Override config values if provided via command line
+    # Project root is always the current directory
+    project_root = Path.cwd()
+
+    # Override experiment name if provided
     if experiment_name:
         cfg.paths.experiment_name = experiment_name
 
+    # Override model name if provided
     if model_name:
         cfg.model.name = model_name
 
+    # Override epochs if provided
     if epochs:
         cfg.training.epochs = epochs
 
-    # Configure logging
+    # Set up all paths programmatically (no interpolation)
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    # Make paths absolute
+    cfg.paths.output_dir = str(project_root / cfg.paths.output_dir)
+    cfg.paths.raw_dir = str(project_root / cfg.paths.raw_dir)
+    cfg.paths.preprocessed_dir = str(project_root / cfg.paths.preprocessed_dir)
+
+    # Set up derived paths
+    cfg.paths.experiment_dir = f"{cfg.paths.output_dir}/{cfg.paths.experiment_name}"
+    cfg.paths.logs_dir = f"{cfg.paths.experiment_dir}/logs"
+    cfg.paths.checkpoints_dir = f"{cfg.paths.experiment_dir}/checkpoints"
+    cfg.paths.reports_dir = f"{cfg.paths.experiment_dir}/reports"
+    cfg.paths.plots_dir = f"{cfg.paths.reports_dir}/plots"
+
+    # Ensure all directories exist
+    for path_name in [
+        "output_dir",
+        "experiment_dir",
+        "logs_dir",
+        "checkpoints_dir",
+        "reports_dir",
+        "plots_dir",
+    ]:
+        os.makedirs(getattr(cfg.paths, path_name), exist_ok=True)
+
+    # Rest of your training code...
     logger = configure_logging(cfg)
     logger.info(f"Starting training with model: {cfg.model.name}")
+
+    logger.info(f"Project root: {cfg.project_root}")
+    logger.info(f"Experiment directory: {cfg.paths.experiment_dir}")
 
     # Set seed for reproducibility
     set_manual_seed(cfg.data.random_seed, deterministic=cfg.training.deterministic)
@@ -98,81 +125,6 @@ def train(
         generate_report(cfg.paths.experiment_dir)
 
     return results
-
-
-# @app.command()
-# def eval(
-#     config_path: str = typer.Option(
-#         "configs/config.yaml", "--config", "-c", help="Path to configuration file"
-#     ),
-#     checkpoint_path: str = typer.Option(
-#         None, "--checkpoint", "-ckpt", help="Path to model checkpoint"
-#     ),
-#     split: str = typer.Option(
-#         "test", "--split", "-s", help="Dataset split to evaluate on (test, val, train)"
-#     ),
-# ):
-#     """
-#     Run the evaluation pipeline.
-
-#     This command evaluates a trained model on a specific dataset split.
-#     """
-#     # Load configuration using Hydra
-#     with hydra.initialize_config_module(config_module="configs"):
-#         cfg = hydra.compose(config_name="config")
-
-#     # Configure logging
-#     logger = configure_logging(cfg)
-#     logger.info(f"Starting evaluation on {split} split")
-
-#     # Resolve the checkpoint path
-#     if checkpoint_path is None:
-#         checkpoint_path = Path(cfg.paths.checkpoint_dir) / "best_model.pth"
-#     checkpoint_path = Path(checkpoint_path)
-
-#     if not checkpoint_path.exists():
-#         logger.error(f"Checkpoint file not found: {checkpoint_path}")
-#         raise FileNotFoundError(f"Checkpoint file not found: {checkpoint_path}")
-
-#     # Set seed for reproducibility
-#     set_seed(cfg.data.random_seed, deterministic=True)
-
-#     # Import here to avoid circular imports
-#     # from core.evaluation.evaluate import evaluate_model
-
-#     # Create data module
-#     data_module = PlantDiseaseDataModule(cfg)
-#     data_module.prepare_data()
-#     data_module.setup(stage="test")
-
-#     # Get the appropriate dataloader
-#     if split == "test":
-#         dataloader = data_module.test_dataloader()
-#     elif split == "val":
-#         dataloader = data_module.val_dataloader()
-#     elif split == "train":
-#         dataloader = data_module.train_dataloader()
-#     else:
-#         logger.error(
-#             f"Invalid split: {split}. Must be one of 'test', 'val', or 'train'."
-#         )
-#         raise ValueError(f"Invalid split: {split}")
-
-#     # Get model class and initialize model
-#     model_class = get_model_class(cfg.model.name)
-#     model = model_class(**cfg.model)
-
-#     # Evaluate the model
-#     metrics = evaluate_model(
-#         model=model,
-#         dataloader=dataloader,
-#         checkpoint_path=checkpoint_path,
-#         cfg=cfg,
-#     )
-
-#     logger.info(f"Evaluation completed. Accuracy: {metrics['accuracy']:.4f}")
-
-#     return metrics
 
 
 @app.command()

@@ -11,7 +11,8 @@ the representation power of CNNs. Based on the paper:
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from plantdoc.utils.logging import get_logger
+
+from utils.logger import get_logger
 
 logger = get_logger(__name__)
 

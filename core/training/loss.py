@@ -9,7 +9,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from plantdoc.utils.logging import get_logger
+from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -23,19 +23,22 @@ class WeightedCrossEntropyLoss(nn.Module):
         reduction: 'mean', 'sum' or 'none'.
         label_smoothing: Float in [0, 1]. Label smoothing coefficient.
     """
+
     def __init__(
-        self, 
-        weight: Optional[torch.Tensor] = None, 
-        reduction: str = 'mean', 
-        label_smoothing: float = 0.0
+        self,
+        weight: Optional[torch.Tensor] = None,
+        reduction: str = "mean",
+        label_smoothing: float = 0.0,
     ):
         super(WeightedCrossEntropyLoss, self).__init__()
         self.weight = weight
         self.reduction = reduction
         self.label_smoothing = label_smoothing
-        
+
         if weight is not None and not isinstance(weight, torch.Tensor):
-            logger.warning("WeightedCrossEntropyLoss 'weight' should be a torch.Tensor. Converting list/tuple.")
+            logger.warning(
+                "WeightedCrossEntropyLoss 'weight' should be a torch.Tensor. Converting list/tuple."
+            )
             self.weight = torch.tensor(weight, dtype=torch.float)
 
     def forward(self, inputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
@@ -55,7 +58,9 @@ class WeightedCrossEntropyLoss(nn.Module):
 
         # Handle label smoothing: CE expects target indices if LS > 0
         if self.label_smoothing > 0 and targets.ndim == 2:
-            logger.warning("Label smoothing applied but target is 2D. Converting target to indices using argmax.")
+            logger.warning(
+                "Label smoothing applied but target is 2D. Converting target to indices using argmax."
+            )
             targets = torch.argmax(targets, dim=1)  # Convert prob/one-hot to indices
 
         # Ensure targets are long integers
@@ -93,10 +98,7 @@ def get_loss_fn(cfg: Dict[str, Any]) -> nn.Module:
 
     # Handle specific loss types
     if loss_name == "cross_entropy":
-        return nn.CrossEntropyLoss(
-            reduction=reduction,
-            label_smoothing=label_smoothing
-        )
+        return nn.CrossEntropyLoss(reduction=reduction, label_smoothing=label_smoothing)
 
     elif loss_name == "weighted_cross_entropy":
         weights_list = cfg.get("weights", None)
@@ -104,24 +106,24 @@ def get_loss_fn(cfg: Dict[str, Any]) -> nn.Module:
         if weights_list is not None:
             try:
                 weights_tensor = torch.tensor(weights_list, dtype=torch.float)
-                logger.info(f"  WeightedCrossEntropy params: using {len(weights_list)} class weights, "
-                            f"reduction='{reduction}', label_smoothing={label_smoothing}")
+                logger.info(
+                    f"  WeightedCrossEntropy params: using {len(weights_list)} class weights, "
+                    f"reduction='{reduction}', label_smoothing={label_smoothing}"
+                )
             except Exception as e:
-                logger.error(f"  Failed to convert weights to tensor: {e}. Using unweighted CE.")
+                logger.error(
+                    f"  Failed to convert weights to tensor: {e}. Using unweighted CE."
+                )
                 return nn.CrossEntropyLoss(
-                    reduction=reduction,
-                    label_smoothing=label_smoothing
+                    reduction=reduction, label_smoothing=label_smoothing
                 )
 
         return WeightedCrossEntropyLoss(
-            weight=weights_tensor,
-            reduction=reduction,
-            label_smoothing=label_smoothing
+            weight=weights_tensor, reduction=reduction, label_smoothing=label_smoothing
         )
 
     else:
-        logger.warning(f"Unsupported loss function: '{loss_name}', falling back to CrossEntropyLoss")
-        return nn.CrossEntropyLoss(
-            reduction=reduction,
-            label_smoothing=label_smoothing
+        logger.warning(
+            f"Unsupported loss function: '{loss_name}', falling back to CrossEntropyLoss"
         )
+        return nn.CrossEntropyLoss(reduction=reduction, label_smoothing=label_smoothing)

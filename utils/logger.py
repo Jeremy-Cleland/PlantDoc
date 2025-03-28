@@ -94,7 +94,9 @@ class ColoredFormatter(logging.Formatter):
     def format(self, record):
         levelname = record.levelname
         if levelname in self.COLORS:
-            record.levelname = f"{self.COLORS[levelname]}{levelname}{self.COLORS['RESET']}"
+            record.levelname = (
+                f"{self.COLORS[levelname]}{levelname}{self.COLORS['RESET']}"
+            )
         return super().format(record)
 
 
@@ -131,8 +133,16 @@ def configure_logging(cfg) -> logging.Logger:
         use_colors=use_colors,
     )
 
-    for module in ["data", "models", "training", "evaluation", "prediction", "cli", "utils"]:
-        get_logger(f"plantdoc.core.{module}", log_level=log_level, use_colors=use_colors)
+    for module in [
+        "data",
+        "models",
+        "training",
+        "evaluation",
+        "prediction",
+        "cli",
+        "utils",
+    ]:
+        get_logger(f"core.{module}", log_level=log_level, use_colors=use_colors)
 
     # Root logger for external libs (suppress to WARNING+)
     root_root_logger = logging.getLogger()

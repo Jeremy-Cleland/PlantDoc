@@ -6,8 +6,8 @@ Registry for model classes.
 
 from typing import Dict, Type
 
-from plantdoc.core.models.base import BaseModel
-from plantdoc.utils.logging import get_logger
+from core.models.base import BaseModel
+from utils.logger import get_logger
 
 logger = get_logger(__name__)
 

@@ -4,9 +4,14 @@
 Base model for the plant disease classification models.
 """
 
+from typing import Any, Dict, List, Optional, Tuple, Union
+
+import numpy as np
 import torch
 import torch.nn as nn
-from plantdoc.utils.logging import get_logger
+from omegaconf import DictConfig
+
+from utils.logger import get_logger
 
 logger = get_logger(__name__)
 

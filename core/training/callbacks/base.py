@@ -4,7 +4,7 @@ Base Callback class for customizing training loops.
 
 from typing import Any, Dict, Optional
 
-from plantdoc.utils.logging import get_logger
+from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -23,6 +23,7 @@ class Callback:
         stop_training (bool): Flag that can be set by a callback (e.g., EarlyStopping)
                               to signal the main training loop to terminate.
     """
+
     priority: int = 100  # Default priority (runs later)
     stop_training: bool = False  # Flag to signal trainer to stop
 

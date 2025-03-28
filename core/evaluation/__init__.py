@@ -1,15 +1,17 @@
 """
-Evaluation and interpretability tools for PlantDoc.
+Evaluation and interpretability tools for
 """
 
-from plantdoc.core.evaluation.interpretability import (
+from core.evaluation.interpretability import (
     GradCAM,
-    visualize_gradcam,
+    evaluate_model,
     explain_model_predictions,
+    visualize_gradcam,
 )
 
 __all__ = [
     "GradCAM",
     "visualize_gradcam",
     "explain_model_predictions",
+    "evaluate_model",
 ]

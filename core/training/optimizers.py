@@ -8,7 +8,7 @@ import torch
 import torch.nn as nn
 from torch.optim import SGD, Adam, AdamW, Optimizer
 
-from plantdoc.utils.logging import get_logger
+from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -38,9 +38,13 @@ def get_param_groups(
     has_head = hasattr(model, "head") and isinstance(model.head, nn.Module)
 
     if not has_backbone or not has_head:
-        logger.info("Model does not have 'backbone' and 'head' attributes. Using single LR group.")
+        logger.info(
+            "Model does not have 'backbone' and 'head' attributes. Using single LR group."
+        )
         # Simple case - just return all parameters in one group
-        return [{"params": model.parameters(), "lr": base_lr, "weight_decay": weight_decay}]
+        return [
+            {"params": model.parameters(), "lr": base_lr, "weight_decay": weight_decay}
+        ]
 
     # Advanced case - separate learning rates for backbone and head
     backbone_params = list(model.backbone.parameters())
@@ -60,14 +64,26 @@ def get_param_groups(
 
     param_groups = []
     if backbone_params:
-        param_groups.append({"params": backbone_params, "lr": backbone_lr, "weight_decay": weight_decay})
-        logger.info(f"  Backbone group: LR={backbone_lr:.2e}, Weight Decay={weight_decay:.2e}")
+        param_groups.append(
+            {"params": backbone_params, "lr": backbone_lr, "weight_decay": weight_decay}
+        )
+        logger.info(
+            f"  Backbone group: LR={backbone_lr:.2e}, Weight Decay={weight_decay:.2e}"
+        )
     if head_params:
-        param_groups.append({"params": head_params, "lr": head_lr, "weight_decay": weight_decay})
-        logger.info(f"  Head group:     LR={head_lr:.2e}, Weight Decay={weight_decay:.2e}")
+        param_groups.append(
+            {"params": head_params, "lr": head_lr, "weight_decay": weight_decay}
+        )
+        logger.info(
+            f"  Head group:     LR={head_lr:.2e}, Weight Decay={weight_decay:.2e}"
+        )
     if other_params:
-        param_groups.append({"params": other_params, "lr": other_lr, "weight_decay": weight_decay})
-        logger.warning(f"  Found {len(other_params)} parameters outside backbone/head. Using LR={other_lr:.2e}.")
+        param_groups.append(
+            {"params": other_params, "lr": other_lr, "weight_decay": weight_decay}
+        )
+        logger.warning(
+            f"  Found {len(other_params)} parameters outside backbone/head. Using LR={other_lr:.2e}."
+        )
 
     return param_groups
 
@@ -85,7 +101,9 @@ def get_optimizer(cfg: Dict[str, Any], model: nn.Module) -> Optimizer:
         An initialized PyTorch Optimizer.
     """
     if not isinstance(cfg, dict):
-        raise TypeError(f"Optimizer configuration must be a dictionary, got {type(cfg)}")
+        raise TypeError(
+            f"Optimizer configuration must be a dictionary, got {type(cfg)}"
+        )
 
     optimizer_name = cfg.get("name", "adam").lower()  # Default to Adam
     lr = cfg.get("lr", 1e-3)  # Default learning rate
@@ -122,36 +140,38 @@ def get_optimizer(cfg: Dict[str, Any], model: nn.Module) -> Optimizer:
     # Create the optimizer
     if optimizer_name == "sgd":
         optimizer = SGD(
-            param_groups, 
-            lr=lr, 
+            param_groups,
+            lr=lr,
             momentum=momentum,
-            weight_decay=optimizer_weight_decay, 
-            nesterov=nesterov
+            weight_decay=optimizer_weight_decay,
+            nesterov=nesterov,
         )
     elif optimizer_name == "adam":
         optimizer = Adam(
-            param_groups, 
-            lr=lr, 
-            betas=betas, 
+            param_groups,
+            lr=lr,
+            betas=betas,
             eps=eps,
-            weight_decay=optimizer_weight_decay
+            weight_decay=optimizer_weight_decay,
         )
     elif optimizer_name == "adamw":
         optimizer = AdamW(
-            param_groups, 
-            lr=lr, 
-            betas=betas, 
+            param_groups,
+            lr=lr,
+            betas=betas,
             eps=eps,
-            weight_decay=optimizer_weight_decay
+            weight_decay=optimizer_weight_decay,
         )
     else:
-        logger.warning(f"Unsupported optimizer: '{optimizer_name}', falling back to Adam")
+        logger.warning(
+            f"Unsupported optimizer: '{optimizer_name}', falling back to Adam"
+        )
         optimizer = Adam(
-            param_groups, 
-            lr=lr, 
-            betas=betas, 
+            param_groups,
+            lr=lr,
+            betas=betas,
             eps=eps,
-            weight_decay=optimizer_weight_decay
+            weight_decay=optimizer_weight_decay,
         )
 
     logger.info(f"Optimizer '{type(optimizer).__name__}' created successfully.")

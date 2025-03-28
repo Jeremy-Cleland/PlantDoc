@@ -4,7 +4,7 @@ Model interpretability tools for PlantDoc - Enhanced GradCAM implementation.
 
 import os
 from pathlib import Path
-from typing import List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -12,12 +12,20 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from PIL import Image
+from torch.utils.data import DataLoader
 from torchvision import transforms
 
 from utils.logger import get_logger
 from utils.paths import ensure_dir
 
 logger = get_logger(__name__)
+
+
+def evaluate_model(model: nn.Module, data_loader: DataLoader) -> Dict:
+    """
+    Evaluate a model on a dataset.
+    """
+    pass
 
 
 class GradCAM:

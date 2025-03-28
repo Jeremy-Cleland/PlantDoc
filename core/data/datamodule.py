@@ -1,5 +1,5 @@
 # datamodule.py stub
-# Path: plantdoc/core/data/datamodule.py
+# Path: core/data/datamodule.py
 # Description: Data module for plant disease classification using PyTorch Lightning
 
 import os
@@ -8,17 +8,17 @@ from typing import List, Optional
 import numpy as np
 import torch
 from omegaconf import DictConfig
+from torch.utils.data import DataLoader, WeightedRandomSampler, random_split
 
 # Import from the new project structure
-from plantdoc.core.data.dataset import (
+from core.data.datasets import (
     PlantDiseaseDataset,
 )
-from plantdoc.core.data.transforms import (  # Assuming transforms.py exists based on the second example
+from core.data.transforms import (  # Assuming transforms.py exists based on the second example
     AlbumentationsWrapper,
     get_transforms,
 )
-from plantdoc.utils.logger import get_logger
-from torch.utils.data import DataLoader, WeightedRandomSampler, random_split
+from utils.logger import get_logger
 
 logger = get_logger(__name__)
 

@@ -80,7 +80,7 @@ plantdoc/
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/plantdoc.git
+git clone https://github.com/yourusername/git
 cd plantdoc
 
 # Create a virtual environment
@@ -95,7 +95,7 @@ pip install -e .
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/plantdoc.git
+git clone https://github.com/yourusername/git
 cd plantdoc
 
 # Create a virtual environment
@@ -119,7 +119,7 @@ pre-commit install
 You can verify your installation by running a simple Python script:
 
 ```python
-from plantdoc.core.models.registry import list_models
+from core.models.registry import list_models
 
 # This should print the available models
 print(list_models())
@@ -128,7 +128,7 @@ print(list_models())
 Or by running the CLI:
 
 ```bash
-python -m plantdoc.cli.main --help
+python -m cli.main --help
 ```
 
 ## Common Issues
