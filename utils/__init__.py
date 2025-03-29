@@ -9,6 +9,7 @@ from utils.mps_utils import (
     log_memory_stats,
     optimize_for_mps,
     set_manual_seed,
+    set_memory_limit,
     set_mps_device,
 )
 from utils.paths import (
@@ -56,6 +57,7 @@ __all__ = [
     "deep_clean_memory",
     "log_memory_stats",
     "MPSProfiler",
+    "set_memory_limit",
     # Visualization functions
     "count_model_parameters",
     "count_trainable_parameters",

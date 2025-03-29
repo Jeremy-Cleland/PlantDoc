@@ -7,18 +7,18 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-import hydra
 import typer
 from omegaconf import DictConfig, OmegaConf
 
 from core.data.datamodule import PlantDiseaseDataModule
 from core.data.prepare_data import run_prepare_data
-from core.models.registry import get_model_class
+from core.models.registry import get_model_class, list_models, get_model_param_schema
 from core.training.train import train_model
 from reports.generate_plots import generate_plots_for_report
 from reports.generate_report import generate_report
 from utils.logger import configure_logging, log_execution_params
 from utils.mps_utils import set_manual_seed
+from utils.config_utils import load_config
 
 app = typer.Typer(help="CBAM Classification CLI")
 
@@ -43,19 +43,17 @@ def train(
 
     This command trains a model using the specified configuration.
     """
-    # Load configuration using Hydra
-    with hydra.initialize_config_module(config_module="configs"):
-        cfg = hydra.compose(config_name="config")
-
-    # Override config values if provided via command line
+    # Prepare CLI override arguments
+    cli_args = []
     if experiment_name:
-        cfg.paths.experiment_name = experiment_name
-
+        cli_args.append(f"paths.experiment_name={experiment_name}")
     if model_name:
-        cfg.model.name = model_name
-
+        cli_args.append(f"model.name={model_name}")
     if epochs:
-        cfg.training.epochs = epochs
+        cli_args.append(f"training.epochs={epochs}")
+    
+    # Load configuration using OmegaConf directly
+    cfg = load_config(config_path, cli_args)
 
     # Configure logging
     logger = configure_logging(cfg)
@@ -100,79 +98,120 @@ def train(
     return results
 
 
-# @app.command()
-# def eval(
-#     config_path: str = typer.Option(
-#         "configs/config.yaml", "--config", "-c", help="Path to configuration file"
-#     ),
-#     checkpoint_path: str = typer.Option(
-#         None, "--checkpoint", "-ckpt", help="Path to model checkpoint"
-#     ),
-#     split: str = typer.Option(
-#         "test", "--split", "-s", help="Dataset split to evaluate on (test, val, train)"
-#     ),
-# ):
-#     """
-#     Run the evaluation pipeline.
+@app.command()
+def eval(
+    config_path: str = typer.Option(
+        "configs/config.yaml", "--config", "-c", help="Path to configuration file"
+    ),
+    checkpoint_path: str = typer.Option(
+        None, "--checkpoint", "-ckpt", help="Path to model checkpoint"
+    ),
+    split: str = typer.Option(
+        "test", "--split", "-s", help="Dataset split to evaluate on (test, val, train)"
+    ),
+    output_dir: Optional[str] = typer.Option(
+        None, "--output-dir", "-o", help="Output directory for evaluation results"
+    ),
+    interpret: bool = typer.Option(
+        False, "--interpret", "-i", help="Generate model interpretation visualizations"
+    ),
+):
+    """
+    Run the evaluation pipeline.
 
-#     This command evaluates a trained model on a specific dataset split.
-#     """
-#     # Load configuration using Hydra
-#     with hydra.initialize_config_module(config_module="configs"):
-#         cfg = hydra.compose(config_name="config")
+    This command evaluates a trained model on a specific dataset split.
+    """
+    # Load configuration using OmegaConf
+    cfg = load_config(config_path)
 
-#     # Configure logging
-#     logger = configure_logging(cfg)
-#     logger.info(f"Starting evaluation on {split} split")
+    # Configure logging
+    logger = configure_logging(cfg)
+    logger.info(f"Starting evaluation on {split} split")
 
-#     # Resolve the checkpoint path
-#     if checkpoint_path is None:
-#         checkpoint_path = Path(cfg.paths.checkpoint_dir) / "best_model.pth"
-#     checkpoint_path = Path(checkpoint_path)
+    # Resolve the checkpoint path
+    if checkpoint_path is None:
+        checkpoint_path = Path(cfg.paths.checkpoint_dir) / "best_model.pth"
+    checkpoint_path = Path(checkpoint_path)
 
-#     if not checkpoint_path.exists():
-#         logger.error(f"Checkpoint file not found: {checkpoint_path}")
-#         raise FileNotFoundError(f"Checkpoint file not found: {checkpoint_path}")
+    if not checkpoint_path.exists():
+        logger.error(f"Checkpoint file not found: {checkpoint_path}")
+        raise FileNotFoundError(f"Checkpoint file not found: {checkpoint_path}")
 
-#     # Set seed for reproducibility
-#     set_seed(cfg.data.random_seed, deterministic=True)
+    # Set seed for reproducibility
+    set_manual_seed(cfg.data.random_seed, deterministic=True)
 
-#     # Import here to avoid circular imports
-#     # from core.evaluation.evaluate import evaluate_model
+    # Import the evaluation module
+    from core.evaluation.evaluate import evaluate_model
+    from core.evaluation.interpretability import evaluate_model_with_gradcam
 
-#     # Create data module
-#     data_module = PlantDiseaseDataModule(cfg)
-#     data_module.prepare_data()
-#     data_module.setup(stage="test")
+    # Create data module
+    data_module = PlantDiseaseDataModule(cfg)
+    data_module.prepare_data()
+    data_module.setup(stage="test")
 
-#     # Get the appropriate dataloader
-#     if split == "test":
-#         dataloader = data_module.test_dataloader()
-#     elif split == "val":
-#         dataloader = data_module.val_dataloader()
-#     elif split == "train":
-#         dataloader = data_module.train_dataloader()
-#     else:
-#         logger.error(
-#             f"Invalid split: {split}. Must be one of 'test', 'val', or 'train'."
-#         )
-#         raise ValueError(f"Invalid split: {split}")
+    # Get the appropriate dataloader
+    if split == "test":
+        dataloader = data_module.test_dataloader()
+    elif split == "val":
+        dataloader = data_module.val_dataloader()
+    elif split == "train":
+        dataloader = data_module.train_dataloader()
+    else:
+        logger.error(
+            f"Invalid split: {split}. Must be one of 'test', 'val', or 'train'."
+        )
+        raise ValueError(f"Invalid split: {split}")
 
-#     # Get model class and initialize model
-#     model_class = get_model_class(cfg.model.name)
-#     model = model_class(**cfg.model)
+    # Get model class and initialize model
+    model_class = get_model_class(cfg.model.name)
+    model = model_class(**cfg.model)
 
-#     # Evaluate the model
-#     metrics = evaluate_model(
-#         model=model,
-#         dataloader=dataloader,
-#         checkpoint_path=checkpoint_path,
-#         cfg=cfg,
-#     )
+    # Set up output directory for evaluation results
+    if output_dir is None:
+        experiment_dir = Path(cfg.paths.experiment_dir)
+        eval_output_dir = experiment_dir / f"evaluation_{split}"
+    else:
+        eval_output_dir = Path(output_dir)
 
-#     logger.info(f"Evaluation completed. Accuracy: {metrics['accuracy']:.4f}")
+    # Evaluate the model
+    metrics = evaluate_model(
+        model=model,
+        dataloader=dataloader,
+        checkpoint_path=checkpoint_path,
+        cfg=cfg,
+        output_dir=eval_output_dir,
+        device=None,  # Auto-detect device
+    )
 
-#     return metrics
+    # Print evaluation results
+    logger.info(f"Evaluation completed. Results:")
+    logger.info(f"Accuracy: {metrics['accuracy']:.4f}")
+    logger.info(f"Precision: {metrics['precision']:.4f}")
+    logger.info(f"Recall: {metrics['recall']:.4f}")
+    logger.info(f"F1 Score: {metrics['f1']:.4f}")
+
+    # Generate model interpretations if requested
+    if interpret:
+        logger.info("Generating model interpretation visualizations...")
+        class_names = data_module.get_class_names()
+
+        interpretation_output_dir = eval_output_dir / "interpretations"
+        interpretation_metrics = evaluate_model_with_gradcam(
+            model=model,
+            data_loader=dataloader,
+            num_samples=10,  # Number of samples to visualize
+            output_dir=interpretation_output_dir,
+            class_names=class_names,
+        )
+
+        logger.info(
+            f"Generated {interpretation_metrics['num_visualized_samples']} visualization samples"
+        )
+        logger.info(
+            f"Visualizations saved to: {interpretation_metrics['visualization_dir']}"
+        )
+
+    return metrics
 
 
 @app.command()
@@ -190,9 +229,8 @@ def tune(
 
     This command tunes hyperparameters for a model using Optuna.
     """
-    # Load configuration using Hydra
-    with hydra.initialize_config_module(config_module="configs"):
-        cfg = hydra.compose(config_name="config")
+    # Load configuration
+    cfg = load_config(config_path)
 
     # Configure logging
     logger = configure_logging(cfg)
@@ -337,19 +375,17 @@ def prepare(
 
     This command validates, analyzes, and prepares the dataset.
     """
-    # Load configuration using Hydra
-    with hydra.initialize_config_module(config_module="configs"):
-        cfg = hydra.compose(config_name="config")
-
-    # Override config values if provided via command line
+    # Prepare CLI override arguments
+    cli_args = []
     if raw_dir:
-        cfg.paths.raw_dir = raw_dir
-
+        cli_args.append(f"paths.raw_dir={raw_dir}")
     if output_dir:
-        cfg.prepare_data.output_dir = output_dir
-
+        cli_args.append(f"prepare_data.output_dir={output_dir}")
     if dry_run:
-        cfg.prepare_data.dry_run = True
+        cli_args.append(f"prepare_data.dry_run=true")
+    
+    # Load configuration
+    cfg = load_config(config_path, cli_args)
 
     # Configure logging
     logger = configure_logging(cfg)
@@ -366,6 +402,132 @@ def prepare(
 
     logger.info(
         f"Data preparation completed. Results saved to: {cfg.prepare_data.output_dir}"
+    )
+
+
+@app.command()
+def models(
+    list_all: bool = typer.Option(
+        False, "--list", "-l", help="List all available models"
+    ),
+    model_name: Optional[str] = typer.Option(
+        None, "--model", "-m", help="Model name to get details for"
+    ),
+    format: str = typer.Option(
+        "human", "--format", "-f", help="Output format (human, json, yaml)"
+    ),
+):
+    """
+    List available models and their parameters.
+
+    This command shows information about registered models and their parameters.
+    """
+    if list_all:
+        models_dict = list_models()
+        typer.echo(f"Available models ({len(models_dict)}):")
+        
+        for name, model_info in models_dict.items():
+            model_class = model_info["class"]
+            metadata = model_info["metadata"]
+            
+            typer.echo(f"\n{name}:")
+            typer.echo(f"  Class: {model_class.__name__}")
+            
+            if metadata:
+                typer.echo("  Parameters:")
+                for param, param_info in metadata.items():
+                    default = param_info.get("default", "None")
+                    description = param_info.get("description", "")
+                    typer.echo(f"    {param}: {description} (default: {default})")
+    
+    elif model_name:
+        try:
+            # Get model schema
+            schema = get_model_param_schema(model_name)
+            
+            if format == "human":
+                typer.echo(f"Model: {model_name}")
+                typer.echo("Parameters:")
+                
+                for param, param_info in schema.items():
+                    default = param_info.get("default", "None")
+                    param_type = param_info.get("type", "any")
+                    description = param_info.get("description", "")
+                    required = param_info.get("required", False)
+                    
+                    # Format additional constraints
+                    constraints = []
+                    if "range" in param_info:
+                        constraints.append(f"range: {param_info['range']}")
+                    if "choices" in param_info:
+                        constraints.append(f"choices: {param_info['choices']}")
+                    
+                    constraints_str = f" ({', '.join(constraints)})" if constraints else ""
+                    required_str = " (required)" if required else ""
+                    
+                    typer.echo(f"  {param}: {description}")
+                    typer.echo(f"    Type: {param_type}{required_str}{constraints_str}")
+                    typer.echo(f"    Default: {default}")
+            
+            elif format == "json":
+                import json
+                typer.echo(json.dumps(schema, indent=2))
+            
+            elif format == "yaml":
+                import yaml
+                typer.echo(yaml.dump(schema, default_flow_style=False))
+            
+            else:
+                typer.echo(f"Invalid format: {format}. Supported formats: human, json, yaml")
+        
+        except ValueError as e:
+            typer.echo(f"Error: {e}")
+            available_models = list(list_models().keys())
+            typer.echo(f"Available models: {', '.join(available_models)}")
+    
+    else:
+        # Just list model names if no option provided
+        available_models = list(list_models().keys())
+        typer.echo(f"Available models: {', '.join(available_models)}")
+        typer.echo("\nUse --list for detailed information or --model NAME for specific model details.")
+
+
+@app.command()
+def attention(
+    model_name: str = typer.Option(
+        "cbam_only_resnet18", "--model", "-m", help="Model name to visualize"
+    ),
+    config_path: str = typer.Option(
+        "configs/config.yaml", "--config", "-c", help="Path to configuration file"
+    ),
+    checkpoint_path: Optional[str] = typer.Option(
+        None, "--checkpoint", "-ckpt", help="Path to model checkpoint"
+    ),
+    image_path: str = typer.Option(
+        ..., "--image", "-i", help="Path to input image"
+    ),
+    output_dir: str = typer.Option(
+        "outputs/attention_viz", "--output", "-o", help="Output directory for visualization"
+    ),
+    layers: Optional[str] = typer.Option(
+        None, "--layers", "-l", help="Specific layers to visualize (e.g., layer1,layer2)"
+    ),
+):
+    """
+    Visualize attention maps for a model.
+
+    This command generates visualizations of CBAM attention maps for a given input image.
+    """
+    from cli.attention_viz_command import visualize
+    
+    # Import inside function to avoid circular imports
+    visualize(
+        model_name=model_name,
+        config_path=config_path,
+        checkpoint_path=checkpoint_path,
+        image_path=image_path,
+        output_dir=output_dir,
+        layers=layers,
     )
 
 

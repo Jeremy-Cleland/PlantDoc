@@ -1,6 +1,7 @@
-# Path: plantdoc/core/training/train.py
+# Path: <your_project>/core/training/train.py  <- Adjust path as needed
 """
-PyTorch trainer for plant disease classification.
+PyTorch trainer with support for progressive resizing, callbacks, and device optimizations,
+using IncrementalMetricsCalculator. Compatible with OmegaConf configuration.
 """
 
 import inspect
@@ -17,12 +18,17 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.data import DataLoader
+from omegaconf import DictConfig, OmegaConf  # Import OmegaConf
+from torch.utils.data import DataLoader, Dataset
 from tqdm.auto import tqdm
 
-from utils.logger import get_logger
+# --- TODO: UPDATE THESE IMPORT PATHS ---
+# Imports for progressive resizing (using get_transforms)
+from core.data.transforms import AlbumentationsWrapper, get_transforms
 
-# Assuming MPS utils are in plantdoc utils
+# Import the Incremental Metrics Calculator
+from core.evaluation.metrics import IncrementalMetricsCalculator
+from utils.logger import get_logger
 from utils.mps_utils import (
     MPSProfiler,
     deep_clean_memory,
@@ -30,121 +36,232 @@ from utils.mps_utils import (
     is_mps_available,
     log_memory_stats,
     set_manual_seed,
+    set_memory_limit,  # Added based on user code
     synchronize,
 )
 
-# Assuming these modules are organized correctly in plantdoc
-# Note: Metrics calculator might need to be created or imported if used
-# from core.evaluation.metrics import IncrementalMetricsCalculator
-from .callbacks.base import Callback  # Import base from new location
-from .callbacks.utils import get_callbacks  # Import factory from new location
-from .loss import get_loss_fn  # Import from local module
-from .optimizers import get_optimizer  # Import from local module
-from .schedulers import get_scheduler_with_callback  # Import from local module
+# Core training components
+from .callbacks.base import Callback
+from .callbacks.utils import get_callbacks
+from .loss import get_loss_fn
+from .optimizers import get_optimizer
+from .schedulers import get_scheduler_with_callback
+
+# --- END TODO ---
 
 logger = get_logger(__name__)
 
 
 class Trainer:
     """
-    Trainer class for plant disease classification models.
+    Trainer class handling training loops, validation, callbacks, mixed precision,
+    MPS optimizations, and progressive resizing. Uses IncrementalMetricsCalculator.
 
     Args:
         model: PyTorch model to train.
-        cfg: Training configuration dictionary (expects keys like 'epochs',
-             'optimizer', 'loss', 'scheduler', 'callbacks', 'hardware', etc.).
+        cfg: OmegaConf DictConfig object for training configuration.
         train_loader: DataLoader for training data.
         val_loader: DataLoader for validation data.
         experiment_dir: Path object for the experiment output directory.
         device: Device string ('cpu', 'cuda', 'mps').
-        callbacks: Optional list of pre-initialized callbacks. If None, they
-                   will be created using `get_callbacks` from the config.
+        callbacks: Optional list of pre-initialized callbacks.
     """
 
     def __init__(
         self,
         model: nn.Module,
-        cfg: Dict[str, Any],
+        # --- Expecting OmegaConf DictConfig ---
+        cfg: DictConfig,
+        # -------------------------------------
         train_loader: DataLoader,
         val_loader: DataLoader,
         experiment_dir: Path,
         device: str = "cpu",
         callbacks: Optional[List[Callback]] = None,
     ):
+        # --- Use OmegaConf resolver if needed, otherwise direct access ---
+        self.cfg = cfg
+        # ---------------------------------------------------------------
         self.model = model
-        self.cfg = cfg  # Store the full config
         self.train_loader = train_loader
         self.val_loader = val_loader
-        self.experiment_dir = experiment_dir  # Expecting Path object
-        self.device = torch.device(device)  # Store as torch.device
+        self.experiment_dir = experiment_dir
+        self.device = torch.device(device)
         self.stop_training = False
 
-        # Ensure experiment directory exists
         self.experiment_dir.mkdir(parents=True, exist_ok=True)
 
-        # --- Configuration Extraction ---
-        train_cfg = cfg.get(
-            "training", cfg
-        )  # Look for 'training' sub-dict, else use root
-        optimizer_cfg = cfg.get("optimizer", {})
-        loss_cfg = cfg.get("loss", {})
-        scheduler_cfg = cfg.get("scheduler", {})
-        callback_cfg = cfg.get("callbacks", {})
-        hardware_cfg = cfg.get("hardware", {})
-        transfer_cfg = cfg.get("transfer_learning", {})
-        prog_resize_cfg = cfg.get("progressive_resizing", {})
+        # --- Configuration Extraction (using OmegaConf attribute access or OmegaConf.select) ---
+        # Example using direct attribute access (common with Hydra)
         try:
-            self.epochs = int(train_cfg.get("epochs", 10))  # Default epochs = 10
-            self.use_mixed_precision = bool(train_cfg.get("use_mixed_precision", False))
-            self.seed = int(cfg.get("seed", 42))
+            train_cfg = cfg.training
+            optimizer_cfg = cfg.optimizer
+            loss_cfg = cfg.loss
+            scheduler_cfg = cfg.scheduler
+            callback_cfg = cfg.callbacks
+            hardware_cfg = cfg.hardware
+            transfer_cfg = cfg.transfer_learning
+            prog_resize_cfg = cfg.progressive_resizing
+
+            self.epochs = int(train_cfg.epochs)  # Assuming epochs is required
+            self.use_mixed_precision = bool(
+                hardware_cfg.get("precision", "float32") == "float16"
+            )  # Check precision key
+            self.seed = int(cfg.seed)  # Assuming seed is top-level
+
+            # --- Get num_classes needed for metrics ---
+            self.num_classes = getattr(model, "num_classes", None)
+            if self.num_classes is None:
+                self.num_classes = OmegaConf.select(
+                    cfg, "model.num_classes", default=None
+                )
+                if self.num_classes is None:
+                    logger.warning(
+                        "Could not determine num_classes from model or config. Defaulting to 10 for metrics."
+                    )
+                    self.num_classes = 10
+            # --- Get optional class_names ---
+            self.class_names = getattr(model, "class_names", None)
+            if self.class_names is None:
+                self.class_names = OmegaConf.select(
+                    cfg, "data.class_names", default=None
+                )
+
         except KeyError as e:
-            logger.error(f"Missing required training configuration key: {e}")
-            raise ValueError(f"Missing required training configuration key: {e}")
-        except (TypeError, ValueError) as e:
-            logger.error(f"Invalid type for core training config: {e}")
+            logger.error(
+                f"Missing required configuration key via attribute access: {e}"
+            )
+            raise ValueError(f"Missing required configuration key: {e}")
+        except Exception as e:
+            logger.error(f"Error accessing configuration: {e}", exc_info=True)
             raise
 
         # --- Device and Reproducibility ---
         self.device_name = self.device.type
         self.use_mps_optimizations = self.device_name == "mps" and is_mps_available()
         self.mps_config = (
-            hardware_cfg.get("mps", {}) if self.use_mps_optimizations else {}
+            OmegaConf.select(cfg, "hardware.mps", default={})
+            if self.use_mps_optimizations
+            else {}
         )
 
         torch.manual_seed(self.seed)
         if self.device_name == "cuda":
             torch.cuda.manual_seed_all(self.seed)
-        # Note: Seeding numpy and random might be better done globally once at startup
         np.random.seed(self.seed)
         random.seed(self.seed)
-        if self.use_mps_optimizations and self.mps_config.get(
-            "reproducibility", {}
-        ).get("set_mps_seed", False):
-            set_manual_seed(self.seed)
-            logger.info(f"Set MPS manual seed to {self.seed}")
+
+        if self.use_mps_optimizations:
+            # Use OmegaConf select for safer access
+            if OmegaConf.select(
+                self.mps_config, "reproducibility.set_mps_seed", default=False
+            ):
+                set_manual_seed(self.seed)
+                logger.info(f"Set MPS manual seed to {self.seed}")
+
+            memory_limit = OmegaConf.select(
+                self.mps_config, "memory.limit_fraction", default=0.0
+            )
+            if memory_limit > 0:
+                try:
+                    set_memory_limit(memory_limit)
+                    logger.info(f"Set MPS memory limit fraction to {memory_limit}")
+                except Exception as e:
+                    logger.error(f"Failed to set MPS memory limit: {e}")
 
         # --- Model Preparation ---
         self.model.to(self.device)
-        if self.use_mps_optimizations and self.mps_config.get("model", {}).get(
-            "use_channels_last", False
+        if self.use_mps_optimizations and OmegaConf.select(
+            self.mps_config, "model.use_channels_last", default=False
         ):
             logger.info("Converting model to channels_last format for MPS.")
             self.model = self.model.to(memory_format=torch.channels_last)
 
+        # --- Progressive Resizing Setup ---
+        self.use_progressive_resizing = OmegaConf.select(
+            cfg, "progressive_resizing.enabled", default=False
+        )
+        self.original_train_dataset = getattr(train_loader, "dataset", None)
+        self.original_val_dataset = getattr(val_loader, "dataset", None)
+        self.image_sizes = []
+        self.size_epoch_boundaries = []
+        # self.transform_params = {} # No longer needed if get_transforms reads cfg directly
+
+        if self.use_progressive_resizing:
+            if not self.original_train_dataset or not self.original_val_dataset:
+                logger.warning(
+                    "Progressive resizing enabled but cannot get Dataset from DataLoader. Disabling."
+                )
+                self.use_progressive_resizing = False
+            else:
+                # Use OmegaConf select for safe access
+                self.image_sizes = list(
+                    OmegaConf.select(
+                        cfg, "progressive_resizing.sizes", default=[[224, 224]]
+                    )
+                )
+                epochs_per_size_cfg = OmegaConf.select(
+                    cfg, "progressive_resizing.epochs_per_size", default=[]
+                )
+                legacy_epochs_cfg = OmegaConf.select(
+                    cfg, "progressive_resizing.epochs", default=[]
+                )  # Legacy
+
+                if epochs_per_size_cfg:
+                    epochs_per_size = list(epochs_per_size_cfg)
+                elif legacy_epochs_cfg:
+                    epochs_per_size = list(legacy_epochs_cfg)
+                else:  # Default logic
+                    num_stages = len(self.image_sizes)
+                    base_epochs = self.epochs // num_stages
+                    remainder = self.epochs % num_stages
+                    epochs_per_size = [base_epochs] * num_stages
+                    epochs_per_size[-1] += remainder
+
+                # Adjust length mismatch
+                if len(epochs_per_size) < len(self.image_sizes):
+                    epochs_per_size.extend(
+                        [epochs_per_size[-1]]
+                        * (len(self.image_sizes) - len(epochs_per_size))
+                    )
+                elif len(epochs_per_size) > len(self.image_sizes):
+                    epochs_per_size = epochs_per_size[: len(self.image_sizes)]
+
+                if sum(epochs_per_size) != self.epochs:
+                    logger.warning(
+                        f"Progressive resizing epoch sum {sum(epochs_per_size)} != total epochs {self.epochs}."
+                    )
+
+                self.size_epoch_boundaries = [0]
+                for num_ep in epochs_per_size:
+                    self.size_epoch_boundaries.append(
+                        self.size_epoch_boundaries[-1] + num_ep
+                    )
+
+                logger.info(
+                    f"Progressive resizing enabled: {len(self.image_sizes)} stages"
+                )
+                for i, (size, num_ep) in enumerate(
+                    zip(self.image_sizes, epochs_per_size)
+                ):
+                    logger.info(
+                        f"  Stage {i + 1}: size={size}, epochs={num_ep} (Ends after epoch {self.size_epoch_boundaries[i + 1]})"
+                    )
+                # No need to call _extract_transform_params if get_transforms reads cfg
+
         # --- Training Components ---
         self.optimizer = get_optimizer(optimizer_cfg, self.model)
-
-        # Inject context into loss config if needed
-        self._prepare_loss_config(loss_cfg)
+        # Loss config prep happens before get_loss_fn
+        self._prepare_loss_config(loss_cfg)  # Pass the specific sub-config
         self.criterion = get_loss_fn(loss_cfg)
 
         # --- Scheduler & Callbacks ---
         try:
             self.steps_per_epoch = len(self.train_loader)
             if self.steps_per_epoch == 0:
-                raise ValueError("train_loader has zero length.")
+                raise ValueError("train_loader zero length")
         except (TypeError, ValueError) as e:
-            logger.error(f"Could not determine steps_per_epoch: {e}. Fallback to 1.")
+            logger.warning(f"Could not determine steps_per_epoch: {e}. Fallback=1.")
             self.steps_per_epoch = 1
 
         self.scheduler, scheduler_callback = get_scheduler_with_callback(
@@ -154,24 +271,25 @@ class Trainer:
         self.callbacks = []
         if callbacks is not None:
             self.callbacks.extend(callbacks)
-        self.callbacks.extend(get_callbacks(callback_cfg, self.experiment_dir))
+        # Pass the full OmegaConf object to get_callbacks if it expects it
+        standard_callbacks = get_callbacks(cfg, self.experiment_dir)  # Pass full cfg
+        self.callbacks.extend(standard_callbacks)
         if scheduler_callback is not None:
-            # Avoid adding duplicate scheduler callbacks
             if not any(
                 isinstance(cb, type(scheduler_callback)) for cb in self.callbacks
             ):
                 self.callbacks.append(scheduler_callback)
 
-        self.callbacks.sort(
-            key=lambda cb: getattr(cb, "priority", 100)
-        )  # Lower runs first
+        self.callbacks.sort(key=lambda cb: getattr(cb, "priority", 100))
         self._pass_context_to_callbacks()
 
-        # --- Mixed Precision ---
-        self._setup_mixed_precision()
+        # --- Mixed Precision Setup ---
+        self._setup_mixed_precision()  # Uses self.use_mixed_precision derived from config
 
         # --- Transfer Learning State ---
-        self.initial_frozen_epochs = int(transfer_cfg.get("initial_frozen_epochs", 0))
+        self.initial_frozen_epochs = int(
+            OmegaConf.select(cfg, "transfer_learning.initial_frozen_epochs", default=0)
+        )
         self.is_fine_tuning = False
         if self.initial_frozen_epochs > 0:
             logger.info(
@@ -180,45 +298,48 @@ class Trainer:
             if hasattr(self.model, "freeze_backbone"):
                 self.model.freeze_backbone()
             else:
-                logger.warning("Model lacks 'freeze_backbone' method.")
-
-        # --- Progressive Resizing (Placeholder) ---
-        self.use_progressive_resizing = prog_resize_cfg.get("enabled", False)
-        if self.use_progressive_resizing:
-            logger.warning(
-                "Progressive Resizing logic not fully implemented in Trainer. Handle in DataModule."
-            )
-            self.prog_resize_config = prog_resize_cfg
+                logger.warning(
+                    "Model lacks 'freeze_backbone'. Transfer freeze skipped."
+                )
+                self.initial_frozen_epochs = 0
 
         # --- Training State ---
-        self.epoch = 0  # Use 0-based internally
-        self.best_monitor_metric_val = float(
-            "inf"
-        )  # Placeholder, updated based on callback
+        self.epoch = 0
+        self.best_monitor_metric_val = float("inf")
+        self.best_val_loss = float("inf")
+        self.best_val_acc = 0.0
         self.best_epoch = 0
         self.history = defaultdict(list)
 
         logger.info("Trainer initialization complete.")
 
-    def _prepare_loss_config(self, loss_cfg: Dict[str, Any]):
-        """Inject necessary info into loss config before instantiation."""
-        # Example: Pass num_classes, feature_dim for CenterLoss, device
-        if "num_classes" not in loss_cfg:
-            num_classes = getattr(self.model, "num_classes", None) or self.cfg.get(
-                "model", {}
-            ).get("num_classes", None)
-            if num_classes:
-                loss_cfg["num_classes"] = num_classes
+    # --- Helper Methods ---
+    def _prepare_loss_config(self, loss_cfg: Union[DictConfig, Dict[str, Any]]):
+        """Inject context into loss config (can be DictConfig or dict)."""
+        # Use OmegaConf.update for DictConfig, standard update for dict
+        is_omegaconf = isinstance(loss_cfg, DictConfig)
+
+        if "num_classes" not in loss_cfg and self.num_classes is not None:
+            if is_omegaconf:
+                OmegaConf.update(loss_cfg, "num_classes", self.num_classes, merge=False)
+            else:
+                loss_cfg["num_classes"] = self.num_classes
+
         if "feature_dim" not in loss_cfg:
-            # Try to infer feature dim if model provides it
-            feature_dim = getattr(self.model, "feature_dim", None)  # Or backbone_dim
-            if feature_dim:
-                loss_cfg["feature_dim"] = feature_dim
+            feature_dim = getattr(self.model, "feature_dim", None)
+            if feature_dim is not None:
+                if is_omegaconf:
+                    OmegaConf.update(loss_cfg, "feature_dim", feature_dim, merge=False)
+                else:
+                    loss_cfg["feature_dim"] = feature_dim
+
         if "device" not in loss_cfg:
-            loss_cfg["device"] = str(self.device)  # Pass device string
+            if is_omegaconf:
+                OmegaConf.update(loss_cfg, "device", str(self.device), merge=False)
+            else:
+                loss_cfg["device"] = str(self.device)
 
     def _pass_context_to_callbacks(self):
-        """Pass essential runtime objects to callbacks after initialization."""
         context = {
             "model": self.model,
             "optimizer": self.optimizer,
@@ -227,24 +348,19 @@ class Trainer:
             "train_loader": self.train_loader,
             "val_loader": self.val_loader,
             "device": self.device,
-            "config": self.cfg,  # Pass full config if needed
+            "config": self.cfg,
             "experiment_dir": self.experiment_dir,
             "total_epochs": self.epochs,
         }
         for cb in self.callbacks:
-            # Check if callback has a specific method or attribute to set context
             if hasattr(cb, "set_trainer_context"):
                 cb.set_trainer_context(context)
-            # Fallback: Set individual attributes if they exist and are None
-            for key, value in context.items():
-                if hasattr(cb, key) and getattr(cb, key) is None:
-                    setattr(cb, key, value)
-                    logger.debug(
-                        f"Set context '{key}' for callback {type(cb).__name__}"
-                    )
+            else:
+                for key, value in context.items():
+                    if hasattr(cb, key) and getattr(cb, key) is None:
+                        setattr(cb, key, value)
 
     def _setup_mixed_precision(self):
-        """Configure autocast context and scaler based on device and config."""
         self.scaler = None
         if self.use_mixed_precision:
             if self.device_name == "cuda":
@@ -254,12 +370,11 @@ class Trainer:
                 )
                 logger.info("Using CUDA mixed precision (float16) with GradScaler.")
             elif self.device_name == "mps":
-                # MPS autocast uses torch.amp.autocast
                 self.autocast_context = lambda: torch.amp.autocast(
                     device_type="mps", dtype=torch.float16
                 )
                 logger.info("Using MPS mixed precision (float16).")
-            else:  # CPU
+            else:
                 self.use_mixed_precision = False
                 self.autocast_context = nullcontext
                 logger.warning(
@@ -272,17 +387,13 @@ class Trainer:
     def _get_batch_data(
         self, batch: Any
     ) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor]]:
-        """Extracts inputs and targets from various batch formats."""
         if isinstance(batch, (list, tuple)) and len(batch) >= 2:
             inputs, targets = batch[0], batch[1]
         elif isinstance(batch, dict) and "image" in batch and "label" in batch:
             inputs, targets = batch["image"], batch["label"]
         else:
-            logger.error(
-                f"Unexpected batch format: {type(batch)}. Cannot extract input/target."
-            )
+            logger.error(f"Unexpected batch format: {type(batch)}.")
             return None, None
-
         if not isinstance(inputs, torch.Tensor) or not isinstance(
             targets, torch.Tensor
         ):
@@ -290,7 +401,6 @@ class Trainer:
                 f"Expected tensors in batch, got {type(inputs)} and {type(targets)}."
             )
             return None, None
-
         return inputs, targets
 
     def _calculate_loss(
@@ -299,418 +409,22 @@ class Trainer:
         targets: torch.Tensor,
         features: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-        """Calculates loss, passing features if the criterion accepts them."""
         try:
-            # Check if criterion is a function or an object with forward method
             is_func = callable(self.criterion) and not hasattr(
                 self.criterion, "forward"
             )
             loss_callable = self.criterion if is_func else self.criterion.forward
             sig = inspect.signature(loss_callable)
             accepts_features = "features" in sig.parameters
-        except (ValueError, TypeError):  # Handle built-ins or other issues
+        except (ValueError, TypeError):
             accepts_features = False
-
         if accepts_features and features is not None:
             loss = self.criterion(outputs, targets, features=features)
         else:
-            loss = self.criterion(outputs, targets)  # Standard call
-
+            loss = self.criterion(outputs, targets)
         return loss
 
-    def train_epoch(self) -> Dict[str, float]:
-        """Trains the model for one epoch."""
-        self.model.train()
-        train_loss = 0.0
-        epoch_start_time = time.time()
-        all_preds_list = []
-        all_targets_list = []
-
-        phase = "Fine-tuning" if self.is_fine_tuning else "Initial training"
-        pbar = tqdm(
-            enumerate(self.train_loader),
-            total=self.steps_per_epoch,
-            desc=f"Epoch {self.epoch + 1}/{self.epochs} [{phase}] Train",
-            leave=False,
-        )
-
-        epoch_logs = {"epoch": self.epoch}
-        for callback in self.callbacks:
-            callback.on_epoch_begin(self.epoch, epoch_logs)
-
-        profiler = (
-            MPSProfiler(
-                enabled=self.mps_config.get("profiling", {}).get("enabled", False)
-            )
-            if self.use_mps_optimizations
-            else nullcontext()
-        )
-
-        with profiler:
-            for batch_idx, batch in pbar:
-                inputs, targets = self._get_batch_data(batch)
-                if inputs is None:
-                    continue
-
-                batch_size = inputs.size(0)
-                batch_logs = {"batch": batch_idx, "size": batch_size}
-                for callback in self.callbacks:
-                    callback.on_batch_begin(batch_idx, batch_logs)
-
-                inputs = inputs.to(self.device, non_blocking=True)
-                targets = targets.to(self.device, non_blocking=True)
-
-                self.optimizer.zero_grad(set_to_none=True)  # More efficient zeroing
-
-                with self.autocast_context():
-                    outputs = self.model(inputs)
-                    features = None
-                    if isinstance(outputs, tuple) and len(outputs) == 2:
-                        outputs, features = outputs
-                    elif hasattr(self.model, "get_features"):
-                        features = self.model.get_features(inputs)
-
-                    loss = self._calculate_loss(outputs, targets, features)
-
-                if self.scaler is not None:
-                    self.scaler.scale(loss).backward()
-                    self.scaler.step(self.optimizer)
-                    self.scaler.update()
-                else:
-                    loss.backward()
-                    self.optimizer.step()
-
-                loss_item = loss.item()
-                train_loss += loss_item * batch_size
-
-                if outputs.ndim >= 2:
-                    preds = torch.argmax(outputs.detach(), dim=1)
-                    all_preds_list.append(preds.cpu())
-                    all_targets_list.append(targets.cpu())
-
-                pbar.set_postfix(loss=f"{loss_item:.4f}")
-
-                batch_end_logs = {
-                    "batch": batch_idx,
-                    "size": batch_size,
-                    "loss": loss_item,
-                    "is_validation": False,
-                    "outputs": outputs,
-                    "targets": targets,
-                    "inputs": inputs,
-                    "optimizer": self.optimizer,
-                    "model": self.model,
-                }
-                for callback in self.callbacks:
-                    callback.on_batch_end(batch_idx, batch_end_logs)
-
-                if (
-                    self.use_mps_optimizations
-                    and batch_idx
-                    % self.mps_config.get("memory", {}).get("clear_cache_freq", 10)
-                    == 0
-                ):
-                    empty_cache()
-
-        # --- Epoch End Calculation ---
-        if self.use_mps_optimizations and self.mps_config.get("memory", {}).get(
-            "enable_sync_for_timing", False
-        ):
-            synchronize()
-
-        epoch_time = time.time() - epoch_start_time
-        num_samples = sum(len(t) for t in all_targets_list)
-        avg_train_loss = train_loss / num_samples if num_samples > 0 else 0.0
-
-        # Calculate overall accuracy, precision, recall, F1
-        final_metrics = {"loss": avg_train_loss, "time": epoch_time, "phase": phase}
-        if all_targets_list:
-            all_preds = torch.cat(all_preds_list).numpy()
-            all_targets = torch.cat(all_targets_list).numpy()
-            # --- Use scikit-learn for robust metrics ---
-            try:
-                from sklearn.metrics import (
-                    accuracy_score,
-                    precision_recall_fscore_support,
-                )
-
-                accuracy = accuracy_score(all_targets, all_preds)
-                precision, recall, f1, _ = precision_recall_fscore_support(
-                    all_targets, all_preds, average="weighted", zero_division=0
-                )
-                final_metrics.update(
-                    {
-                        "accuracy": accuracy,
-                        "precision": precision,
-                        "recall": recall,
-                        "f1": f1,
-                    }
-                )
-                logger.info(
-                    f"Epoch {self.epoch + 1} Train: Loss={avg_train_loss:.4f}, Acc={accuracy:.4f}, "
-                    f"Prec={precision:.4f}, Rec={recall:.4f}, F1={f1:.4f} ({epoch_time:.2f}s)"
-                )
-            except ImportError:
-                logger.warning("scikit-learn not found. Calculating only accuracy.")
-                accuracy = (all_preds == all_targets).mean()
-                final_metrics["accuracy"] = accuracy
-                logger.info(
-                    f"Epoch {self.epoch + 1} Train: Loss={avg_train_loss:.4f}, Acc={accuracy:.4f} ({epoch_time:.2f}s)"
-                )
-            except Exception as e:
-                logger.error(f"Error calculating train metrics: {e}")
-        else:
-            logger.info(
-                f"Epoch {self.epoch + 1} Train: Loss={avg_train_loss:.4f} ({epoch_time:.2f}s) (No samples processed for metrics)"
-            )
-
-        if self.use_mps_optimizations and self.mps_config.get("memory", {}).get(
-            "monitor", False
-        ):
-            log_memory_stats(f"Epoch {self.epoch + 1} train end")
-
-        return final_metrics
-
-    @torch.no_grad()
-    def validate_epoch(self) -> Dict[str, Any]:  # Return includes outputs/targets now
-        """Evaluates the model on the validation set for one epoch."""
-        self.model.eval()
-        val_loss = 0.0
-        epoch_start_time = time.time()
-        all_outputs_list = []
-        all_targets_list = []
-        all_preds_list = []  # Store predictions as well
-
-        phase = "Fine-tuning" if self.is_fine_tuning else "Initial training"
-        pbar = tqdm(
-            enumerate(self.val_loader),
-            total=len(self.val_loader),
-            desc=f"Epoch {self.epoch + 1}/{self.epochs} [{phase}] Val",
-            leave=False,
-        )
-
-        if self.use_mps_optimizations and self.mps_config.get("memory", {}).get(
-            "monitor", False
-        ):
-            log_memory_stats(f"Epoch {self.epoch + 1} val start")
-
-        for batch_idx, batch in pbar:
-            inputs, targets = self._get_batch_data(batch)
-            if inputs is None:
-                continue
-
-            batch_size = inputs.size(0)
-            inputs = inputs.to(self.device, non_blocking=True)
-            targets = targets.to(self.device, non_blocking=True)
-
-            if self.use_mps_optimizations and (
-                self.is_fine_tuning or batch_idx % 10 == 0
-            ):
-                empty_cache()
-
-            with self.autocast_context():
-                outputs = self.model(inputs)
-                features = None
-                if isinstance(outputs, tuple) and len(outputs) == 2:
-                    outputs, features = outputs
-                elif hasattr(self.model, "get_features"):
-                    features = self.model.get_features(inputs)
-
-                loss = self._calculate_loss(outputs, targets, features)
-
-            loss_item = loss.item()
-            val_loss += loss_item * batch_size
-
-            if outputs.ndim >= 2:
-                preds = torch.argmax(outputs.detach(), dim=1)
-                all_preds_list.append(preds.cpu())
-                all_targets_list.append(targets.cpu())
-                all_outputs_list.append(outputs.cpu())  # Store logits/outputs
-
-            pbar.set_postfix(loss=f"{loss_item:.4f}")
-
-        # --- Epoch End Calculation ---
-        if self.use_mps_optimizations and self.mps_config.get("memory", {}).get(
-            "enable_sync_for_timing", False
-        ):
-            synchronize()
-
-        epoch_time = time.time() - epoch_start_time
-        num_samples = sum(len(t) for t in all_targets_list)
-        avg_val_loss = val_loss / num_samples if num_samples > 0 else 0.0
-
-        # Calculate overall accuracy, precision, recall, F1
-        final_metrics = {"val_loss": avg_val_loss, "val_time": epoch_time}
-        full_val_outputs = None
-        full_val_targets = None
-
-        if all_targets_list:
-            all_preds = torch.cat(all_preds_list).numpy()
-            all_targets = torch.cat(all_targets_list).numpy()
-            full_val_outputs = torch.cat(all_outputs_list, dim=0)  # For callbacks
-            full_val_targets = torch.from_numpy(all_targets)  # For callbacks
-
-            try:
-                from sklearn.metrics import (
-                    accuracy_score,
-                    precision_recall_fscore_support,
-                )
-
-                accuracy = accuracy_score(all_targets, all_preds)
-                precision, recall, f1, _ = precision_recall_fscore_support(
-                    all_targets, all_preds, average="weighted", zero_division=0
-                )
-                final_metrics.update(
-                    {
-                        "val_accuracy": accuracy,
-                        "val_precision": precision,
-                        "val_recall": recall,
-                        "val_f1": f1,
-                    }
-                )
-                logger.info(
-                    f"Epoch {self.epoch + 1} Val:   Loss={avg_val_loss:.4f}, Acc={accuracy:.4f}, "
-                    f"Prec={precision:.4f}, Rec={recall:.4f}, F1={f1:.4f} ({epoch_time:.2f}s)"
-                )
-            except ImportError:
-                accuracy = (all_preds == all_targets).mean()
-                final_metrics["val_accuracy"] = accuracy
-                logger.info(
-                    f"Epoch {self.epoch + 1} Val:   Loss={avg_val_loss:.4f}, Acc={accuracy:.4f} ({epoch_time:.2f}s)"
-                )
-            except Exception as e:
-                logger.error(f"Error calculating validation metrics: {e}")
-        else:
-            logger.info(
-                f"Epoch {self.epoch + 1} Val:   Loss={avg_val_loss:.4f} ({epoch_time:.2f}s) (No samples processed)"
-            )
-
-        if self.use_mps_optimizations:
-            if self.mps_config.get("memory", {}).get("monitor", False):
-                log_memory_stats(f"Epoch {self.epoch + 1} val end")
-            if self.mps_config.get("memory", {}).get("deep_clean_after_val", True):
-                deep_clean_memory()
-
-        # Add full outputs/targets for callbacks that might need them (like TrainingReport)
-        final_metrics["val_outputs"] = full_val_outputs
-        final_metrics["val_targets"] = full_val_targets
-
-        return final_metrics
-
-    def train(self) -> Dict[str, Any]:
-        """Executes the main training loop."""
-        if self.use_mps_optimizations:
-            deep_clean_memory()
-        start_time = time.time()
-        logger.info(f"===== Starting Training for {self.epochs} Epochs =====")
-        logger.info(f"Device: {self.device_name}")
-        if self.use_mixed_precision:
-            logger.info(f"Mixed Precision: Enabled ({self.device_name} mode)")
-        else:
-            logger.info("Mixed Precision: Disabled (Using float32)")
-
-        # Get primary monitor metric from callbacks (e.g., EarlyStopping or ModelCheckpoint)
-        primary_monitor_metric = "val_loss"  # Default
-        monitor_mode = "min"
-        restore_best_weights = False
-        for cb in self.callbacks:
-            if hasattr(cb, "monitor"):
-                primary_monitor_metric = cb.monitor
-                if hasattr(cb, "mode"):
-                    monitor_mode = cb.mode
-                if hasattr(cb, "restore_best_weights"):
-                    restore_best_weights = cb.restore_best_weights
-                logger.info(
-                    f"Using '{primary_monitor_metric}' (mode: {monitor_mode}) from {type(cb).__name__} for determining best epoch."
-                )
-                break  # Assume first callback with monitor is the primary one
-
-        self.best_monitor_metric_val = (
-            float("inf") if monitor_mode == "min" else float("-inf")
-        )
-
-        train_begin_logs = self._get_train_begin_logs()
-        for callback in self.callbacks:
-            callback.on_train_begin(train_begin_logs)
-
-        best_model_state_on_cpu = None
-
-        for epoch in range(self.epochs):
-            self.epoch = epoch  # 0-based internal epoch
-
-            self._handle_transfer_learning_transition(epoch)
-            # Add progressive resizing call here if implemented
-
-            train_metrics = self.train_epoch()
-            val_metrics = self.validate_epoch()
-
-            epoch_logs = self._prepare_epoch_end_logs(train_metrics, val_metrics)
-
-            # --- Check for Best Model ---
-            current_monitor_val = epoch_logs.get(primary_monitor_metric)
-            if current_monitor_val is not None:
-                is_current_best = False
-                is_better = (
-                    (current_monitor_val < self.best_monitor_metric_val)
-                    if monitor_mode == "min"
-                    else (current_monitor_val > self.best_monitor_metric_val)
-                )
-
-                if (
-                    self.best_monitor_metric_val == float("inf")
-                    or self.best_monitor_metric_val == float("-inf")
-                    or is_better
-                ):
-                    self.best_monitor_metric_val = current_monitor_val
-                    # Store related metrics from the best epoch
-                    self.best_val_loss = epoch_logs.get("val_loss", self.best_val_loss)
-                    self.best_val_acc = epoch_logs.get(
-                        "val_accuracy", self.best_val_acc
-                    )
-                    self.best_epoch = epoch + 1  # 1-based for reporting
-                    is_current_best = True
-                    logger.debug(
-                        f"Epoch {epoch + 1}: New best model found ({primary_monitor_metric}={current_monitor_val:.4f})."
-                    )
-                    if restore_best_weights:
-                        logger.debug("Saving best model state to CPU memory.")
-                        best_model_state_on_cpu = {
-                            k: v.cpu().clone()
-                            for k, v in self.model.state_dict().items()
-                        }
-                epoch_logs["is_best"] = is_current_best
-
-            # --- Callbacks & Check Stop ---
-            for callback in self.callbacks:
-                callback.on_epoch_end(epoch, epoch_logs)
-                if getattr(callback, "stop_training", False):
-                    self.stop_training = True
-                    logger.info(
-                        f"Stop training requested by {type(callback).__name__} at epoch {epoch + 1}."
-                    )
-                    break
-            if self.stop_training:
-                break
-
-        # --- Training End ---
-        self._handle_train_end(
-            start_time,
-            restore_best_weights,
-            best_model_state_on_cpu,
-            primary_monitor_metric,
-        )
-
-        return {
-            "model": self.model,
-            "best_val_loss": self.best_val_loss,
-            "best_val_acc": self.best_val_acc,
-            "best_epoch": self.best_epoch,
-            "total_time": time.time() - start_time,
-            "history": dict(self.history),
-        }
-
     def _get_train_begin_logs(self) -> Dict[str, Any]:
-        """Prepare logs dictionary for on_train_begin callbacks."""
         return {
             "model": self.model,
             "optimizer": self.optimizer,
@@ -727,7 +441,6 @@ class Trainer:
         }
 
     def _handle_transfer_learning_transition(self, current_epoch: int):
-        """Unfreeze backbone if transition epoch is reached."""
         if (
             current_epoch == self.initial_frozen_epochs
             and self.initial_frozen_epochs > 0
@@ -740,8 +453,8 @@ class Trainer:
             if hasattr(self.model, "unfreeze_backbone"):
                 self.model.unfreeze_backbone()
                 self.is_fine_tuning = True
-                ft_lr_factor = self.cfg.get("transfer_learning", {}).get(
-                    "finetune_lr_factor", 0.1
+                ft_lr_factor = OmegaConf.select(
+                    self.cfg, "transfer_learning.finetune_lr_factor", default=0.1
                 )
                 if ft_lr_factor < 1.0:
                     logger.info(
@@ -750,143 +463,565 @@ class Trainer:
                     for param_group in self.optimizer.param_groups:
                         param_group["lr"] = max(param_group["lr"] * ft_lr_factor, 1e-7)
             else:
-                logger.warning("Model lacks 'unfreeze_backbone' method.")
+                logger.warning(
+                    "Model lacks 'unfreeze_backbone' method. Fine-tuning transition skipped."
+                )
 
     def _prepare_epoch_end_logs(self, train_metrics: Dict, val_metrics: Dict) -> Dict:
-        """Combine metrics and add context for on_epoch_end callbacks."""
         epoch_logs = {**train_metrics, **val_metrics, "epoch": self.epoch}
         epoch_logs["model"] = self.model
         epoch_logs["optimizer"] = self.optimizer
         epoch_logs["is_fine_tuning"] = self.is_fine_tuning
-        epoch_logs["is_validation"] = (
-            True  # Indicate validation phase metrics are included
-        )
-
-        # Add full validation outputs/targets if generated
+        epoch_logs["is_validation"] = True
         if "val_outputs" in val_metrics:
             epoch_logs["val_outputs"] = val_metrics["val_outputs"]
         if "val_targets" in val_metrics:
             epoch_logs["val_targets"] = val_metrics["val_targets"]
-
-        # Update history (only scalar numbers)
         for k, v in epoch_logs.items():
             if isinstance(v, numbers.Number):
-                # Convert numpy types just in case
                 scalar_v = v.item() if hasattr(v, "item") else float(v)
                 self.history[k].append(scalar_v)
             elif isinstance(v, torch.Tensor) and v.numel() == 1:
                 self.history[k].append(v.item())
+        current_lr = self.optimizer.param_groups[0]["lr"]
+        self.history["learning_rate"].append(current_lr)
+        epoch_logs["learning_rate"] = current_lr
         return epoch_logs
 
     def _handle_train_end(
-        self,
-        start_time: float,
-        restore_best: bool,
-        best_state: Optional[dict],
-        monitor_metric: str,
+        self, start_time: float, restore_best: bool, monitor_metric: str
     ):
-        """Finalize training: restore weights, call callbacks, log summary."""
-        if restore_best and best_state is not None:
-            logger.info(
-                f"Restoring model weights from best epoch {self.best_epoch} ({monitor_metric}={self.best_monitor_metric_val:.4f})"
-            )
-            # Ensure state dict is loaded onto the correct device
-            state_dict_on_device = {k: v.to(self.device) for k, v in best_state.items()}
-            self.model.load_state_dict(state_dict_on_device)
-
+        # Restore logic is now handled by EarlyStopping callback if enabled.
+        # This method just logs final summary and calls on_train_end for callbacks.
         total_time = time.time() - start_time
         final_logs = {
             "total_time": total_time,
             "best_val_loss": self.best_val_loss,
             "best_val_acc": self.best_val_acc,
             "best_epoch": self.best_epoch,
-            "best_monitor_metric_value": self.best_monitor_metric_val,  # Add the best monitored value
+            "best_monitor_metric_value": self.best_monitor_metric_val,
             "model": self.model,
             "history": dict(self.history),
             "config": self.cfg,
         }
         for callback in self.callbacks:
-            callback.on_train_end(final_logs)
+            callback.on_train_end(final_logs)  # Callbacks might restore weights here
 
         if self.use_mps_optimizations:
-            if self.mps_config.get("memory", {}).get("monitor", False):
+            if OmegaConf.select(self.mps_config, "memory.monitor", default=False):
                 log_memory_stats("Final")
             deep_clean_memory()
-
         hours, rem = divmod(total_time, 3600)
         mins, secs = divmod(rem, 60)
         logger.info(
             f"===== Training Finished in {int(hours):02d}h {int(mins):02d}m {secs:.2f}s ====="
         )
-        logger.info(
-            f"Best Epoch: {self.best_epoch}, Best {monitor_metric.replace('_', ' ').title()}: {self.best_monitor_metric_val:.4f} "
-            f"(Loss: {self.best_val_loss:.4f}, Acc: {self.best_val_acc:.4f})"
+        if self.best_epoch > 0:
+            logger.info(
+                f"Best Epoch: {self.best_epoch}, Best {monitor_metric.replace('_', ' ').title()}: {self.best_monitor_metric_val:.4f} (Loss: {self.best_val_loss:.4f}, Acc: {self.best_val_acc:.4f})"
+            )
+        else:
+            logger.info(
+                "No best epoch recorded (check validation metric and early stopping)."
+            )
+
+    # --- Progressive Resizing Helpers ---
+    # Note: _extract_transform_params is removed as get_transforms should read cfg directly
+    def _update_transforms_for_size(self, img_size: Union[int, List[int]]) -> None:
+        """Updates dataset transforms for a new image size using get_transforms."""
+        if (
+            not self.use_progressive_resizing
+            or not self.original_train_dataset
+            or not self.original_val_dataset
+        ):
+            return
+        try:
+            # --- TODO: Ensure these imports point to your transforms.py ---
+            from core.data.transforms import AlbumentationsWrapper, get_transforms
+            # --- END TODO ---
+        except ImportError:
+            logger.error(
+                "Cannot update transforms: `get_transforms` or `AlbumentationsWrapper` not found."
+            )
+            return
+
+        size = (
+            img_size[0]
+            if isinstance(img_size, (list, tuple)) and img_size
+            else (img_size if isinstance(img_size, int) else 224)
         )
+        new_size_tuple = [size, size]
+        logger.info(f"Progressive Resizing: Updating transforms to size {size}x{size}")
+
+        # --- Modify OmegaConf temporarily ---
+        # This requires careful handling of the config structure
+        # Assumes structure like: cfg.preprocessing.resize, cfg.preprocessing.center_crop
+        original_resize = None
+        original_crop = None
+        try:
+            # Use OmegaConf.select to safely get current values, allowing defaults if missing initially
+            original_resize = OmegaConf.select(
+                self.cfg, "preprocessing.resize", default=None
+            )
+            original_crop = OmegaConf.select(
+                self.cfg, "preprocessing.center_crop", default=None
+            )
+
+            # --- Use OmegaConf context manager for temporary modification ---
+            # This is safer than direct modification if cfg is used elsewhere concurrently
+            # It requires OmegaConf version supporting this context manager.
+            # If not available, direct assignment + try/finally is the alternative.
+
+            # Check if preprocessing node exists, create if not (might be needed)
+            if "preprocessing" not in self.cfg:
+                OmegaConf.update(self.cfg, "preprocessing", {}, merge=True)
+
+            with OmegaConf.set_struct(
+                self.cfg, False
+            ):  # Temporarily allow adding fields if needed
+                OmegaConf.update(
+                    self.cfg, "preprocessing.resize", new_size_tuple, merge=False
+                )
+                OmegaConf.update(
+                    self.cfg, "preprocessing.center_crop", new_size_tuple, merge=False
+                )
+
+            logger.debug(f"Temporarily updated config resize/crop to {new_size_tuple}")
+
+            # Create new transforms using the temporarily modified config
+            new_train_transform_alb = get_transforms(self.cfg, split="train")
+            new_val_transform_alb = get_transforms(self.cfg, split="val")
+
+            # Wrap transforms
+            new_train_transform = AlbumentationsWrapper(new_train_transform_alb)
+            new_val_transform = AlbumentationsWrapper(new_val_transform_alb)
+
+        except Exception as e:
+            logger.error(
+                f"Error creating new transforms for size {size}: {e}", exc_info=True
+            )
+            # Ensure config is restored even if transform creation fails
+            if original_resize is not None:
+                OmegaConf.update(
+                    self.cfg, "preprocessing.resize", original_resize, merge=False
+                )
+            if original_crop is not None:
+                OmegaConf.update(
+                    self.cfg, "preprocessing.center_crop", original_crop, merge=False
+                )
+            return  # Cannot proceed without transforms
+        finally:
+            # --- Restore original config values ---
+            # This block executes even if errors occurred during transform creation
+            with OmegaConf.set_struct(self.cfg, False):  # Allow modification back
+                if original_resize is not None:
+                    OmegaConf.update(
+                        self.cfg, "preprocessing.resize", original_resize, merge=False
+                    )
+                if original_crop is not None:
+                    OmegaConf.update(
+                        self.cfg,
+                        "preprocessing.center_crop",
+                        original_crop,
+                        merge=False,
+                    )
+            logger.debug("Restored original config resize/crop values.")
+        # Restore struct setting if it was originally True (optional)
+        # OmegaConf.set_struct(self.cfg, True)
+
+        # Function to apply the transform
+        def set_transform(loader, transform):
+            dataset = loader.dataset
+            original_dataset = (
+                dataset.dataset if hasattr(dataset, "dataset") else dataset
+            )  # Handle Subset
+            if hasattr(original_dataset, "transform"):
+                original_dataset.transform = transform
+                logger.debug(f"Updated transform on {type(original_dataset).__name__}")
+                return True
+            logger.warning(
+                f"Could not find 'transform' attribute on dataset {type(original_dataset).__name__}."
+            )
+            return False
+
+        # Apply the new wrapped transforms
+        updated_train = set_transform(self.train_loader, new_train_transform)
+        updated_val = set_transform(self.val_loader, new_val_transform)
+
+        if updated_train and updated_val:
+            logger.info(f"Successfully updated transforms for size {size}x{size}.")
+        else:
+            logger.error("Failed to update transforms on one or both datasets.")
+
+    # --- Main Epoch Loops (Using IncrementalMetricsCalculator) ---
+    def train_epoch(self) -> Dict[str, float]:
+        self.model.train()
+        epoch_loss = 0.0
+        epoch_start_time = time.time()
+        metrics_calculator = IncrementalMetricsCalculator(
+            num_classes=self.num_classes, class_names=self.class_names
+        )
+        phase = "Fine-tuning" if self.is_fine_tuning else "Initial"
+        pbar_desc = f"Epoch {self.epoch + 1}/{self.epochs} [{phase}] Train"
+        pbar = tqdm(
+            enumerate(self.train_loader),
+            total=self.steps_per_epoch,
+            desc=pbar_desc,
+            leave=False,
+        )
+        epoch_logs = {"epoch": self.epoch}
+        [cb.on_epoch_begin(self.epoch, epoch_logs) for cb in self.callbacks]
+        profiler = MPSProfiler(
+            enabled=self.use_mps_optimizations
+            and OmegaConf.select(self.mps_config, "profiling.enabled", default=False)
+        )
+
+        with profiler:
+            for batch_idx, batch in pbar:
+                inputs, targets = self._get_batch_data(batch)
+                if inputs is None:
+                    continue
+                batch_size = inputs.size(0)
+                batch_logs = {"batch": batch_idx, "size": batch_size}
+                [cb.on_batch_begin(batch_idx, batch_logs) for cb in self.callbacks]
+                inputs, targets = (
+                    inputs.to(self.device, non_blocking=True),
+                    targets.to(self.device, non_blocking=True),
+                )
+                self.optimizer.zero_grad(set_to_none=True)
+
+                with self.autocast_context():
+                    outputs = self.model(inputs)
+                    features = None
+                    if isinstance(outputs, tuple) and len(outputs) == 2:
+                        outputs, features = outputs
+                    loss = self._calculate_loss(outputs, targets, features)
+
+                if self.scaler is not None:
+                    self.scaler.scale(loss).backward()
+                    self.scaler.step(self.optimizer)
+                    self.scaler.update()
+                else:
+                    loss.backward()
+                    self.optimizer.step()
+
+                loss_item = loss.item()
+                epoch_loss += loss_item * batch_size
+                if outputs.ndim >= 2:
+                    preds = torch.argmax(outputs.detach(), dim=1)
+                    metrics_calculator.update(targets.cpu(), preds.cpu())
+                pbar.set_postfix(loss=f"{loss_item:.4f}")
+                batch_end_logs = {
+                    "batch": batch_idx,
+                    "size": batch_size,
+                    "loss": loss_item,
+                    "is_validation": False,
+                    "outputs": outputs,
+                    "targets": targets,
+                    "inputs": inputs,
+                    "optimizer": self.optimizer,
+                    "model": self.model,
+                }
+                [cb.on_batch_end(batch_idx, batch_end_logs) for cb in self.callbacks]
+                if (
+                    self.use_mps_optimizations
+                    and batch_idx
+                    % OmegaConf.select(
+                        self.mps_config, "memory.clear_cache_freq", default=10
+                    )
+                    == 0
+                ):
+                    empty_cache()
+
+        if self.use_mps_optimizations and OmegaConf.select(
+            self.mps_config, "memory.enable_sync_for_timing", default=False
+        ):
+            synchronize()
+        epoch_time = time.time() - epoch_start_time
+        metrics_result = metrics_calculator.compute()
+        perf_metrics = metrics_result["overall"]
+        num_samples = metrics_calculator.total_samples
+        avg_epoch_loss = epoch_loss / num_samples if num_samples > 0 else 0.0
+        final_metrics = {
+            "loss": avg_epoch_loss,
+            "accuracy": metrics_result["accuracy"],
+            "precision": perf_metrics["precision"],
+            "recall": perf_metrics["recall"],
+            "f1": perf_metrics["f1"],
+            "time": epoch_time,
+            "phase": phase,
+        }
+        logger.info(
+            f"Epoch {self.epoch + 1} [{phase}] Train: Loss={avg_epoch_loss:.4f}, Acc={metrics_result['accuracy']:.4f}, Prec={perf_metrics['precision']:.4f}, Rec={perf_metrics['recall']:.4f}, F1={perf_metrics['f1']:.4f} ({epoch_time:.2f}s)"
+        )
+        if self.use_mps_optimizations and OmegaConf.select(
+            self.mps_config, "memory.monitor", default=False
+        ):
+            log_memory_stats(f"Epoch {self.epoch + 1} train end")
+        return final_metrics
+
+    @torch.no_grad()
+    def validate_epoch(self) -> Dict[str, Any]:
+        self.model.eval()
+        epoch_loss = 0.0
+        epoch_start_time = time.time()
+        all_outputs_list, all_targets_list = [], []  # For callbacks
+        metrics_calculator = IncrementalMetricsCalculator(
+            num_classes=self.num_classes, class_names=self.class_names
+        )
+        phase = "Fine-tuning" if self.is_fine_tuning else "Initial"
+        pbar_desc = f"Epoch {self.epoch + 1}/{self.epochs} [{phase}] Val"
+        pbar = tqdm(
+            enumerate(self.val_loader),
+            total=len(self.val_loader),
+            desc=pbar_desc,
+            leave=False,
+        )
+        if self.use_mps_optimizations and OmegaConf.select(
+            self.mps_config, "memory.monitor", default=False
+        ):
+            log_memory_stats(f"Epoch {self.epoch + 1} val start")
+
+        for batch_idx, batch in pbar:
+            inputs, targets = self._get_batch_data(batch)
+            if inputs is None:
+                continue
+            inputs, targets = (
+                inputs.to(self.device, non_blocking=True),
+                targets.to(self.device, non_blocking=True),
+            )
+            if self.use_mps_optimizations and batch_idx % 10 == 0:
+                empty_cache()  # Default frequency
+
+            with self.autocast_context():
+                outputs = self.model(inputs)
+                features = None
+                if isinstance(outputs, tuple) and len(outputs) == 2:
+                    outputs, features = outputs
+                loss = self._calculate_loss(outputs, targets, features)
+
+            loss_item = loss.item()
+            epoch_loss += loss_item * inputs.size(0)
+            if outputs.ndim >= 2:
+                preds = torch.argmax(outputs.detach(), dim=1)
+                metrics_calculator.update(targets.cpu(), preds.cpu())
+                all_outputs_list.append(outputs.cpu())
+                all_targets_list.append(targets.cpu())  # Collect for callbacks
+            pbar.set_postfix(loss=f"{loss_item:.4f}")
+
+        if self.use_mps_optimizations and OmegaConf.select(
+            self.mps_config, "memory.enable_sync_for_timing", default=False
+        ):
+            synchronize()
+        epoch_time = time.time() - epoch_start_time
+        metrics_result = metrics_calculator.compute()
+        perf_metrics = metrics_result["overall"]
+        num_samples = metrics_calculator.total_samples
+        avg_epoch_loss = epoch_loss / num_samples if num_samples > 0 else 0.0
+        final_metrics = {
+            "val_loss": avg_epoch_loss,
+            "val_accuracy": metrics_result["accuracy"],
+            "val_precision": perf_metrics["precision"],
+            "val_recall": perf_metrics["recall"],
+            "val_f1": perf_metrics["f1"],
+            "val_time": epoch_time,
+        }
+        logger.info(
+            f"Epoch {self.epoch + 1} [{phase}] Val:   Loss={avg_epoch_loss:.4f}, Acc={metrics_result['accuracy']:.4f}, Prec={perf_metrics['precision']:.4f}, Rec={perf_metrics['recall']:.4f}, F1={perf_metrics['f1']:.4f} ({epoch_time:.2f}s)"
+        )
+
+        full_val_outputs, full_val_targets = None, None
+        if all_outputs_list:
+            full_val_outputs = torch.cat(all_outputs_list, dim=0)
+        if all_targets_list:
+            full_val_targets = torch.cat(all_targets_list, dim=0)
+        if self.use_mps_optimizations:
+            if OmegaConf.select(self.mps_config, "memory.monitor", default=False):
+                log_memory_stats(f"Epoch {self.epoch + 1} val end")
+            if OmegaConf.select(
+                self.mps_config, "memory.deep_clean_after_val", default=True
+            ):
+                deep_clean_memory()
+        final_metrics["val_outputs"] = full_val_outputs
+        final_metrics["val_targets"] = full_val_targets
+        return final_metrics
+
+    def train(self) -> Dict[str, Any]:
+        """Executes the main training loop."""
+        if self.use_mps_optimizations:
+            deep_clean_memory()
+            log_memory_stats("Initial - Before Training")
+        start_time = time.time()
+        logger.info(f"===== Starting Training for {self.epochs} Epochs =====")
+        logger.info(f"Device: {self.device_name}")
+        if self.use_mixed_precision:
+            logger.info(f"Mixed Precision: Enabled ({self.device_name} mode)")
+        else:
+            logger.info("Mixed Precision: Disabled (Using float32)")
+
+        primary_monitor_metric, monitor_mode, restore_best_weights = (
+            "val_loss",
+            "min",
+            False,
+        )
+        for cb in self.callbacks:
+            if hasattr(cb, "monitor"):
+                primary_monitor_metric, monitor_mode = (
+                    cb.monitor,
+                    getattr(cb, "mode", "min"),
+                )
+                restore_best_weights = getattr(cb, "restore_best_weights", False)
+                logger.info(
+                    f"Using '{primary_monitor_metric}' (mode: {monitor_mode}) from {type(cb).__name__} for best epoch logic."
+                )
+                if restore_best_weights:
+                    logger.info(
+                        "Best weights will be restored at the end if EarlyStopping enables it."
+                    )
+                break
+        self.best_monitor_metric_val = (
+            float("inf") if monitor_mode == "min" else float("-inf")
+        )
+
+        current_size_idx = -1
+        if self.use_progressive_resizing and len(self.image_sizes) > 0:
+            logger.info("Progressive Resizing: Applying initial transforms...")
+            self._update_transforms_for_size(self.image_sizes[0])
+            current_size_idx = 0
+        elif self.use_progressive_resizing:
+            logger.error(
+                "Progressive resizing enabled but no sizes configured. Disabling."
+            )
+            self.use_progressive_resizing = False
+
+        train_begin_logs = self._get_train_begin_logs()
+        [cb.on_train_begin(train_begin_logs) for cb in self.callbacks]
+
+        for epoch in range(self.epochs):
+            self.epoch = epoch
+
+            if self.use_progressive_resizing:  # Trigger resize check
+                target_idx = -1
+                for i in range(len(self.size_epoch_boundaries) - 1):
+                    if (
+                        self.size_epoch_boundaries[i]
+                        <= epoch
+                        < self.size_epoch_boundaries[i + 1]
+                    ):
+                        target_idx = i
+                        break
+                if target_idx != -1 and target_idx != current_size_idx:
+                    current_size_idx = target_idx
+                    new_size = self.image_sizes[current_size_idx]
+                    logger.info(
+                        f"Progressive Resizing: Transitioning to size {new_size} for epoch {epoch + 1}"
+                    )
+                    self._update_transforms_for_size(new_size)  # Call update method
+
+            self._handle_transfer_learning_transition(epoch)
+            train_metrics = self.train_epoch()
+            val_metrics = self.validate_epoch()
+            epoch_logs = self._prepare_epoch_end_logs(train_metrics, val_metrics)
+
+            # Update best metric tracking
+            current_monitor_val = epoch_logs.get(primary_monitor_metric)
+            if current_monitor_val is not None:
+                is_better = (
+                    (current_monitor_val < self.best_monitor_metric_val)
+                    if monitor_mode == "min"
+                    else (current_monitor_val > self.best_monitor_metric_val)
+                )
+                if (
+                    self.best_monitor_metric_val == float("inf")
+                    or self.best_monitor_metric_val == float("-inf")
+                    or is_better
+                ):
+                    self.best_monitor_metric_val = current_monitor_val
+                    self.best_val_loss = epoch_logs.get("val_loss", self.best_val_loss)
+                    self.best_val_acc = epoch_logs.get(
+                        "val_accuracy", self.best_val_acc
+                    )
+                    self.best_epoch = epoch + 1
+                    epoch_logs["is_best"] = True
+                    logger.debug(
+                        f"Epoch {epoch + 1}: New best model detected based on {primary_monitor_metric}={current_monitor_val:.4f}."
+                    )
+                else:
+                    epoch_logs["is_best"] = False  # Ensure key exists
+
+            # Callbacks & Check Stop
+            for callback in self.callbacks:
+                callback.on_epoch_end(epoch, epoch_logs)
+                if getattr(callback, "stop_training", False):
+                    self.stop_training = True
+                    logger.info(
+                        f"Stop training requested by {type(callback).__name__} at epoch {epoch + 1}."
+                    )
+                    break
+            if self.stop_training:
+                break
+
+        self._handle_train_end(start_time, restore_best_weights, primary_monitor_metric)
+        return {
+            "model": self.model,
+            "best_val_loss": self.best_val_loss,
+            "best_val_acc": self.best_val_acc,
+            "best_epoch": self.best_epoch,
+            "total_time": time.time() - start_time,
+            "history": dict(self.history),
+        }
 
 
 # --- Convenience Function ---
-
-
 def train_model(
     model: nn.Module,
     train_loader: DataLoader,
     val_loader: DataLoader,
-    cfg: Dict[str, Any],  # Expect full config here
+    cfg: DictConfig,  # Expect OmegaConf
     experiment_dir: Optional[Union[str, Path]] = None,
     device: Optional[str] = None,
     callbacks: Optional[List[Callback]] = None,
 ) -> Dict[str, Any]:
-    """
-    Convenience function to initialize and run the Trainer.
-
-    Args:
-        model: PyTorch model instance.
-        train_loader: Training DataLoader.
-        val_loader: Validation DataLoader.
-        cfg: Full configuration dictionary (Hydra DictConfig or standard dict).
-        experiment_dir: Optional path for experiment outputs. If None, uses default
-                        from config or generates one.
-        device: Optional device string ('cpu', 'cuda', 'mps'). If None, auto-detects.
-        callbacks: Optional list of pre-initialized callbacks.
-
-    Returns:
-        Dictionary containing training results.
-    """
-    # Determine device
     if device is None:
-        if is_mps_available():
-            device = "mps"
-        elif torch.cuda.is_available():
-            device = "cuda"
-        else:
-            device = "cpu"
-
-    # Determine experiment directory
+        device = (
+            "mps"
+            if is_mps_available()
+            else ("cuda" if torch.cuda.is_available() else "cpu")
+        )
     if experiment_dir is None:
-        # Try getting from config, default if not found
-        # Use OmegaConf select if cfg is DictConfig, else standard dict get
-        if hasattr(cfg, "select"):  # Check if it's OmegaConf DictConfig
-            exp_dir_str = cfg.select(
-                "paths.experiment_dir",
-                default=f"outputs/training_run_{int(time.time())}",
-            )
-        else:
-            exp_dir_str = cfg.get("paths", {}).get(
-                "experiment_dir", f"outputs/training_run_{int(time.time())}"
-            )
+        # Use OmegaConf select for safer access
+        exp_dir_str = OmegaConf.select(
+            cfg,
+            "paths.experiment_dir",
+            default=f"outputs/training_run_{int(time.time())}",
+        )
         experiment_dir = Path(exp_dir_str)
     else:
         experiment_dir = Path(experiment_dir)
 
-    # Create and run trainer
+    # Ensure cfg is DictConfig if expected by Trainer/Callbacks
+    if not isinstance(cfg, DictConfig):
+        logger.warning(
+            f"Configuration provided to train_model is type {type(cfg)}, attempting to convert to OmegaConf DictConfig."
+        )
+    try:
+        cfg = OmegaConf.create(cfg)
+    except Exception as e:
+        logger.error(
+            f"Failed to convert config to OmegaConf DictConfig: {e}", exc_info=True
+        )
+        raise TypeError(
+            "Configuration must be an OmegaConf DictConfig or convertible to one."
+        )
+
     trainer = Trainer(
         model=model,
-        cfg=cfg,  # Pass the full config
+        cfg=cfg,
         train_loader=train_loader,
         val_loader=val_loader,
         experiment_dir=experiment_dir,
         device=device,
-        callbacks=callbacks,  # Pass pre-initialized callbacks if any
+        callbacks=callbacks,
     )
     results = trainer.train()
     return results

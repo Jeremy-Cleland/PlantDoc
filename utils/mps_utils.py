@@ -35,6 +35,20 @@ def is_mps_available() -> bool:
         return False
 
 
+def set_memory_limit(fraction: float = 0.95) -> None:
+    """
+    Limit MPS memory usage to a fraction of available memory.
+
+    Args:
+        fraction: Fraction of available memory to use (0.0 to 1.0).
+    """
+    if is_mps_available():
+        torch.mps.set_per_process_memory_fraction(fraction)
+        logger.info(
+            f"Set MPS memory limit to {fraction * 100:.0f}% of available memory"
+        )
+
+
 def get_mps_device() -> Optional[torch.device]:
     """
     Get MPS device if available.

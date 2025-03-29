@@ -24,6 +24,7 @@ class CBAMResNet(nn.Module):
         cbam_reduction: Reduction ratio for CBAM
         drop_path_prob: Probability for drop path regularization
         in_channels: Number of input channels
+        spatial_kernel_size: Kernel size for spatial attention
     """
 
     def __init__(
@@ -34,10 +35,12 @@ class CBAMResNet(nn.Module):
         cbam_reduction=16,
         drop_path_prob=0.0,
         in_channels=3,
+        spatial_kernel_size=7,
     ):
         super(CBAMResNet, self).__init__()
 
         self.inplanes = 64
+        self.spatial_kernel_size = spatial_kernel_size
 
         # Stem
         self.conv1 = nn.Conv2d(
@@ -62,6 +65,7 @@ class CBAMResNet(nn.Module):
             layers[0],
             cbam_reduction=cbam_reduction,
             drop_path_prob=stage_drop_paths[0],
+            spatial_kernel_size=spatial_kernel_size,
         )
 
         self.layer2 = make_layer(
@@ -72,6 +76,7 @@ class CBAMResNet(nn.Module):
             stride=2,
             cbam_reduction=cbam_reduction,
             drop_path_prob=stage_drop_paths[1],
+            spatial_kernel_size=spatial_kernel_size,
         )
 
         self.layer3 = make_layer(
@@ -82,6 +87,7 @@ class CBAMResNet(nn.Module):
             stride=2,
             cbam_reduction=cbam_reduction,
             drop_path_prob=stage_drop_paths[2],
+            spatial_kernel_size=spatial_kernel_size,
         )
 
         self.layer4 = make_layer(
@@ -92,6 +98,7 @@ class CBAMResNet(nn.Module):
             stride=2,
             cbam_reduction=cbam_reduction,
             drop_path_prob=stage_drop_paths[3],
+            spatial_kernel_size=spatial_kernel_size,
         )
 
         # Global pooling and classifier
@@ -106,9 +113,12 @@ class CBAMResNet(nn.Module):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
 
+        # Storage for attention maps
+        self.attention_maps = {}
+
         logger.info(
             f"Initialized CBAMResNet with cbam_reduction={cbam_reduction}, "
-            f"drop_path_prob={drop_path_prob}"
+            f"drop_path_prob={drop_path_prob}, spatial_kernel_size={spatial_kernel_size}"
         )
 
     def forward(self, x):
@@ -130,6 +140,15 @@ class CBAMResNet(nn.Module):
         x = self.fc(x)
 
         return x
+    
+    def get_attention_maps(self):
+        """
+        Get the collected attention maps.
+        
+        Returns:
+            Dictionary of attention maps
+        """
+        return self.attention_maps
 
 
 def cbam_resnet18(pretrained=False, **kwargs):
@@ -144,6 +163,7 @@ def cbam_resnet18(pretrained=False, **kwargs):
         CBAMResNet model
     """
     kwargs["cbam_reduction"] = kwargs.get("cbam_reduction", 16)
+    kwargs["spatial_kernel_size"] = kwargs.get("spatial_kernel_size", 7)
 
     model = CBAMResNet(BasicBlock, [2, 2, 2, 2], **kwargs)
 
@@ -169,6 +189,7 @@ class CBAMResNet18Backbone(nn.Module):
         regularization: Regularization parameters
         feature_fusion: Whether to use feature fusion from multiple layers
         in_channels: Number of input channels
+        spatial_kernel_size: Kernel size for spatial attention
     """
 
     def __init__(
@@ -179,6 +200,7 @@ class CBAMResNet18Backbone(nn.Module):
         regularization=None,
         feature_fusion=False,
         in_channels=3,
+        spatial_kernel_size=7,
     ):
         super(CBAMResNet18Backbone, self).__init__()
 
@@ -188,6 +210,7 @@ class CBAMResNet18Backbone(nn.Module):
 
         self.drop_path_prob = regularization.get("drop_path_prob", 0.0)
         self.feature_fusion = feature_fusion
+        self.spatial_kernel_size = spatial_kernel_size
 
         # Create ResNet backbone with CBAM only
         self.backbone = cbam_resnet18(
@@ -195,6 +218,7 @@ class CBAMResNet18Backbone(nn.Module):
             cbam_reduction=reduction_ratio,
             drop_path_prob=self.drop_path_prob,
             in_channels=in_channels,
+            spatial_kernel_size=self.spatial_kernel_size,
         )
 
         # Remove the final fully connected layer
@@ -206,6 +230,13 @@ class CBAMResNet18Backbone(nn.Module):
         # Freeze layers if requested
         if freeze_layers:
             self.freeze_layers()
+
+        # For storing intermediate attention maps
+        self._attention_hooks = []
+        self._attention_maps = {}
+        
+        # Register hooks to capture attention maps
+        self._register_attention_hooks()
 
         # If using feature fusion, create adapters for each level of features
         if feature_fusion:
@@ -235,6 +266,46 @@ class CBAMResNet18Backbone(nn.Module):
             logger.info(f"Initialized feature fusion for multi-scale features")
 
         logger.info(f"Initialized CBAMResNet18Backbone with features={self.output_dim}")
+
+    def _register_attention_hooks(self):
+        """Register forward hooks to capture attention maps"""
+        
+        # Clear any existing hooks
+        for hook in self._attention_hooks:
+            hook.remove()
+        self._attention_hooks = []
+        
+        # Function to capture channel attention maps
+        def get_channel_attention_hook(name):
+            def hook(module, input, output):
+                self._attention_maps[f"{name}_channel"] = output.detach()
+            return hook
+            
+        # Function to capture spatial attention maps
+        def get_spatial_attention_hook(name):
+            def hook(module, input, output):
+                self._attention_maps[f"{name}_spatial"] = output.detach()
+            return hook
+        
+        # Register hooks for BasicBlock attention modules
+        for layer_name, layer in [
+            ("layer1", self.backbone.layer1),
+            ("layer2", self.backbone.layer2),
+            ("layer3", self.backbone.layer3),
+            ("layer4", self.backbone.layer4),
+        ]:
+            for block_idx, block in enumerate(layer):
+                if hasattr(block, "ca"):
+                    hook = block.ca.register_forward_hook(
+                        get_channel_attention_hook(f"{layer_name}_{block_idx}")
+                    )
+                    self._attention_hooks.append(hook)
+                
+                if hasattr(block, "sa"):
+                    hook = block.sa.register_forward_hook(
+                        get_spatial_attention_hook(f"{layer_name}_{block_idx}")
+                    )
+                    self._attention_hooks.append(hook)
 
     def freeze_layers(self):
         """Freeze all layers in the backbone."""
@@ -308,6 +379,23 @@ class CBAMResNet18Backbone(nn.Module):
                     param.requires_grad = True
             logger.info("Unfroze feature fusion modules")
 
+    def get_attention_maps(self, x=None):
+        """
+        Get attention maps from the model.
+        
+        Args:
+            x: Optional input tensor to forward through the model first
+            
+        Returns:
+            Dictionary of attention maps from different layers
+        """
+        # Forward pass if input is provided
+        if x is not None:
+            with torch.no_grad():
+                _ = self.forward(x)
+                
+        return self._attention_maps
+
     def forward(self, x):
         """
         Forward pass through the backbone.
@@ -318,6 +406,9 @@ class CBAMResNet18Backbone(nn.Module):
         Returns:
             Feature tensor of shape (B, output_dim, 1, 1)
         """
+        # Reset attention maps before forward pass
+        self._attention_maps = {}
+        
         # Get stem features
         x = self.backbone.conv1(x)
         x = self.backbone.bn1(x)

@@ -1,9 +1,8 @@
-# Path: PlantDoc/core/models/attention.py
-
 """
-Convolutional Block Attention Module (CBAM).
+Convolutional Block Attention Module (CBAM) and related components.
 
-This module combines channel and spatial attention mechanisms to enhance
+This module contains the implementation of CBAM and its components,
+which combines channel and spatial attention mechanisms to enhance
 the representation power of CNNs. Based on the paper:
 "CBAM: Convolutional Block Attention Module" (https://arxiv.org/abs/1807.06521)
 """
@@ -26,19 +25,19 @@ class ChannelAttention(nn.Module):
 
     Args:
         channels: Number of input channels
-        reduction: Reduction ratio for the MLP
+        reduction_ratio: Reduction ratio for the MLP (default: 16)
     """
 
-    def __init__(self, channels, reduction=16):
+    def __init__(self, channels, reduction_ratio=16):
         super(ChannelAttention, self).__init__()
         self.avg_pool = nn.AdaptiveAvgPool2d(1)
         self.max_pool = nn.AdaptiveMaxPool2d(1)
 
         # Shared MLP
         self.mlp = nn.Sequential(
-            nn.Conv2d(channels, channels // reduction, kernel_size=1, bias=False),
+            nn.Conv2d(channels, channels // reduction_ratio, kernel_size=1, bias=False),
             nn.ReLU(inplace=True),
-            nn.Conv2d(channels // reduction, channels, kernel_size=1, bias=False),
+            nn.Conv2d(channels // reduction_ratio, channels, kernel_size=1, bias=False),
         )
 
     def forward(self, x):
@@ -90,6 +89,34 @@ class SpatialAttention(nn.Module):
         return out
 
 
+class DropPath(nn.Module):
+    """
+    Drop paths (Stochastic Depth) per sample.
+    
+    Implements the stochastic depth regularization technique
+    described in the paper: "Deep Networks with Stochastic Depth"
+    (https://arxiv.org/abs/1603.09382)
+
+    Args:
+        drop_prob: Probability of dropping the path (default: 0.0)
+    """
+
+    def __init__(self, drop_prob=0.0):
+        super(DropPath, self).__init__()
+        self.drop_prob = drop_prob
+
+    def forward(self, x):
+        if self.drop_prob == 0.0 or not self.training:
+            return x
+
+        keep_prob = 1 - self.drop_prob
+        shape = (x.shape[0],) + (1,) * (x.ndim - 1)  # Work with different dims
+        random_tensor = keep_prob + torch.rand(shape, dtype=x.dtype, device=x.device)
+        random_tensor.floor_()  # Binarize
+        output = x.div(keep_prob) * random_tensor
+        return output
+
+
 class CBAM(nn.Module):
     """
     Convolutional Block Attention Module.
@@ -98,27 +125,25 @@ class CBAM(nn.Module):
 
     Args:
         channels: Number of input channels
-        reduction: Reduction ratio for the channel attention
-        spatial_kernel_size: Kernel size for spatial attention
-        drop_path_prob: Probability for drop path regularization
+        reduction_ratio: Reduction ratio for the channel attention (default: 16)
+        spatial_kernel_size: Kernel size for spatial attention (default: 7)
+        drop_path_prob: Probability for drop path regularization (default: 0.0)
     """
 
     def __init__(
-        self, channels, reduction=16, spatial_kernel_size=7, drop_path_prob=0.0
+        self, channels, reduction_ratio=16, spatial_kernel_size=7, drop_path_prob=0.0
     ):
         super(CBAM, self).__init__()
 
-        self.channel_attention = ChannelAttention(channels, reduction)
+        self.channel_attention = ChannelAttention(channels, reduction_ratio)
         self.spatial_attention = SpatialAttention(spatial_kernel_size)
 
-        # Drop path (similar to drop connection in SE block)
+        # Use the more sophisticated DropPath implementation
         self.drop_path_prob = drop_path_prob
-        self.drop_path = (
-            nn.Dropout2d(drop_path_prob) if drop_path_prob > 0 else nn.Identity()
-        )
+        self.drop_path = DropPath(drop_path_prob) if drop_path_prob > 0 else nn.Identity()
 
         logger.info(
-            f"Initialized CBAM with channels={channels}, reduction={reduction}, "
+            f"Initialized CBAM with channels={channels}, reduction_ratio={reduction_ratio}, "
             f"spatial_kernel_size={spatial_kernel_size}, drop_path_prob={drop_path_prob}"
         )
 
@@ -131,7 +156,7 @@ class CBAM(nn.Module):
         spatial_att = self.spatial_attention(x)
         x = x * spatial_att
 
-        # Apply drop path
+        # Apply drop path (stochastic depth)
         if self.training and self.drop_path_prob > 0:
             x = self.drop_path(x)
 

@@ -21,11 +21,146 @@ from utils.paths import ensure_dir
 logger = get_logger(__name__)
 
 
-def evaluate_model(model: nn.Module, data_loader: DataLoader) -> Dict:
+def evaluate_model(
+    model: nn.Module,
+    data_loader: DataLoader,
+    num_samples: int = 10,
+    output_dir: Optional[Union[str, Path]] = None,
+    class_names: Optional[List[str]] = None,
+) -> Dict:
     """
-    Evaluate a model on a dataset.
+    Evaluate a model on a dataset and generate GradCAM visualizations.
+
+    Args:
+        model: PyTorch model to evaluate
+        data_loader: DataLoader for evaluation data
+        num_samples: Number of sample images to visualize
+        output_dir: Directory to save visualizations
+        class_names: List of class names
+
+    Returns:
+        Dictionary with evaluation results
     """
-    pass
+    # Prepare model
+    model.eval()
+    device = next(model.parameters()).device
+
+    # Create output directory
+    if output_dir is not None:
+        output_dir = Path(output_dir)
+        ensure_dir(output_dir)
+        viz_dir = output_dir / "gradcam_visualizations"
+        ensure_dir(viz_dir)
+
+    # Get class names if not provided
+    if class_names is None:
+        if hasattr(data_loader.dataset, "classes"):
+            class_names = data_loader.dataset.classes
+        elif hasattr(data_loader.dataset, "class_names"):
+            class_names = data_loader.dataset.class_names
+        else:
+            # Generate dummy class names
+            logger.warning("No class names found. Using index numbers as class names.")
+            if hasattr(model, "num_classes"):
+                class_names = [f"Class_{i}" for i in range(model.num_classes)]
+            else:
+                class_names = [
+                    f"Class_{i}" for i in range(100)
+                ]  # Default to 100 classes max
+
+    # Initialize GradCAM
+    logger.info("Initializing GradCAM for model interpretation")
+    grad_cam = GradCAM(model=model)
+
+    # Collect sample images for visualization
+    logger.info(f"Collecting {num_samples} sample images for visualization")
+    vis_samples = []
+    vis_targets = []
+    vis_paths = []
+
+    # Get samples
+    for batch in data_loader:
+        if len(vis_samples) >= num_samples:
+            break
+
+        # Handle different batch formats
+        if isinstance(batch, dict):
+            images = batch["image"]
+            targets = batch["label"]
+            paths = batch.get("path", [""] * len(images))
+        else:
+            images = batch[0]
+            targets = batch[1]
+            paths = batch[2] if len(batch) > 2 else [""] * len(images)
+
+        # Add images to visualization list
+        batch_size = images.size(0)
+        for i in range(batch_size):
+            if len(vis_samples) < num_samples:
+                vis_samples.append(images[i].cpu())
+                vis_targets.append(targets[i].item())
+                vis_paths.append(paths[i])
+            else:
+                break
+
+    # Generate GradCAM visualizations
+    logger.info("Generating GradCAM visualizations")
+    for idx, (image, target, img_path) in enumerate(
+        zip(vis_samples, vis_targets, vis_paths)
+    ):
+        # Create a descriptive filename
+        if img_path:
+            base_name = os.path.basename(img_path)
+            file_name = f"{idx:02d}_{base_name}"
+        else:
+            file_name = f"{idx:02d}_class_{target}.png"
+
+        # Get the target class name
+        target_class_name = (
+            class_names[target] if target < len(class_names) else f"Unknown_{target}"
+        )
+
+        try:
+            # Generate visualization for the correct class (using target)
+            logger.info(
+                f"Generating GradCAM for sample {idx + 1}/{len(vis_samples)}: {target_class_name}"
+            )
+
+            if output_dir is not None:
+                output_path = viz_dir / f"{file_name}"
+            else:
+                output_path = None
+
+            # Apply GradCAM visualization
+            result = grad_cam.visualize(
+                image_input=image,
+                target_category=target,
+                output_path=str(output_path) if output_path else None,
+                show=False,
+            )
+
+            # Generate prediction explanation
+            if output_dir is not None:
+                explanation_path = viz_dir / f"{idx:02d}_explanation_{file_name}"
+                grad_cam.predict_and_explain(
+                    image_input=image,
+                    class_names=class_names,
+                    top_k=min(5, len(class_names)),
+                    output_path=str(explanation_path),
+                )
+
+        except Exception as e:
+            logger.error(f"Error generating GradCAM for sample {idx}: {e}")
+
+    # Clean up
+    grad_cam.cleanup()
+
+    logger.info("Model interpretation completed")
+
+    return {
+        "num_visualized_samples": len(vis_samples),
+        "visualization_dir": str(viz_dir) if output_dir is not None else None,
+    }
 
 
 class GradCAM:

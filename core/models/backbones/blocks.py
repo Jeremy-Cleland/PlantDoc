@@ -8,77 +8,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-
-class ChannelAttention(nn.Module):
-    """
-    Channel attention module for CBAM.
-
-    Args:
-        in_planes: Number of input channels
-        reduction_ratio: Reduction ratio for the hidden layer
-    """
-
-    def __init__(self, in_planes, reduction_ratio=16):
-        super(ChannelAttention, self).__init__()
-        self.avg_pool = nn.AdaptiveAvgPool2d(1)
-        self.max_pool = nn.AdaptiveMaxPool2d(1)
-
-        self.fc = nn.Sequential(
-            nn.Conv2d(in_planes, in_planes // reduction_ratio, 1, bias=False),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(in_planes // reduction_ratio, in_planes, 1, bias=False),
-        )
-
-    def forward(self, x):
-        avg_out = self.fc(self.avg_pool(x))
-        max_out = self.fc(self.max_pool(x))
-        out = avg_out + max_out
-        return torch.sigmoid(out)
-
-
-class SpatialAttention(nn.Module):
-    """
-    Spatial attention module for CBAM.
-
-    Args:
-        kernel_size: Size of the convolutional kernel
-    """
-
-    def __init__(self, kernel_size=7):
-        super(SpatialAttention, self).__init__()
-        padding = kernel_size // 2
-        self.conv = nn.Conv2d(2, 1, kernel_size, padding=padding, bias=False)
-
-    def forward(self, x):
-        avg_out = torch.mean(x, dim=1, keepdim=True)
-        max_out, _ = torch.max(x, dim=1, keepdim=True)
-        out = torch.cat([avg_out, max_out], dim=1)
-        out = self.conv(out)
-        return torch.sigmoid(out)
-
-
-class DropPath(nn.Module):
-    """
-    Drop paths (Stochastic Depth) per sample when applied in main path of residual blocks.
-
-    Args:
-        drop_prob: Probability of dropping the path
-    """
-
-    def __init__(self, drop_prob=0.0):
-        super(DropPath, self).__init__()
-        self.drop_prob = drop_prob
-
-    def forward(self, x):
-        if self.drop_prob == 0.0 or not self.training:
-            return x
-
-        keep_prob = 1 - self.drop_prob
-        shape = (x.shape[0],) + (1,) * (x.ndim - 1)
-        random_tensor = keep_prob + torch.rand(shape, dtype=x.dtype, device=x.device)
-        random_tensor.floor_()  # binarize
-        output = x.div(keep_prob) * random_tensor
-        return output
+# Import the attention modules from the centralized implementation
+from core.models.attention import ChannelAttention, DropPath, SpatialAttention
 
 
 class BasicBlock(nn.Module):
@@ -92,6 +23,7 @@ class BasicBlock(nn.Module):
         downsample: Downsample function to match dimensions
         cbam_reduction: Reduction ratio for CBAM attention
         drop_path_prob: Probability of dropping the path
+        spatial_kernel_size: Kernel size for spatial attention
     """
 
     expansion = 1
@@ -104,6 +36,7 @@ class BasicBlock(nn.Module):
         downsample=None,
         cbam_reduction=16,
         drop_path_prob=0.0,
+        spatial_kernel_size=7,
     ):
         super(BasicBlock, self).__init__()
 
@@ -116,9 +49,9 @@ class BasicBlock(nn.Module):
         self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, padding=1, bias=False)
         self.bn2 = nn.BatchNorm2d(planes)
 
-        # CBAM attention
-        self.ca = ChannelAttention(planes, reduction_ratio=cbam_reduction)
-        self.sa = SpatialAttention()
+        # CBAM attention modules from the centralized implementation
+        self.ca = ChannelAttention(planes, cbam_reduction)
+        self.sa = SpatialAttention(spatial_kernel_size)
 
         # Shortcut connection
         self.downsample = downsample
@@ -155,7 +88,7 @@ class BasicBlock(nn.Module):
 
 
 def make_layer(
-    block, inplanes, planes, blocks, stride=1, cbam_reduction=16, drop_path_prob=0.0
+    block, inplanes, planes, blocks, stride=1, cbam_reduction=16, drop_path_prob=0.0, spatial_kernel_size=7
 ):
     """
     Create a layer of consecutive blocks.
@@ -168,6 +101,7 @@ def make_layer(
         stride: Stride for the first block
         cbam_reduction: Reduction ratio for CBAM attention
         drop_path_prob: Probability of dropping the path
+        spatial_kernel_size: Kernel size for spatial attention
 
     Returns:
         nn.Sequential: Sequential container of blocks
@@ -191,14 +125,14 @@ def make_layer(
 
     # Add first block with potential downsampling
     layers.append(
-        block(inplanes, planes, stride, downsample, cbam_reduction, drop_path_prob)
+        block(inplanes, planes, stride, downsample, cbam_reduction, drop_path_prob, spatial_kernel_size)
     )
 
     # Add remaining blocks
     new_inplanes = planes * block.expansion
     for _ in range(1, blocks):
         layers.append(
-            block(new_inplanes, planes, 1, None, cbam_reduction, drop_path_prob)
+            block(new_inplanes, planes, 1, None, cbam_reduction, drop_path_prob, spatial_kernel_size)
         )
 
     return nn.Sequential(*layers)

@@ -366,7 +366,7 @@ def create_summary_report(
     output_dir: Path,
 ) -> None:
     """Generate a summary report (Markdown) of dataset statistics."""
-    report_path = output_dir / "analysis_summary_report.md"
+    report_path = output_dir / "summary_report.md"
     logger.info(f"Generating analysis summary report: {report_path}")
     total_images = sum(class_counts.values())
 
@@ -440,12 +440,15 @@ def run_analysis(cfg: DictConfig) -> Tuple[Optional[pd.DataFrame], Dict[str, Any
     output_dir = Path(prep_cfg.output_dir) / "analysis"
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    # Create subdirectories for figures and plots
+    figures_dir = output_dir / "figures"
+    plots_dir = output_dir / "plots"
+    figures_dir.mkdir(parents=True, exist_ok=True)
+    plots_dir.mkdir(parents=True, exist_ok=True)
+
     sample_size = prep_cfg.sample_size
     random_seed = prep_cfg.random_seed
     create_plots = prep_cfg.create_plots
-    plots_output_dir = output_dir / "plots"
-    if create_plots:
-        plots_output_dir.mkdir(parents=True, exist_ok=True)
 
     logger.info(f"Starting dataset analysis for: {data_dir}")
     random.seed(random_seed)
@@ -515,7 +518,7 @@ def run_analysis(cfg: DictConfig) -> Tuple[Optional[pd.DataFrame], Dict[str, Any
         df = pd.DataFrame()
     else:
         df = pd.DataFrame(metadata_list)
-        metadata_csv_path = output_dir / "image_metadata_sample.csv"
+        metadata_csv_path = output_dir / "image_metadata.csv"
         try:
             df.to_csv(metadata_csv_path, index=False)
             logger.info(f"Saved sampled image metadata to {metadata_csv_path}")
@@ -564,7 +567,7 @@ def run_analysis(cfg: DictConfig) -> Tuple[Optional[pd.DataFrame], Dict[str, Any
     }
 
     # Save statistics
-    stats_path = output_dir / "dataset_analysis_stats.json"
+    stats_path = output_dir / "dataset_statistics.json"
     logger.info(f"Saving analysis statistics to {stats_path}")
     try:
         with open(stats_path, "w") as f:
@@ -588,57 +591,395 @@ def run_analysis(cfg: DictConfig) -> Tuple[Optional[pd.DataFrame], Dict[str, Any
 
     # --- Generate Plots (if enabled) ---
     if create_plots and not df.empty:
-        logger.info(f"Generating analysis plots in {plots_output_dir}")
+        logger.info(f"Generating analysis plots")
+
+        # Get theme settings from config or use defaults
+        theme = prep_cfg.get("visualization_theme", {})
+        bg_color = theme.get("background_color", "#121212")
+        text_color = theme.get("text_color", "#f5f5f5")
+        grid_color = theme.get("grid_color", "#404040")
+        main_color = theme.get("main_color", "#34d399")
+        bar_colors = theme.get(
+            "bar_colors", ["#a78bfa", "#22d3ee", "#34d399", "#d62728", "#e27c7c"]
+        )
+        cmap = theme.get("cmap", "viridis")
+
+        # Set up dark theme
+        plt.rcParams.update(
+            {
+                "figure.facecolor": bg_color,
+                "axes.facecolor": bg_color,
+                "axes.edgecolor": grid_color,
+                "axes.labelcolor": text_color,
+                "axes.grid": True,
+                "axes.grid.which": "major",
+                "axes.grid.axis": "both",
+                "grid.color": grid_color,
+                "grid.linestyle": "--",
+                "grid.alpha": 0.3,
+                "xtick.color": text_color,
+                "ytick.color": text_color,
+                "text.color": text_color,
+                "savefig.facecolor": bg_color,
+                "savefig.edgecolor": "none",
+                "figure.autolayout": True,
+            }
+        )
+
         try:
-            # Plot Class Distribution
+            # Plot Class Distribution (Bar Chart)
             plt.figure(figsize=(max(12, len(class_counts) * 0.5), 8))
-            sns.barplot(
-                x=list(class_counts.keys()),
-                y=list(class_counts.values()),
-                palette="viridis",
+            # Fix deprecated barplot usage by explicitly specifying hue
+            class_df = pd.DataFrame(
+                {
+                    "class": list(class_counts.keys()),
+                    "count": list(class_counts.values()),
+                }
             )
-            plt.xticks(rotation=90, fontsize=10)
-            plt.title("Class Distribution")
-            plt.ylabel("Number of Images")
+            sns.barplot(
+                data=class_df,
+                x="class",
+                y="count",
+                hue="class",
+                palette=bar_colors,
+                legend=False,
+            )
+            # Rotate x-axis labels for better readability
+            plt.xticks(rotation=45, ha="right", fontsize=9)
+            plt.title("Class Distribution", color=text_color)
+            plt.ylabel("Number of Images", color=text_color)
             plt.tight_layout()
-            plt.savefig(plots_output_dir / "class_distribution.png", dpi=150)
+            # Save to both locations
+            plt.savefig(
+                figures_dir / "class_distribution.png", dpi=400, bbox_inches="tight"
+            )
+            plt.savefig(
+                plots_dir / "class_distribution.png", dpi=400, bbox_inches="tight"
+            )
+            plt.close()
+
+            # Plot Class Distribution (Pie Chart)
+            plt.figure(figsize=(12, 12))
+            # Take top 10 classes for pie chart to avoid overcrowding
+            top_n = 10
+            sorted_classes = sorted(
+                class_counts.items(), key=lambda x: x[1], reverse=True
+            )
+            top_classes = dict(sorted_classes[:top_n])
+            if len(sorted_classes) > top_n:
+                top_classes["Others"] = sum(dict(sorted_classes[top_n:]).values())
+
+            plt.pie(
+                top_classes.values(),
+                labels=top_classes.keys(),
+                autopct="%1.1f%%",
+                shadow=True,
+                startangle=90,
+                colors=bar_colors[: len(top_classes)],
+                textprops={"color": text_color},
+                wedgeprops={"edgecolor": grid_color, "linewidth": 1},
+            )
+            plt.axis("equal")
+            plt.title(f"Top {top_n} Classes Distribution (Pie Chart)", color=text_color)
+            plt.tight_layout()
+            plt.savefig(
+                plots_dir / "class_distribution_pie.png", dpi=400, bbox_inches="tight"
+            )
+            plt.close()
+
+            # Plot File Size by Class
+            plt.figure(figsize=(14, 8))
+            sns.boxplot(x="class", y="file_size_kb", data=df, palette=bar_colors)
+            # Rotate x-axis labels for better readability
+            plt.xticks(rotation=45, ha="right", fontsize=9)
+            plt.title("File Size Distribution by Class", color=text_color)
+            plt.xlabel("Class", color=text_color)
+            plt.ylabel("File Size (KB)", color=text_color)
+            plt.tight_layout()
+            plt.savefig(
+                plots_dir / "file_size_by_class.png", dpi=400, bbox_inches="tight"
+            )
             plt.close()
 
             # Plot Image Dimensions (Width vs Height)
-            plt.figure(figsize=(10, 8))
+            plt.figure(figsize=(12, 9))
+
+            # Create a more focused plot by reducing legend clutter
+            # Group classes by image type (healthy vs disease) for cleaner legend
+            df["is_healthy"] = df["class"].str.contains("healthy", case=False)
+
+            # Create aspect ratio field for reference lines
+            df["aspect_ratio"] = df["width"] / df["height"]
+
+            # Draw reference aspect ratio lines
+            aspect_ratios = [0.5, 1.0, 1.5, 2.0]
+            max_dim = max(df["width"].max(), df["height"].max()) * 1.1
+
+            for ratio in aspect_ratios:
+                x_vals = np.linspace(0, max_dim, 100)
+                y_vals = x_vals / ratio
+                plt.plot(
+                    x_vals,
+                    y_vals,
+                    "--",
+                    color=grid_color,
+                    alpha=0.4,
+                    linewidth=1,
+                    label=f"Ratio {ratio}:1" if ratio == 1.0 else None,
+                )
+
+            # Plot healthy vs disease classes with different markers and reduced legend
+            healthy_df = df[df["is_healthy"]]
+            disease_df = df[~df["is_healthy"]]
+
+            # Plot all points with transparency
             sns.scatterplot(
                 data=df,
                 x="width",
                 y="height",
-                hue="class",
-                alpha=0.6,
+                alpha=0.2,
+                s=15,
+                color="#777777",
+                marker=".",
                 legend=False,
-                s=20,
             )
-            plt.title("Image Dimensions (Width vs Height) - Sampled")
-            plt.xlabel("Width (pixels)")
-            plt.ylabel("Height (pixels)")
-            plt.grid(True, alpha=0.3)
+
+            # Plot summary points with clear classes (increase to 12 classes)
+            top_classes = df["class"].value_counts().nlargest(12).index.tolist()
+            top_df = df[df["class"].isin(top_classes)]
+
+            # Draw 1:1 aspect ratio point larger
+            sns.scatterplot(
+                data=top_df,
+                x="width",
+                y="height",
+                hue="class",
+                palette=bar_colors[: len(top_classes)],
+                alpha=0.9,
+                s=60,
+                style="class",
+                edgecolor="white",
+                linewidth=0.5,
+            )
+
+            # Add statistical information in the corner
+            plt.annotate(
+                f"Total images: {len(df)}\n"
+                f"Avg dimensions: {df['width'].mean():.0f}×{df['height'].mean():.0f}\n"
+                f"Most common ratio: {df['aspect_ratio'].value_counts().index[0]:.2f}",
+                xy=(0.02, 0.96),
+                xycoords="axes fraction",
+                fontsize=9,
+                color=text_color,
+                bbox=dict(
+                    boxstyle="round,pad=0.5", fc=bg_color, alpha=0.8, ec=grid_color
+                ),
+            )
+
+            plt.title(
+                "Image Dimensions (Width vs Height)", color=text_color, fontsize=14
+            )
+            plt.xlabel("Width (pixels)", color=text_color)
+            plt.ylabel("Height (pixels)", color=text_color)
+            plt.grid(True, alpha=0.2, color=grid_color)
+
+            # Move legend outside to the right for better use of space
+            plt.legend(
+                title="Top Classes",
+                loc="upper left",
+                bbox_to_anchor=(1.01, 1),
+                fontsize=8,
+                title_fontsize=9,
+                facecolor=bg_color,
+                edgecolor=grid_color,
+                framealpha=0.9,
+            )
+
             plt.tight_layout()
-            plt.savefig(plots_output_dir / "dimensions_scatter.png", dpi=150)
+            # Save to both locations
+            plt.savefig(
+                figures_dir / "image_dimensions.png", dpi=400, bbox_inches="tight"
+            )
+            plt.savefig(
+                plots_dir / "image_dimensions.png", dpi=400, bbox_inches="tight"
+            )
             plt.close()
 
             # Plot Aspect Ratio Distribution
             plt.figure(figsize=(10, 6))
-            sns.histplot(df["aspect_ratio"], kde=True, bins=50)
-            plt.title("Aspect Ratio Distribution - Sampled")
-            plt.xlabel("Aspect Ratio (Width / Height)")
+            sns.histplot(df["aspect_ratio"], kde=True, bins=50, color=main_color)
+            plt.title("Aspect Ratio Distribution - Sampled", color=text_color)
+            plt.xlabel("Aspect Ratio (Width / Height)", color=text_color)
+            plt.ylabel("Count", color=text_color)
             plt.tight_layout()
-            plt.savefig(plots_output_dir / "aspect_ratio_hist.png", dpi=150)
+            # Save to both locations
+            plt.savefig(figures_dir / "aspect_ratio_distribution.png", dpi=400)
+            plt.savefig(plots_dir / "aspect_ratio_distribution.png", dpi=400)
             plt.close()
 
             # Plot File Size Distribution
             plt.figure(figsize=(10, 6))
-            sns.histplot(df["file_size_kb"], kde=True, bins=50)
-            plt.title("File Size Distribution (KB) - Sampled")
-            plt.xlabel("File Size (KB)")
+            sns.histplot(df["file_size_kb"], kde=True, bins=50, color=main_color)
+            plt.title("File Size Distribution (KB) - Sampled", color=text_color)
+            plt.xlabel("File Size (KB)", color=text_color)
+            plt.ylabel("Count", color=text_color)
             plt.tight_layout()
-            plt.savefig(plots_output_dir / "file_size_hist.png", dpi=150)
+            plt.savefig(figures_dir / "file_size_distribution.png", dpi=400)
+            plt.close()
+
+            # Plot Brightness Distribution
+            plt.figure(figsize=(10, 6))
+            sns.histplot(df["brightness"], kde=True, bins=50, color=main_color)
+            plt.title("Brightness Distribution - Sampled", color=text_color)
+            plt.xlabel("Brightness", color=text_color)
+            plt.ylabel("Count", color=text_color)
+            plt.tight_layout()
+            plt.savefig(plots_dir / "brightness_distribution.png", dpi=400)
+            plt.close()
+
+            # Plot Color Distribution
+            plt.figure(figsize=(15, 5))
+
+            # Create subplot for each color channel
+            plt.subplot(1, 3, 1)
+            sns.histplot(df["mean_r"], kde=True, color="#e27c7c", bins=30)
+            plt.title("Red Channel Distribution", color=text_color)
+            plt.xlabel("Red Value", color=text_color)
+            plt.ylabel("Count", color=text_color)
+
+            plt.subplot(1, 3, 2)
+            sns.histplot(df["mean_g"], kde=True, color="#34d399", bins=30)
+            plt.title("Green Channel Distribution", color=text_color)
+            plt.xlabel("Green Value", color=text_color)
+            plt.ylabel("Count", color=text_color)
+
+            plt.subplot(1, 3, 3)
+            sns.histplot(df["mean_b"], kde=True, color="#22d3ee", bins=30)
+            plt.title("Blue Channel Distribution", color=text_color)
+            plt.xlabel("Blue Value", color=text_color)
+            plt.ylabel("Count", color=text_color)
+
+            plt.tight_layout()
+            plt.savefig(plots_dir / "color_distribution.png", dpi=400)
+            plt.close()
+
+            # Create Analysis Dashboard (combined plot)
+            fig = plt.figure(figsize=(18, 12))
+
+            # Class distribution
+            ax1 = plt.subplot2grid((2, 3), (0, 0))
+            top_classes_df = pd.DataFrame(
+                sorted_classes[:top_n], columns=["class", "count"]
+            )
+            # Fix deprecated barplot usage with hue parameter
+            sns.barplot(
+                data=top_classes_df,
+                x="class",
+                y="count",
+                hue="class",
+                ax=ax1,
+                palette=bar_colors[: len(top_classes_df)],
+                legend=False,
+            )
+            # Fix warning by setting ticks first then labels
+            ax1.set_xticks(range(len(top_classes_df)))
+            ax1.set_xticklabels(
+                top_classes_df["class"], rotation=45, ha="right", fontsize=7
+            )
+            ax1.set_title("Top Classes", color=text_color)
+            ax1.set_xlabel("Class", color=text_color)
+            ax1.set_ylabel("Count", color=text_color)
+
+            # Image dimensions
+            ax2 = plt.subplot2grid((2, 3), (0, 1))
+            # Add aspect ratio reference lines
+            max_dim = max(df["width"].max(), df["height"].max()) * 1.1
+            for ratio in [0.5, 1.0, 2.0]:
+                x_vals = np.linspace(0, max_dim, 100)
+                y_vals = x_vals / ratio
+                ax2.plot(
+                    x_vals, y_vals, "--", color=grid_color, alpha=0.3, linewidth=0.8
+                )
+
+            # Plot only top classes for clarity
+            top_classes = df["class"].value_counts().nlargest(5).index.tolist()
+            top_df = df[df["class"].isin(top_classes)]
+
+            # Background scatter of all points
+            ax2.scatter(
+                df["width"], df["height"], alpha=0.15, s=10, color="#777777", marker="."
+            )
+
+            # Highlighted scatter of top classes
+            sns.scatterplot(
+                data=top_df,
+                x="width",
+                y="height",
+                hue="class",
+                alpha=0.8,
+                s=30,
+                ax=ax2,
+                palette=bar_colors[:5],
+                legend=False,
+            )
+
+            ax2.set_title("Image Dimensions", color=text_color)
+            ax2.set_xlabel("Width", color=text_color)
+            ax2.set_ylabel("Height", color=text_color)
+            ax2.grid(True, alpha=0.2, color=grid_color)
+
+            # Add a small annotation with stats
+            ax2.annotate(
+                f"Avg: {df['width'].mean():.0f}×{df['height'].mean():.0f}",
+                xy=(0.05, 0.05),
+                xycoords="axes fraction",
+                fontsize=7,
+                color=text_color,
+                bbox=dict(
+                    boxstyle="round,pad=0.3", fc=bg_color, alpha=0.7, ec=grid_color
+                ),
+            )
+
+            # Aspect ratio
+            ax3 = plt.subplot2grid((2, 3), (0, 2))
+            sns.histplot(
+                df["aspect_ratio"], kde=True, bins=30, ax=ax3, color=bar_colors[0]
+            )
+            ax3.set_title("Aspect Ratio Distribution", color=text_color)
+            ax3.set_xlabel("Aspect Ratio", color=text_color)
+            ax3.set_ylabel("Count", color=text_color)
+
+            # Brightness
+            ax4 = plt.subplot2grid((2, 3), (1, 0))
+            sns.histplot(
+                df["brightness"], kde=True, bins=30, ax=ax4, color=bar_colors[1]
+            )
+            ax4.set_title("Brightness Distribution", color=text_color)
+            ax4.set_xlabel("Brightness", color=text_color)
+            ax4.set_ylabel("Count", color=text_color)
+
+            # File size
+            ax5 = plt.subplot2grid((2, 3), (1, 1))
+            sns.histplot(
+                df["file_size_kb"], kde=True, bins=30, ax=ax5, color=bar_colors[2]
+            )
+            ax5.set_title("File Size Distribution (KB)", color=text_color)
+            ax5.set_xlabel("File Size (KB)", color=text_color)
+            ax5.set_ylabel("Count", color=text_color)
+
+            # Color channels
+            ax6 = plt.subplot2grid((2, 3), (1, 2))
+            sns.kdeplot(df["mean_r"], color="#e27c7c", ax=ax6, label="Red")
+            sns.kdeplot(df["mean_g"], color="#59d99d", ax=ax6, label="Green")
+            sns.kdeplot(df["mean_b"], color="#22d3ee", ax=ax6, label="Blue")
+            ax6.set_title("RGB Channels Distribution", color=text_color)
+            ax6.set_xlabel("Value", color=text_color)
+            ax6.set_ylabel("Density", color=text_color)
+            ax6.legend(facecolor=bg_color, edgecolor=grid_color)
+
+            plt.suptitle("Dataset Analysis Dashboard", fontsize=16, color=text_color)
+            plt.tight_layout(rect=[0, 0, 1, 0.97])
+            plt.savefig(plots_dir / "analysis_dashboard.png", dpi=400)
             plt.close()
 
             logger.info("Analysis plots generated.")
@@ -738,7 +1079,7 @@ def run_visualization(cfg: DictConfig):
     """
     prep_cfg = cfg.prepare_data
     data_dir = Path(cfg.paths.raw_dir)
-    output_dir = Path(prep_cfg.output_dir) / "visualizations"
+    output_dir = Path(prep_cfg.output_dir) / "visualization"
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Sample size for t-SNE/clustering often different from metadata analysis
@@ -752,6 +1093,39 @@ def run_visualization(cfg: DictConfig):
     logger.info(f"Starting dataset visualization generation in: {output_dir}")
     logger.info(
         f"Sampling: {n_per_class_viz} images/class, Max classes: {max_classes_viz}, Seed: {random_seed}"
+    )
+
+    # Get theme settings from config or use defaults
+    theme = prep_cfg.get("visualization_theme", {})
+    bg_color = theme.get("background_color", "#121212")
+    text_color = theme.get("text_color", "#f5f5f5")
+    grid_color = theme.get("grid_color", "#404040")
+    main_color = theme.get("main_color", "#34d399")
+    bar_colors = theme.get(
+        "bar_colors", ["#a78bfa", "#22d3ee", "#34d399", "#d62728", "#e27c7c"]
+    )
+    cmap = theme.get("cmap", "viridis")
+
+    # Set up dark theme
+    plt.rcParams.update(
+        {
+            "figure.facecolor": bg_color,
+            "axes.facecolor": bg_color,
+            "axes.edgecolor": grid_color,
+            "axes.labelcolor": text_color,
+            "axes.grid": True,
+            "axes.grid.which": "major",
+            "axes.grid.axis": "both",
+            "grid.color": grid_color,
+            "grid.linestyle": "--",
+            "grid.alpha": 0.3,
+            "xtick.color": text_color,
+            "ytick.color": text_color,
+            "text.color": text_color,
+            "savefig.facecolor": bg_color,
+            "savefig.edgecolor": "none",
+            "figure.autolayout": True,
+        }
     )
 
     # --- Sample Images and Extract Features ---
@@ -802,6 +1176,25 @@ def run_visualization(cfg: DictConfig):
     plt.style.use("seaborn-v0_8-whitegrid")
     sns.set_context("paper", font_scale=1.5)
 
+    # Create visualization summary text file
+    summary_path = output_dir / "visualization_summary.txt"
+    with open(summary_path, "w") as f:
+        f.write("# Dataset Visualization Summary\n\n")
+        f.write(f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        f.write(f"Dataset location: {data_dir}\n")
+        f.write(f"Sampled images for visualization: {len(sampled_paths)}\n")
+        f.write(
+            f"Number of classes visualized: {len(set(sampled_labels)) if sampled_labels else 0}\n\n"
+        )
+        f.write("## Generated Visualizations\n\n")
+        f.write("- image_grid.png: Grid of sample images from each class\n")
+        f.write("- tsne_embedding.png: t-SNE dimensionality reduction visualization\n")
+        f.write("- feature_clustering.png: Hierarchical clustering of class features\n")
+        f.write(
+            "- similarity_matrix.png: Class similarity matrix based on image features\n"
+        )
+        f.write("- augmentations.png: Sample augmentations applied to images\n")
+
     # 1. Image Grid
     try:
         logger.info("Generating image grid...")
@@ -809,7 +1202,13 @@ def run_visualization(cfg: DictConfig):
             len(np.unique(sampled_labels)) if labels is not None else 10, 10
         )
         create_image_grid_viz(
-            data_dir, output_dir, n_per_class=5, max_classes=n_grid_classes
+            data_dir,
+            output_dir,
+            n_per_class=5,
+            max_classes=n_grid_classes,
+            bg_color=bg_color,
+            text_color=text_color,
+            grid_color=grid_color,
         )
     except Exception as e:
         logger.error(f"Failed to create image grid: {e}", exc_info=True)
@@ -818,14 +1217,30 @@ def run_visualization(cfg: DictConfig):
     if features is not None and labels is not None:
         try:
             logger.info("Generating t-SNE plot...")
-            create_tsne_viz(features, labels, output_dir, random_seed)
+            create_tsne_viz(
+                features,
+                labels,
+                output_dir,
+                random_seed,
+                bg_color=bg_color,
+                text_color=text_color,
+                grid_color=grid_color,
+                bar_colors=bar_colors,
+            )
         except Exception as e:
             logger.error(f"Failed to create t-SNE plot: {e}", exc_info=True)
 
         # 3. Hierarchical Clustering (if features extracted)
         try:
             logger.info("Generating hierarchical clustering plot...")
-            create_hierarchical_clustering_viz(features, labels, output_dir)
+            create_hierarchical_clustering_viz(
+                features,
+                labels,
+                output_dir,
+                bg_color=bg_color,
+                text_color=text_color,
+                grid_color=grid_color,
+            )
         except Exception as e:
             logger.error(
                 f"Failed to create hierarchical clustering plot: {e}", exc_info=True
@@ -834,7 +1249,15 @@ def run_visualization(cfg: DictConfig):
         # 4. Similarity Matrix (if features extracted)
         try:
             logger.info("Generating class similarity matrix...")
-            create_similarity_matrix_viz(features, labels, output_dir)
+            create_similarity_matrix_viz(
+                features,
+                labels,
+                output_dir,
+                bg_color=bg_color,
+                text_color=text_color,
+                grid_color=grid_color,
+                cmap=cmap,
+            )
         except Exception as e:
             logger.error(f"Failed to create similarity matrix: {e}", exc_info=True)
 
@@ -843,7 +1266,14 @@ def run_visualization(cfg: DictConfig):
         logger.info("Generating augmentation visualization...")
         # Need the augmentation config part from main cfg
         create_augmentation_viz(
-            cfg, data_dir, output_dir, num_samples=3, random_seed=random_seed
+            cfg,
+            data_dir,
+            output_dir,
+            num_samples=3,
+            random_seed=random_seed,
+            bg_color=bg_color,
+            text_color=text_color,
+            grid_color=grid_color,
         )
     except Exception as e:
         logger.error(f"Failed to create augmentation visualization: {e}", exc_info=True)
@@ -855,7 +1285,13 @@ def run_visualization(cfg: DictConfig):
 
 
 def create_image_grid_viz(
-    data_dir: Path, output_dir: Path, n_per_class: int = 5, max_classes: int = 10
+    data_dir: Path,
+    output_dir: Path,
+    n_per_class: int = 5,
+    max_classes: int = 10,
+    bg_color: str = "#121212",
+    text_color: str = "#f5f5f5",
+    grid_color: str = "#404040",
 ):
     """Internal helper to create image grid plot."""
     class_dirs = [
@@ -891,6 +1327,7 @@ def create_image_grid_viz(
                     "Error",
                     horizontalalignment="center",
                     verticalalignment="center",
+                    color=text_color,
                 )
             ax.axis("off")
             if j == 0:
@@ -904,17 +1341,25 @@ def create_image_grid_viz(
                     labelpad=40,
                     va="center",
                     ha="right",
+                    color=text_color,
                 )
 
-    plt.suptitle("Sample Images by Class", fontsize=16, y=0.99)
+    plt.suptitle("Sample Images by Class", fontsize=16, y=0.99, color=text_color)
     plt.tight_layout(rect=[0, 0, 1, 0.97])
     plt.subplots_adjust(wspace=0.05, hspace=0.05)
-    plt.savefig(output_dir / "viz_image_grid.png", dpi=150, bbox_inches="tight")
+    plt.savefig(output_dir / "image_grid.png", dpi=400, bbox_inches="tight")
     plt.close(fig)
 
 
 def create_tsne_viz(
-    features: np.ndarray, labels: np.ndarray, output_dir: Path, random_seed: int
+    features: np.ndarray,
+    labels: np.ndarray,
+    output_dir: Path,
+    random_seed: int,
+    bg_color: str = "#121212",
+    text_color: str = "#f5f5f5",
+    grid_color: str = "#404040",
+    bar_colors: list = None,
 ):
     """Internal helper to create t-SNE plot."""
     scaler = StandardScaler()
@@ -946,7 +1391,16 @@ def create_tsne_viz(
     unique_classes = sorted(df_tsne["class"].unique())
 
     plt.figure(figsize=(14, 10))
-    colors = sns.color_palette("viridis", len(unique_classes))
+
+    # Use provided colors or generate using viridis
+    if bar_colors is None or len(bar_colors) < len(unique_classes):
+        colors = sns.color_palette("viridis", len(unique_classes))
+    else:
+        # Cycle through provided colors if needed
+        colors = []
+        for i in range(len(unique_classes)):
+            colors.append(bar_colors[i % len(bar_colors)])
+
     class_to_color = dict(zip(unique_classes, colors))
 
     for class_name, group in df_tsne.groupby("class"):
@@ -960,18 +1414,31 @@ def create_tsne_viz(
             s=50,
         )
 
-    plt.legend(bbox_to_anchor=(1.02, 1), loc="upper left", fontsize=8)
-    plt.title("t-SNE Visualization of Image Features (Sampled)", fontsize=16)
-    plt.xlabel("t-SNE Feature 1")
-    plt.ylabel("t-SNE Feature 2")
-    plt.grid(True, alpha=0.3)
+    plt.legend(
+        bbox_to_anchor=(1.02, 1),
+        loc="upper left",
+        fontsize=8,
+        facecolor=bg_color,
+        edgecolor=grid_color,
+    )
+    plt.title(
+        "t-SNE Visualization of Image Features (Sampled)", fontsize=16, color=text_color
+    )
+    plt.xlabel("t-SNE Feature 1", color=text_color)
+    plt.ylabel("t-SNE Feature 2", color=text_color)
+    plt.grid(True, alpha=0.3, color=grid_color)
     plt.tight_layout(rect=[0, 0, 0.85, 1])  # Adjust for legend
-    plt.savefig(output_dir / "viz_tsne.png", dpi=150, bbox_inches="tight")
+    plt.savefig(output_dir / "tsne_embedding.png", dpi=400, bbox_inches="tight")
     plt.close()
 
 
 def create_hierarchical_clustering_viz(
-    features: np.ndarray, labels: np.ndarray, output_dir: Path
+    features: np.ndarray,
+    labels: np.ndarray,
+    output_dir: Path,
+    bg_color: str = "#121212",
+    text_color: str = "#f5f5f5",
+    grid_color: str = "#404040",
 ):
     """Internal helper to create hierarchical clustering plot."""
     class_features = {}
@@ -997,20 +1464,33 @@ def create_hierarchical_clustering_viz(
         name.replace("___", "-").replace("_", " ")[:40] for name in class_names
     ]
     dendrogram(
-        linked, orientation="right", labels=simple_class_names, leaf_font_size=10
+        linked,
+        orientation="right",
+        labels=simple_class_names,
+        leaf_font_size=10,
+        color_threshold=0,
+        leaf_rotation=0,
+        # Set leaf text color via link_color_func
+        link_color_func=lambda x: text_color,
     )
-    plt.title("Hierarchical Clustering of Class Mean Features", fontsize=16)
-    plt.xlabel("Distance")
-    plt.grid(True, axis="x", alpha=0.3)
+    plt.title(
+        "Hierarchical Clustering of Class Mean Features", fontsize=16, color=text_color
+    )
+    plt.xlabel("Distance", color=text_color)
+    plt.grid(True, axis="x", alpha=0.3, color=grid_color)
     plt.tight_layout()
-    plt.savefig(
-        output_dir / "viz_hierarchical_clustering.png", dpi=150, bbox_inches="tight"
-    )
+    plt.savefig(output_dir / "feature_clustering.png", dpi=400, bbox_inches="tight")
     plt.close()
 
 
 def create_similarity_matrix_viz(
-    features: np.ndarray, labels: np.ndarray, output_dir: Path
+    features: np.ndarray,
+    labels: np.ndarray,
+    output_dir: Path,
+    bg_color: str = "#121212",
+    text_color: str = "#f5f5f5",
+    grid_color: str = "#404040",
+    cmap: str = "viridis",
 ):
     """Internal helper to create similarity matrix plot."""
     class_features = {}
@@ -1038,19 +1518,22 @@ def create_similarity_matrix_viz(
     )
     sns.heatmap(
         df_similarity,
-        cmap="viridis",
+        cmap=cmap,
         annot=False,
         fmt=".2f",
         linewidths=0.5,
         square=True,
+        cbar_kws={"label": "Cosine Similarity", "shrink": 0.8},
     )
     plt.title(
-        "Class Similarity Matrix (Cosine Similarity of Mean Features)", fontsize=14
+        "Class Similarity Matrix (Cosine Similarity of Mean Features)",
+        fontsize=14,
+        color=text_color,
     )
-    plt.xticks(rotation=90, fontsize=8)
-    plt.yticks(fontsize=8)
+    plt.xticks(rotation=90, fontsize=8, color=text_color)
+    plt.yticks(fontsize=8, color=text_color)
     plt.tight_layout()
-    plt.savefig(output_dir / "viz_similarity_matrix.png", dpi=150, bbox_inches="tight")
+    plt.savefig(output_dir / "similarity_matrix.png", dpi=400, bbox_inches="tight")
     plt.close()
 
 
@@ -1060,6 +1543,9 @@ def create_augmentation_viz(
     output_dir: Path,
     num_samples: int = 3,
     random_seed: int = 42,
+    bg_color: str = "#121212",
+    text_color: str = "#f5f5f5",
+    grid_color: str = "#404040",
 ):
     """Internal helper to visualize augmentations."""
     random.seed(random_seed)
@@ -1109,6 +1595,9 @@ def create_augmentation_viz(
     if len(selected_classes) == 1:
         axes = np.expand_dims(axes, axis=0)  # Handle single sample case
 
+    # Set figure background
+    fig.patch.set_facecolor(bg_color)
+
     for i, class_dir in enumerate(selected_classes):
         image_files = [
             item
@@ -1128,6 +1617,7 @@ def create_augmentation_viz(
 
         for j, (aug_name, aug_func) in enumerate(showcase_augmentations.items()):
             ax = axes[i, j]
+            ax.set_facecolor(bg_color)
             try:
                 augmented = aug_func(image=image)["image"]
                 ax.imshow(augmented)
@@ -1137,7 +1627,7 @@ def create_augmentation_viz(
                 ax.set_title(f"{aug_name}\n(Error)", fontsize=8, color="red")
             ax.axis("off")
             if i == 0:
-                ax.set_title(aug_name, fontsize=10)
+                ax.set_title(aug_name, fontsize=10, color=text_color)
             if j == 0:
                 ax.set_ylabel(
                     class_dir.name[:20],
@@ -1146,12 +1636,13 @@ def create_augmentation_viz(
                     labelpad=40,
                     va="center",
                     ha="right",
+                    color=text_color,
                 )
 
-    plt.suptitle("Sample Data Augmentations", fontsize=16, y=0.99)
+    plt.suptitle("Sample Data Augmentations", fontsize=16, y=0.99, color=text_color)
     plt.tight_layout(rect=[0, 0, 1, 0.96])
     plt.subplots_adjust(wspace=0.05, hspace=0.1)
-    plt.savefig(output_dir / "viz_augmentations.png", dpi=150, bbox_inches="tight")
+    plt.savefig(output_dir / "augmentations.png", dpi=400, bbox_inches="tight")
     plt.close(fig)
 
 
@@ -1223,7 +1714,7 @@ def run_prepare_data(cfg: DictConfig):
                         f"  - Valid images: {validation_results.get('valid_count', 'N/A')}\n"
                     )
                     f.write(
-                        f"  - Invalid images: {validation_results.get('invalid_count', 'N/A')}\n"
+                        f"- **Invalid images:** {validation_results.get('invalid_count', 'N/A')}\n"
                     )
 
                 if prep_cfg.run_analysis_after_validation:
@@ -1280,12 +1771,8 @@ def run_prepare_data(cfg: DictConfig):
                     "error"
                 ):
                     f.write("\n### Analysis Results\n\n")
-                    f.write(
-                        "- **Stats Report:** `analysis/dataset_analysis_stats.json`\n"
-                    )
-                    f.write(
-                        "- **Summary Report:** `analysis/analysis_summary_report.md`\n"
-                    )
+                    f.write("- **Stats Report:** `analysis/dataset_statistics.json`\n")
+                    f.write("- **Summary Report:** `analysis/summary_report.md`\n")
 
                     if analysis_stats.get("class_distribution"):
                         f.write("\n**Class Distribution:**\n\n")
@@ -1305,10 +1792,10 @@ def run_prepare_data(cfg: DictConfig):
                     if prep_cfg.create_plots:
                         f.write("\n**Generated Plots:**\n\n")
                         f.write(
-                            "- Class Distribution: `analysis/plots/class_distribution.png`\n"
+                            "- Class Distribution: `analysis/figures/class_distribution.png`\n"
                         )
                         f.write(
-                            "- Image Size Distribution: `analysis/plots/image_size_distribution.png`\n"
+                            "- Image Size Distribution: `analysis/figures/image_dimensions.png`\n"
                         )
                         f.write(
                             "- Color Distribution: `analysis/plots/color_distribution.png`\n"
@@ -1319,13 +1806,17 @@ def run_prepare_data(cfg: DictConfig):
                     "error"
                 ):
                     f.write("\n### Visualization Results\n\n")
-                    f.write("- **Visualization Directory:** `visualizations/`\n")
+                    f.write("- **Visualization Directory:** `visualization/`\n")
                     f.write("- **Contents:**\n")
-                    f.write("  - Class samples: `visualizations/class_samples/`\n")
-                    f.write("  - Grid visualization: `visualizations/class_grid.png`\n")
+                    f.write("  - Image grid: `visualization/image_grid.png`\n")
+                    f.write("  - t-SNE embedding: `visualization/tsne_embedding.png`\n")
                     f.write(
-                        "  - Data characteristics: `visualizations/data_characteristics.png`\n"
+                        "  - Feature clustering: `visualization/feature_clustering.png`\n"
                     )
+                    f.write(
+                        "  - Class similarity: `visualization/similarity_matrix.png`\n"
+                    )
+                    f.write("  - Augmentations: `visualization/augmentations.png`\n")
 
                 # Recommendations
                 f.write("\n## Recommendations\n\n")

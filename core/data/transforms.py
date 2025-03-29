@@ -22,7 +22,7 @@ def get_transforms(cfg: DictConfig, split: str = "train") -> A.Compose:
     Get image transformations based on configuration and dataset split.
 
     Args:
-        cfg: Hydra configuration object. Expected keys:
+        cfg: Configuration object. Expected keys:
              preprocessing:
                  resize: [height, width] for initial resize.
                  center_crop: [height, width] for center cropping.
@@ -51,11 +51,40 @@ def get_transforms(cfg: DictConfig, split: str = "train") -> A.Compose:
         An Albumentations composition of transformations.
     """
     try:
-        # Basic preprocessing parameters (common to all splits)
-        height, width = cfg.preprocessing.resize
-        crop_height, crop_width = cfg.preprocessing.center_crop
-        mean = cfg.preprocessing.normalize.mean
-        std = cfg.preprocessing.normalize.std
+        # Check for newer config format first (preferred)
+        if (hasattr(cfg.preprocessing, 'resize') and 
+            hasattr(cfg.preprocessing, 'center_crop') and 
+            hasattr(cfg.preprocessing, 'normalize')):
+            
+            # Use the new format
+            height, width = cfg.preprocessing.resize
+            crop_height, crop_width = cfg.preprocessing.center_crop
+            mean = cfg.preprocessing.normalize.mean
+            std = cfg.preprocessing.normalize.std
+            
+            logger.debug("Using new configuration format for transforms.")
+        else:
+            # Fall back to the old format with split-specific settings
+            logger.debug("Using legacy configuration format for transforms.")
+            
+            # Access split-specific configuration
+            split_cfg = getattr(cfg.preprocessing, split)
+            
+            # Get resize parameters
+            height = split_cfg.resize_height
+            width = split_cfg.resize_width
+            
+            # Get crop parameters (different naming between train and val/test)
+            if split == "train" and hasattr(split_cfg, "random_crop_height"):
+                crop_height = split_cfg.random_crop_height
+                crop_width = split_cfg.random_crop_width
+            else:
+                crop_height = split_cfg.center_crop_height
+                crop_width = split_cfg.center_crop_width
+            
+            # Get normalization parameters
+            mean = split_cfg.mean
+            std = split_cfg.std
 
         logger.debug(
             f"Transform params - Resize: ({height}, {width}), Crop: ({crop_height}, {crop_width})"

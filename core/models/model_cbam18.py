@@ -17,7 +17,84 @@ from .registry import register_model
 logger = get_logger(__name__)
 
 
-@register_model("cbam_resnet18")
+@register_model(
+    "cbam_only_resnet18",
+    # Parameter metadata for validation and documentation
+    num_classes={
+        "type": "int",
+        "default": 39,
+        "description": "Number of output classes",
+        "range": [1, 1000],
+    },
+    pretrained={
+        "type": "bool",
+        "default": True,
+        "description": "Whether to use pretrained ImageNet weights",
+    },
+    freeze_backbone={
+        "type": "bool",
+        "default": False,
+        "description": "Whether to freeze the backbone initially",
+    },
+    dropout_rate={
+        "type": "float",
+        "default": 0.2,
+        "description": "Dropout rate for the head",
+        "range": [0.0, 0.9],
+    },
+    head_type={
+        "type": "str",
+        "default": "linear",
+        "description": "Type of classification head to use",
+        "choices": ["linear", "mlp", "residual"],
+    },
+    hidden_dim={
+        "type": "int",
+        "default": None,
+        "description": "Dimension of hidden layer in the head (None to auto-calculate)",
+    },
+    in_channels={
+        "type": "int",
+        "default": 3,
+        "description": "Number of input channels",
+        "range": [1, 4],
+    },
+    input_size={
+        "type": "list",
+        "default": [256, 256],
+        "description": "Input image size [height, width]",
+    },
+    reduction_ratio={
+        "type": "int",
+        "default": 16,
+        "description": "Reduction ratio for CBAM attention",
+        "range": [1, 64],
+    },
+    regularization={
+        "type": "dict",
+        "default": {
+            "stochastic_depth_prob": 0.0,
+            "drop_path_prob": 0.0,
+        },
+        "description": "Regularization parameters for stochastic depth and dropout",
+    },
+    feature_fusion={
+        "type": "bool",
+        "default": False,
+        "description": "Whether to use feature fusion from multiple layers",
+    },
+    use_residual_head={
+        "type": "bool",
+        "default": False,
+        "description": "Whether to use residual head for classification",
+    },
+    spatial_kernel_size={
+        "type": "int",
+        "default": 7,
+        "description": "Kernel size for spatial attention in CBAM",
+        "choices": [3, 5, 7, 9]
+    }
+)
 class CBAMResNet18Model(BaseModel):
     """
     CBAM-Only ResNet18 model for plant disease classification with attention.
@@ -35,6 +112,7 @@ class CBAMResNet18Model(BaseModel):
         regularization: Regularization parameters
         feature_fusion: Whether to use feature fusion from multiple layers
         use_residual_head: Whether to use residual head for classification
+        spatial_kernel_size: Kernel size for spatial attention in CBAM
     """
 
     def __init__(
@@ -51,11 +129,13 @@ class CBAMResNet18Model(BaseModel):
         regularization=None,
         feature_fusion=False,
         use_residual_head=False,
+        spatial_kernel_size=7,
     ):
         # Store model-specific parameters
         self.reduction_ratio = reduction_ratio
         self.feature_fusion = feature_fusion
         self.use_residual_head = use_residual_head
+        self.spatial_kernel_size = spatial_kernel_size
 
         # Initialize with custom parameters
         super().__init__(
@@ -73,7 +153,8 @@ class CBAMResNet18Model(BaseModel):
 
         logger.info(
             f"Initialized CBAMResNet18Model with feature_fusion={feature_fusion}, "
-            f"use_residual_head={use_residual_head}, reduction_ratio={reduction_ratio}"
+            f"use_residual_head={use_residual_head}, reduction_ratio={reduction_ratio}, "
+            f"spatial_kernel_size={spatial_kernel_size}"
         )
 
     def _create_backbone(self):
@@ -90,6 +171,7 @@ class CBAMResNet18Model(BaseModel):
             regularization=self.regularization,
             feature_fusion=self.feature_fusion,
             in_channels=self.in_channels,
+            spatial_kernel_size=self.spatial_kernel_size,
         )
         return backbone, backbone.output_dim
 
@@ -147,6 +229,22 @@ class CBAMResNet18Model(BaseModel):
         # Flatten for feature extraction
         flat_features = torch.flatten(features, 1)
         return flat_features
+
+    def get_attention_maps(self, x):
+        """
+        Get the attention maps from the CBAM modules.
+
+        Args:
+            x: Input tensor
+
+        Returns:
+            Dictionary of attention maps from different layers
+        """
+        if not hasattr(self.backbone, "get_attention_maps"):
+            logger.warning("Backbone does not support attention map extraction")
+            return {}
+        
+        return self.backbone.get_attention_maps(x)
 
     def get_gradcam_target_layer(self):
         """

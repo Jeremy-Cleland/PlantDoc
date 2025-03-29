@@ -1,0 +1,14 @@
+# Dataset Visualization Summary
+
+Generated on: 2025-03-29 15:10:11
+Dataset location: data/raw
+Sampled images for visualization: 1170
+Number of classes visualized: 39
+
+## Generated Visualizations
+
+- image_grid.png: Grid of sample images from each class
+- tsne_embedding.png: t-SNE dimensionality reduction visualization
+- feature_clustering.png: Hierarchical clustering of class features
+- similarity_matrix.png: Class similarity matrix based on image features
+- augmentations.png: Sample augmentations applied to images

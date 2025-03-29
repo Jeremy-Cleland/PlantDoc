@@ -2,23 +2,16 @@
 project_name: CBAM Classification
 version: 1.0.0
 
-hydra:
-  job:
-    chdir: true
-  output_subdir: null # Don't create .hydra subdirectory with configs
-  run:
-    dir: .
-  sweep:
-    dir: "${output_dir}/multirun/${now:%Y-%m-%d_%H-%M-%S}"
-    subdir: "${hydra.job.num}"
+# Global settings
+seed: 42  # Global seed for reproducibility
 
 logging:
   level: INFO
   use_colors: true
+  log_to_file: true
+  log_file: "${paths.log_dir}/training.log"
 
-
-
-  # Simple path configuration without complex interpolation
+# Simple path configuration without complex interpolation
 paths:
   # Base directories - these will be set programmatically
   output_dir: "outputs"
@@ -28,43 +21,310 @@ paths:
   raw_dir: "data/raw"
   preprocessed_dir: "data/preprocessed"
 
-# Data configuration (rest of your config stays the same)
+# Data configuration
 data:
   dataset_name: PlantDisease
   train_val_test_split: [0.7, 0.15, 0.15]
   random_seed: 42
+  class_names: null  # Will be auto-detected from dataset
 
+# DataLoader configuration
+loader:
+  batch_size: 32
+  num_workers: 4
+  pin_memory: true
+  drop_last: false
+  prefetch_factor: 2
+  persistent_workers: true
+
+# Preprocessing configuration for data transformations
+preprocessing:
+  # Common settings for all splits
+  resize: [256, 256]
+  center_crop: [224, 224]
+  normalize:
+    mean: [0.485, 0.456, 0.406]
+    std: [0.229, 0.224, 0.225]
+  
+  # Legacy format (keeping for compatibility)
+  train:
+    resize_height: 256
+    resize_width: 256
+    horizontal_flip_prob: 0.5
+    vertical_flip_prob: 0.0
+    random_crop_height: 224
+    random_crop_width: 224
+    random_crop_prob: 0.5
+    rotation_prob: 0.5
+    rotation_limit: 45
+    brightness_contrast_prob: 0.5
+    brightness_limit: 0.2
+    contrast_limit: 0.2
+    normalize: true
+    mean: [0.485, 0.456, 0.406]
+    std: [0.229, 0.224, 0.225]
+  
+  val:
+    resize_height: 256
+    resize_width: 256
+    center_crop_height: 224
+    center_crop_width: 224
+    normalize: true
+    mean: [0.485, 0.456, 0.406]
+    std: [0.229, 0.224, 0.225]
+  
+  test:
+    resize_height: 256
+    resize_width: 256
+    center_crop_height: 224
+    center_crop_width: 224
+    normalize: true
+    mean: [0.485, 0.456, 0.406]
+    std: [0.229, 0.224, 0.225]
+
+# Augmentation settings
+augmentation:
+  train:
+    horizontal_flip: true
+    vertical_flip: false
+    random_rotate: 45
+    random_resized_crop:
+      scale: [0.8, 1.0]
+      ratio: [0.75, 1.33]
+    color_jitter:
+      brightness: 0.2
+      contrast: 0.2
+      saturation: 0.2
+      hue: 0.1
+    random_brightness_contrast:
+      brightness_limit: 0.2
+      contrast_limit: 0.2
+      p: 0.5
+    shift_scale_rotate:
+      shift_limit: 0.05
+      scale_limit: 0.05
+      rotate_limit: 15
+      p: 0.5
+    cutout:
+      num_holes: 4
+      max_h_size: 16
+      max_w_size: 16
+      p: 0.5
+
+# Model configuration
 model:
-  name: cbam_only_resnet18 # Model name must match a registered model
-  num_classes: 39 # Automatically determined if using get_datasets, but good practice to specify
-  pretrained: true # Load pretrained ImageNet weights
-  freeze_backbone: false # Initial state (Trainer handles unfreezing)
-  feature_fusion: true # Enable feature fusion in backbone
-  use_residual_head: true # Use residual head
-  dropout_rate: 0.09134925421514478 # Dropout in the head
-  input_size: [256, 256] # Expected input image size
-  reduction_ratio: 24 # Reduction ratio for CBAM blocks
-  regularization: # Regularization within model components (e.g., DropPath)
-    stochastic_depth_prob: 0.040397158459940234
-    drop_path_prob: 0.19180035377564947
+  # Base model settings
+  name: cbam_only_resnet18  # Model name must match a registered model
+  num_classes: 39  # Number of output classes
+  pretrained: true  # Load pretrained ImageNet weights
+  in_channels: 3  # Number of input channels
+  input_size: [256, 256]  # Expected input image size
+  
+  # Head settings
+  head_type: "residual"  # Options: linear, mlp, residual
+  hidden_dim: 256  # Hidden dimension for MLP or residual head
+  dropout_rate: 0.1  # Dropout rate for the head
+  use_residual_head: true  # Whether to use residual head for classification
+  
+  # Backbone settings
+  freeze_backbone: false  # Whether to freeze backbone initially
+  feature_fusion: true  # Enable feature fusion from multiple backbone layers
 
+  # CBAM settings
+  reduction_ratio: 24  # Reduction ratio for CBAM blocks
+  spatial_kernel_size: 7  # Kernel size for spatial attention
+  
+  # Regularization within model components
+  regularization:
+    stochastic_depth_prob: 0.04  # Stochastic depth probability
+    drop_path_prob: 0.19  # Drop path probability
 
+# Optimizer settings
+optimizer:
+  name: AdamW  # Options: SGD, Adam, AdamW
+  lr: 0.001
+  weight_decay: 0.0001
+  betas: [0.9, 0.999]  # For Adam/AdamW
+  eps: 1.0e-8  # For Adam/AdamW
+  momentum: 0.9  # For SGD
+  nesterov: false  # For SGD
+  differential_lr: false  # Whether to use different LRs for backbone vs. head
+  differential_lr_factor: 0.1  # Factor to reduce backbone LR by if differential_lr is true
+
+# Loss function settings
+loss:
+  name: CrossEntropyLoss  # Options: CrossEntropyLoss, WeightedCrossEntropyLoss
+  reduction: mean  # Options: mean, sum, none
+  label_smoothing: 0.1
+  weights: null  # Class weights (null means auto-calculate or none)
+  class_weighted: true  # Whether to use class weights
+  weight_mode: sqrt_inv  # Options: inv, sqrt_inv, effective
+
+# Learning rate scheduler
+scheduler:
+  name: CosineAnnealingLR  # Options: StepLR, ReduceLROnPlateau, CosineAnnealingLR
+  monitor: val_loss  # Metric to monitor for ReduceLROnPlateau
+  mode: min  # min or max, for ReduceLROnPlateau
+  step_mode: epoch  # epoch or step, controls when scheduler.step() is called
+  T_max: null  # Set to null to auto-calculate based on epochs (for CosineAnnealingLR)
+  min_lr: 1.0e-6
+  factor: 0.1  # Factor by which to reduce LR (for ReduceLROnPlateau and StepLR)
+  patience: 5  # Epochs with no improvement after which LR will be reduced (for ReduceLROnPlateau)
+  step_size: 30  # Period of LR decay (for StepLR)
+  warmup_epochs: 5
+  warmup_start_lr: 1.0e-5
+  log_changes: true  # Whether to log LR changes
+
+# Progressive resizing settings
+progressive_resizing:
+  enabled: false
+  sizes: [[224, 224], [256, 256], [288, 288]]  # Image sizes for each stage
+  epochs_per_size: [30, 30, 40]  # How many epochs to train at each size
+  # Note: If not specified, epochs will be distributed evenly
+
+# Training configuration
+training:
+  epochs: 100
+  batch_size: 32  # Already in loader section, but keeping for compatibility
+  learning_rate: 0.001  # Already in optimizer section, but keeping for compatibility
+  weight_decay: 0.0001  # Already in optimizer section, but keeping for compatibility
+  deterministic: false  # Set to true for reproducible training
+  use_mixed_precision: false  # Enable AMP (automatic mixed precision)
+  gradient_clip_val: 1.0
+  precision: "float32"  # Options: float32, float16, bfloat16
+
+# Transfer learning settings
+transfer_learning:
+  initial_frozen_epochs: 5  # Number of epochs to train with backbone frozen
+  finetune_lr_factor: 0.1  # Factor to reduce LR by when unfreezing backbone
+
+# Callbacks configuration
+callbacks:
+  early_stopping:
+    enabled: true
+    monitor: val_loss
+    patience: 10
+    mode: min
+    min_delta: 0.001
+    restore_best_weights: true
+    verbose: true
+  model_checkpoint:
+    enabled: true
+    dirpath: "${paths.checkpoint_dir}"
+    filename: "epoch_{epoch:03d}_{val_loss:.4f}"
+    monitor: val_loss
+    save_best_only: true
+    best_filename: "best_model.pth"
+    mode: min
+    save_last: true
+    last_filename: "last_model.pth"
+    save_optimizer: true
+    save_freq: "epoch"
+    verbose: true
+    max_save: 3
+  learning_rate_monitor:
+    enabled: true
+    logging_interval: epoch
+    verbose: true
+  metrics_logger:
+    enabled: true
+  tensorboard:
+    enabled: true
+    log_graph: false
+    histogram_freq: 1
+
+# Evaluation configuration
+evaluation:
+  split: test  # Which split to evaluate on by default
+  metrics:
+    accuracy: true
+    precision: true
+    recall: true
+    f1: true
+    confusion_matrix: true
+  interpretability:
+    gradcam: true
+    num_samples: 10
+    target_layers: ["layer4"]
+
+# Prepare data configuration
 prepare_data:
-  output_dir: ${paths.preprocessed_dir}
-  dry_run: true
-  fix_extensions: true
-  verify_images: true
-  fix_folders: true
-  run_analysis_after_validation: true
-  sample_size: 1000
-  random_seed: 42
-  run_visualization_after_analysis: true
-  generate_combined_report: true
-  create_plots: true
-  n_per_class: 30
-  max_classes: null
-  create_image_grid: true
-  create_tsne: true
-  create_clustering: true
-  create_similarity: true
-  create_augmentation: true
+  # Output directory for all preparation results
+  output_dir: "${paths.preprocessed_dir}"
+  
+  # Validation options
+  dry_run: true  # Run without making changes (set to false to apply fixes)
+  fix_extensions: true  # Fix image extensions during validation
+  verify_images: true  # Verify that images can be opened
+  fix_folders: true  # Fix problematic folder names
+  
+  # Analysis options
+  run_analysis_after_validation: true  # Whether to run analysis after validation
+  sample_size: 1000  # Number of images to sample for detailed analysis
+  random_seed: 42  # For reproducibility
+  
+  # Visualization options
+  run_visualization_after_analysis: true  # Whether to run visualization after analysis
+  generate_combined_report: true  # Generate a combined report of all steps
+  create_plots: true  # Create plots during analysis phase
+  
+  # Advanced visualization settings
+  n_per_class_viz: 30  # Number of images per class for visualization
+  max_classes_viz: null  # Limit classes for visualization (null = all classes)
+  
+  # Visualization theme settings
+  visualization_theme:
+    background_color: "#121212"
+    text_color: "#f5f5f5"
+    grid_color: "#404040"
+    main_color: "#34d399"
+    bar_colors: ["#a78bfa", "#22d3ee", "#34d399", "#d62728", "#e27c7c"]
+    cmap: "viridis"
+  
+  # Analysis plots configuration
+  figures_and_plots:
+    class_distribution: true
+    image_dimensions: true
+    aspect_ratio_distribution: true
+    file_size_distribution: true
+    brightness_distribution: true
+    color_distribution: true
+    file_size_by_class: true
+    analysis_dashboard: true
+    class_distribution_pie: true
+  
+  # Visualization components to generate
+  visualization:
+    image_grid: true
+    tsne_embedding: true
+    feature_clustering: true
+    similarity_matrix: true
+    augmentations: true
+
+# Hardware configuration for specialized setups
+hardware:
+  precision: "float32"  # Global precision setting
+  mps:  # Apple Silicon GPU specific settings
+    memory:
+      monitor: true
+      clear_cache_freq: 10
+      deep_clean_after_val: true
+      enable_sync_for_timing: true
+      limit_fraction: 0.8  # Fraction of available memory to use
+    model:
+      use_channels_last: true
+    profiling:
+      enabled: false
+    reproducibility:
+      set_mps_seed: true
+  cuda:
+    benchmark: true
+    deterministic: false
+    cudnn_deterministic: false
+
+# Reporting configuration
+reporting:
+  generate_plots: true
+  generate_report: true
+  report_template: "templates/report_template.html"
+  output_format: "html"

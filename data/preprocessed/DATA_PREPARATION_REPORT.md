@@ -1,13 +1,13 @@
 # Data Preparation Pipeline Report
 
-Timestamp: 2025-03-28 18:06:39
+Timestamp: 2025-03-29 15:10:16
 Data Source: data/raw
 
 ## Summary
 
 - Validation: COMPLETED
   - Valid images: N/A
-  - Invalid images: N/A
+- **Invalid images:** N/A
 - Analysis: COMPLETED
   - Total classes: 0
   - Total samples: 61486
@@ -26,22 +26,24 @@ Data Source: data/raw
 
 ### Analysis Results
 
-- **Stats Report:** `analysis/dataset_analysis_stats.json`
-- **Summary Report:** `analysis/analysis_summary_report.md`
+- **Stats Report:** `analysis/dataset_statistics.json`
+- **Summary Report:** `analysis/summary_report.md`
 
 **Generated Plots:**
 
-- Class Distribution: `analysis/plots/class_distribution.png`
-- Image Size Distribution: `analysis/plots/image_size_distribution.png`
+- Class Distribution: `analysis/figures/class_distribution.png`
+- Image Size Distribution: `analysis/figures/image_dimensions.png`
 - Color Distribution: `analysis/plots/color_distribution.png`
 
 ### Visualization Results
 
-- **Visualization Directory:** `visualizations/`
+- **Visualization Directory:** `visualization/`
 - **Contents:**
-  - Class samples: `visualizations/class_samples/`
-  - Grid visualization: `visualizations/class_grid.png`
-  - Data characteristics: `visualizations/data_characteristics.png`
+  - Image grid: `visualization/image_grid.png`
+  - t-SNE embedding: `visualization/tsne_embedding.png`
+  - Feature clustering: `visualization/feature_clustering.png`
+  - Class similarity: `visualization/similarity_matrix.png`
+  - Augmentations: `visualization/augmentations.png`
 
 ## Recommendations
 
