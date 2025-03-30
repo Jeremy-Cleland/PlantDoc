@@ -52,28 +52,29 @@ def get_transforms(cfg: DictConfig, split: str = "train") -> A.Compose:
     """
     try:
         # Check for newer config format first (preferred)
-        if (hasattr(cfg.preprocessing, 'resize') and 
-            hasattr(cfg.preprocessing, 'center_crop') and 
-            hasattr(cfg.preprocessing, 'normalize')):
-            
+        if (
+            hasattr(cfg.preprocessing, "resize")
+            and hasattr(cfg.preprocessing, "center_crop")
+            and hasattr(cfg.preprocessing, "normalize")
+        ):
             # Use the new format
             height, width = cfg.preprocessing.resize
             crop_height, crop_width = cfg.preprocessing.center_crop
             mean = cfg.preprocessing.normalize.mean
             std = cfg.preprocessing.normalize.std
-            
+
             logger.debug("Using new configuration format for transforms.")
         else:
             # Fall back to the old format with split-specific settings
             logger.debug("Using legacy configuration format for transforms.")
-            
+
             # Access split-specific configuration
             split_cfg = getattr(cfg.preprocessing, split)
-            
+
             # Get resize parameters
             height = split_cfg.resize_height
             width = split_cfg.resize_width
-            
+
             # Get crop parameters (different naming between train and val/test)
             if split == "train" and hasattr(split_cfg, "random_crop_height"):
                 crop_height = split_cfg.random_crop_height
@@ -81,7 +82,7 @@ def get_transforms(cfg: DictConfig, split: str = "train") -> A.Compose:
             else:
                 crop_height = split_cfg.center_crop_height
                 crop_width = split_cfg.center_crop_width
-            
+
             # Get normalization parameters
             mean = split_cfg.mean
             std = split_cfg.std
@@ -106,8 +107,10 @@ def get_transforms(cfg: DictConfig, split: str = "train") -> A.Compose:
             if hasattr(aug_cfg, "random_resized_crop"):
                 transforms_list.append(
                     A.RandomResizedCrop(
-                        height=crop_height,
-                        width=crop_width,  # Crop to final desired size
+                        size=(
+                            crop_height,
+                            crop_width,
+                        ),  # Use size parameter instead of height/width
                         scale=aug_cfg.random_resized_crop.scale,
                         ratio=aug_cfg.random_resized_crop.ratio,
                         p=1.0,  # Usually always applied
@@ -167,6 +170,7 @@ def get_transforms(cfg: DictConfig, split: str = "train") -> A.Compose:
                         min_height=8,
                         min_width=8,  # Reasonable defaults
                         fill_value=0,  # Fill with black
+                        size=(crop_height, crop_width),
                         p=aug_cfg.cutout.p,
                     )
                 )

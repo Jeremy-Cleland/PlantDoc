@@ -42,7 +42,10 @@ def get_logger(
 
     logger = logging.getLogger(name)
     logger.setLevel(log_level)
-    logger.propagate = name != "plantdoc"
+
+    # Disable propagation for all loggers except the root logger
+    # This is the key fix for double logging
+    logger.propagate = False
 
     # Clear old handlers
     if logger.handlers:
@@ -69,13 +72,15 @@ def get_logger(
             log_file = f"{Path(log_file).stem}_{timestamp_str}{Path(log_file).suffix}"
         file_path = os.path.join(log_dir, log_file)
 
+        # Create a single global file handler for the main logger
         if _GLOBAL_FILE_HANDLER is None and name == "plantdoc":
             _GLOBAL_FILE_HANDLER = logging.FileHandler(file_path)
             _GLOBAL_FILE_HANDLER.setFormatter(formatter)
-
-        if _GLOBAL_FILE_HANDLER:
             logger.addHandler(_GLOBAL_FILE_HANDLER)
             logger.debug(f"Logging to file: {file_path}")
+        # For other loggers, add the existing file handler if it exists
+        elif _GLOBAL_FILE_HANDLER is not None and name != "plantdoc":
+            logger.addHandler(_GLOBAL_FILE_HANDLER)
 
     _LOGGERS[name] = logger
     return logger
@@ -117,14 +122,34 @@ def configure_logging(cfg) -> logging.Logger:
     command = cfg.get("command", "run")
     log_level = cfg.logging.get("level", "INFO")
     use_colors = cfg.logging.get("use_colors", True)
-    log_dir = Path(getattr(cfg.paths, "logs_dir", "outputs/logs"))
-    log_file = f"{command}.log"
+
+    # Use log_dir from paths configuration
+    if hasattr(cfg.paths, "log_dir"):
+        log_dir = Path(cfg.paths.log_dir)
+    else:
+        # Fallback if log_dir isn't configured yet
+        log_dir = Path("outputs/logs")
+
+    # Create log filename based on command
+    log_file = cfg.logging.get("log_file", "command.log")
+    if log_file == "command.log":
+        # If using the default log file name, use the command name
+        log_file = f"{command}.log"
 
     # Silence Hydra and noisy libraries
     for noisy in ["hydra", "matplotlib", "PIL"]:
         logging.getLogger(noisy).setLevel(logging.WARNING)
 
-    # Create main app logger and others
+    # Configure the root logger
+    root_root_logger = logging.getLogger()
+    root_root_logger.setLevel(
+        logging.WARNING
+    )  # Only show warnings and above for third-party libs
+    # Remove all handlers from the root logger to avoid duplicated logs
+    for handler in root_root_logger.handlers[:]:
+        root_root_logger.removeHandler(handler)
+
+    # Create main app logger
     root_logger = get_logger(
         "plantdoc",
         log_level=log_level,
@@ -133,6 +158,7 @@ def configure_logging(cfg) -> logging.Logger:
         use_colors=use_colors,
     )
 
+    # Set up module loggers
     for module in [
         "data",
         "models",
@@ -143,12 +169,6 @@ def configure_logging(cfg) -> logging.Logger:
         "utils",
     ]:
         get_logger(f"core.{module}", log_level=log_level, use_colors=use_colors)
-
-    # Root logger for external libs (suppress to WARNING+)
-    root_root_logger = logging.getLogger()
-    root_root_logger.setLevel(logging.WARNING)
-    if _GLOBAL_FILE_HANDLER and _GLOBAL_FILE_HANDLER not in root_root_logger.handlers:
-        root_root_logger.addHandler(_GLOBAL_FILE_HANDLER)
 
     root_logger.info(f"Logging initialized. Level: {log_level} | Log dir: {log_dir}")
     return root_logger

@@ -89,7 +89,9 @@ def get_loss_fn(cfg: Dict[str, Any]) -> nn.Module:
     if not isinstance(cfg, dict):
         raise TypeError(f"Loss configuration must be a dictionary, got {type(cfg)}")
 
-    loss_name = cfg.get("name", "cross_entropy").lower()
+    loss_name = (
+        cfg.get("name", "cross_entropy").lower().replace("_", "").replace("-", "")
+    )
     logger.info(f"Initializing loss function: '{loss_name}'")
 
     # Extract common parameters
@@ -97,10 +99,13 @@ def get_loss_fn(cfg: Dict[str, Any]) -> nn.Module:
     label_smoothing = cfg.get("label_smoothing", 0.0)
 
     # Handle specific loss types
-    if loss_name == "cross_entropy":
+    if loss_name in ["crossentropy", "crossentropyloss"]:
+        logger.info(
+            f"  Using CrossEntropyLoss with reduction='{reduction}', label_smoothing={label_smoothing}"
+        )
         return nn.CrossEntropyLoss(reduction=reduction, label_smoothing=label_smoothing)
 
-    elif loss_name == "weighted_cross_entropy":
+    elif loss_name in ["weightedcrossentropy", "weightedcrossentropyloss"]:
         weights_list = cfg.get("weights", None)
         weights_tensor = None
         if weights_list is not None:

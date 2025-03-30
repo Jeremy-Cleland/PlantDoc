@@ -45,12 +45,12 @@ def register_model(name, model_cls=None, **metadata):
     def decorator(cls):
         MODEL_REGISTRY[name] = cls
         MODEL_METADATA[name] = metadata
-        
+
         # Attach metadata to the class for introspection
         if not hasattr(cls, "model_metadata"):
             cls.model_metadata = {}
         cls.model_metadata[name] = metadata
-        
+
         return cls
 
     return decorator
@@ -67,7 +67,9 @@ def get_model_class(name: str) -> Type[BaseModel]:
         Model class
     """
     if name not in MODEL_REGISTRY:
-        raise ValueError(f"Unknown model: {name}. Available models: {list(MODEL_REGISTRY.keys())}")
+        raise ValueError(
+            f"Unknown model: {name}. Available models: {list(MODEL_REGISTRY.keys())}"
+        )
 
     return MODEL_REGISTRY[name]
 
@@ -83,7 +85,9 @@ def get_model_metadata(name: str) -> Dict[str, Any]:
         Model metadata dictionary
     """
     if name not in MODEL_METADATA:
-        raise ValueError(f"Unknown model: {name}. Available models: {list(MODEL_METADATA.keys())}")
+        raise ValueError(
+            f"Unknown model: {name}. Available models: {list(MODEL_METADATA.keys())}"
+        )
 
     return MODEL_METADATA[name]
 
@@ -103,53 +107,93 @@ def validate_model_params(name: str, params: Dict[str, Any]) -> Dict[str, Any]:
         logger.warning(f"No metadata found for model {name}. Skipping validation.")
         return params
 
+    # First convert any non-serializable objects to serializable ones
+    def convert_to_serializable(obj):
+        if hasattr(obj, "__dict__"):
+            return {k: convert_to_serializable(v) for k, v in obj.__dict__.items()}
+        elif isinstance(obj, dict):
+            return {k: convert_to_serializable(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [convert_to_serializable(item) for item in obj]
+        # Handle OmegaConf ListConfig and DictConfig
+        elif str(type(obj)).endswith("ListConfig'>"):
+            return [convert_to_serializable(item) for item in obj]
+        elif str(type(obj)).endswith("DictConfig'>"):
+            return {k: convert_to_serializable(v) for k, v in obj.items()}
+        else:
+            return obj
+
+    serializable_params = convert_to_serializable(params)
+
     metadata = MODEL_METADATA[name]
     validated_params = {}
 
     # Add all parameters with defaults
     for param_name, param_meta in metadata.items():
-        if param_name in params:
+        if param_name in serializable_params:
             # Perform type validation if specified
             if "type" in param_meta:
                 param_type = param_meta["type"]
-                param_value = params[param_name]
-                
+                param_value = serializable_params[param_name]
+
                 # Basic type checking
                 if param_type == "int" and not isinstance(param_value, int):
-                    logger.warning(f"Parameter {param_name} should be an integer. Got {type(param_value).__name__}.")
-                elif param_type == "float" and not isinstance(param_value, (int, float)):
-                    logger.warning(f"Parameter {param_name} should be a float. Got {type(param_value).__name__}.")
+                    logger.warning(
+                        f"Parameter {param_name} should be an integer. Got {type(param_value).__name__}."
+                    )
+                elif param_type == "float" and not isinstance(
+                    param_value, (int, float)
+                ):
+                    logger.warning(
+                        f"Parameter {param_name} should be a float. Got {type(param_value).__name__}."
+                    )
                 elif param_type == "bool" and not isinstance(param_value, bool):
-                    logger.warning(f"Parameter {param_name} should be a boolean. Got {type(param_value).__name__}.")
+                    logger.warning(
+                        f"Parameter {param_name} should be a boolean. Got {type(param_value).__name__}."
+                    )
                 elif param_type == "str" and not isinstance(param_value, str):
-                    logger.warning(f"Parameter {param_name} should be a string. Got {type(param_value).__name__}.")
+                    logger.warning(
+                        f"Parameter {param_name} should be a string. Got {type(param_value).__name__}."
+                    )
                 elif param_type == "list" and not isinstance(param_value, list):
-                    logger.warning(f"Parameter {param_name} should be a list. Got {type(param_value).__name__}.")
+                    logger.warning(
+                        f"Parameter {param_name} should be a list. Got {type(param_value).__name__}."
+                    )
                 elif param_type == "dict" and not isinstance(param_value, dict):
-                    logger.warning(f"Parameter {param_name} should be a dictionary. Got {type(param_value).__name__}.")
-                
+                    logger.warning(
+                        f"Parameter {param_name} should be a dictionary. Got {type(param_value).__name__}."
+                    )
+
                 # Range checking if specified
                 if "range" in param_meta and isinstance(param_value, (int, float)):
                     min_val, max_val = param_meta["range"]
                     if param_value < min_val or param_value > max_val:
-                        logger.warning(f"Parameter {param_name} should be in range [{min_val}, {max_val}]. Got {param_value}.")
-                
+                        logger.warning(
+                            f"Parameter {param_name} should be in range [{min_val}, {max_val}]. Got {param_value}."
+                        )
+
                 # Choice validation if specified
                 if "choices" in param_meta and param_value not in param_meta["choices"]:
-                    logger.warning(f"Parameter {param_name} should be one of {param_meta['choices']}. Got {param_value}.")
-            
-            validated_params[param_name] = params[param_name]
+                    logger.warning(
+                        f"Parameter {param_name} should be one of {param_meta['choices']}. Got {param_value}."
+                    )
+
+            validated_params[param_name] = serializable_params[param_name]
         elif "default" in param_meta:
             validated_params[param_name] = param_meta["default"]
         elif "required" in param_meta and param_meta["required"]:
-            logger.error(f"Required parameter {param_name} not provided for model {name}.")
-            raise ValueError(f"Required parameter {param_name} not provided for model {name}.")
+            logger.error(
+                f"Required parameter {param_name} not provided for model {name}."
+            )
+            raise ValueError(
+                f"Required parameter {param_name} not provided for model {name}."
+            )
 
     # Log any extra parameters not in metadata
-    for param_name in params:
+    for param_name in serializable_params:
         if param_name not in metadata:
             logger.warning(f"Unknown parameter {param_name} for model {name}.")
-            validated_params[param_name] = params[param_name]
+            validated_params[param_name] = serializable_params[param_name]
 
     return validated_params
 
@@ -161,8 +205,10 @@ def list_models() -> Dict[str, Dict[str, Any]]:
     Returns:
         Dictionary mapping model names to their metadata
     """
-    return {name: {"class": MODEL_REGISTRY[name], "metadata": MODEL_METADATA.get(name, {})} 
-            for name in MODEL_REGISTRY}
+    return {
+        name: {"class": MODEL_REGISTRY[name], "metadata": MODEL_METADATA.get(name, {})}
+        for name in MODEL_REGISTRY
+    }
 
 
 def get_model_param_schema(name: str) -> Dict[str, Any]:
@@ -189,10 +235,10 @@ def get_model_param_schema(name: str) -> Dict[str, Any]:
             "description": param_meta.get("description", ""),
             "required": param_meta.get("required", False),
         }
-        
+
         if "range" in param_meta:
             schema[param_name]["range"] = param_meta["range"]
-        
+
         if "choices" in param_meta:
             schema[param_name]["choices"] = param_meta["choices"]
 

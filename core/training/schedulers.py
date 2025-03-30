@@ -40,16 +40,16 @@ def get_scheduler(
         logger.info("No learning rate scheduler configured.")
         return None
 
-    scheduler_name = cfg.get("name").lower()
+    scheduler_name = cfg.get("name").lower().replace("_", "").replace("-", "")
     logger.info(f"Creating '{scheduler_name}' learning rate scheduler.")
 
-    if scheduler_name == "step":
+    if scheduler_name == "step" or scheduler_name == "steplr":
         step_size = cfg.get("step_size", max(1, num_epochs // 3) if num_epochs else 30)
         gamma = cfg.get("gamma", 0.1)
         logger.info(f"  StepLR params: step_size={step_size}, gamma={gamma:.2f}")
         return StepLR(optimizer, step_size=step_size, gamma=gamma)
 
-    elif scheduler_name == "reduce_on_plateau":
+    elif scheduler_name in ["reduceonplateau", "reducelronplateau"]:
         patience = cfg.get("patience", 5)
         factor = cfg.get("factor", 0.1)
         min_lr = cfg.get("min_lr", 1e-6)
@@ -67,16 +67,20 @@ def get_scheduler(
             verbose=True,
         )
 
-    elif scheduler_name == "cosine":
+    elif scheduler_name in ["cosine", "cosineannealinglr"]:
         if num_epochs is None:
             logger.error("Cosine scheduler requires 'num_epochs' parameter")
             return None
 
+        # Try to use T_max from config, or fall back to num_epochs
+        t_max = cfg.get("T_max", num_epochs)
+        # If T_max is None in config, set it to num_epochs
+        if t_max is None:
+            t_max = num_epochs
+
         eta_min = cfg.get("min_lr", 0.0)
-        logger.info(
-            f"  CosineAnnealingLR params: T_max={num_epochs}, min_lr={eta_min:.2e}"
-        )
-        return CosineAnnealingLR(optimizer, T_max=num_epochs, eta_min=eta_min)
+        logger.info(f"  CosineAnnealingLR params: T_max={t_max}, min_lr={eta_min:.2e}")
+        return CosineAnnealingLR(optimizer, T_max=t_max, eta_min=eta_min)
 
     else:
         logger.warning(f"Unsupported scheduler: '{scheduler_name}'")

@@ -9,12 +9,13 @@ logging:
   level: INFO
   use_colors: true
   log_to_file: true
-  log_file: "${paths.log_dir}/training.log"
+  log_file: "command.log"
 
 # Simple path configuration without complex interpolation
 paths:
   # Base directories - these will be set programmatically
   output_dir: "outputs"
+
   experiment_name: "cbam_default"
   
   # Data directories - relative to project root
@@ -26,7 +27,46 @@ data:
   dataset_name: PlantDisease
   train_val_test_split: [0.7, 0.15, 0.15]
   random_seed: 42
-  class_names: null  # Will be auto-detected from dataset
+  class_names:
+    - Apple_scab
+    - Apple_black_rot
+    - Apple_cedar_apple_rust
+    - Apple_healthy
+    - Background_without_leaves
+    - Blueberry_healthy
+    - Cherry_powdery_mildew
+    - Cherry_healthy
+    - Corn_gray_leaf_spot
+    - Corn_common_rust
+    - Corn_northern_leaf_blight
+    - Corn_healthy
+    - Grape_black_rot
+    - Grape_black_measles
+    - Grape_leaf_blight
+    - Grape_healthy
+    - Orange_haunglongbing
+    - Peach_bacterial_spot
+    - Peach_healthy
+    - Pepper_bacterial_spot
+    - Pepper_healthy
+    - Potato_early_blight
+    - Potato_healthy
+    - Potato_late_blight
+    - Raspberry_healthy
+    - Soybean_healthy
+    - Squash_powdery_mildew
+    - Strawberry_healthy
+    - Strawberry_leaf_scorch
+    - Tomato_bacterial_spot
+    - Tomato_early_blight
+    - Tomato_healthy
+    - Tomato_late_blight
+    - Tomato_leaf_mold
+    - Tomato_septoria_leaf_spot
+    - Tomato_spider_mites_two-spotted_spider_mite
+    - Tomato_target_spot
+    - Tomato_mosaic_virus
+    - Tomato_yellow_leaf_curl_virus
 
 # DataLoader configuration
 loader:
@@ -89,6 +129,7 @@ augmentation:
     vertical_flip: false
     random_rotate: 45
     random_resized_crop:
+      size: [224, 224]
       scale: [0.8, 1.0]
       ratio: [0.75, 1.33]
     color_jitter:
@@ -210,7 +251,7 @@ callbacks:
     verbose: true
   model_checkpoint:
     enabled: true
-    dirpath: "${paths.checkpoint_dir}"
+    dirpath: "checkpoints"
     filename: "epoch_{epoch:03d}_{val_loss:.4f}"
     monitor: val_loss
     save_best_only: true
@@ -232,6 +273,60 @@ callbacks:
     enabled: true
     log_graph: false
     histogram_freq: 1
+  lr_scheduler:
+    enabled: false
+    monitor: val_loss
+    mode: epoch
+    min_lr: 1.0e-8
+    verbose: true
+  gradcam:
+    enabled: true
+    frequency: 20  # Every 20 epochs
+    n_samples: 5   # Number of samples to visualize
+    input_size: [224, 224]  # Size of input images for visualization
+    mean: [0.485, 0.456, 0.406]  # Normalization mean
+    std: [0.229, 0.224, 0.225]    # Normalization std
+    # test_data will be set programmatically
+    class_names:
+      - Apple_scab
+      - Apple_black_rot
+      - Apple_cedar_apple_rust
+      - Apple_healthy
+      - Background_without_leaves
+      - Blueberry_healthy
+      - Cherry_powdery_mildew
+      - Cherry_healthy
+      - Corn_gray_leaf_spot
+      - Corn_common_rust
+      - Corn_northern_leaf_blight
+      - Corn_healthy
+      - Grape_black_rot
+      - Grape_black_measles
+      - Grape_leaf_blight
+      - Grape_healthy
+      - Orange_haunglongbing
+      - Peach_bacterial_spot
+      - Peach_healthy
+      - Pepper_bacterial_spot
+      - Pepper_healthy
+      - Potato_early_blight
+      - Potato_healthy
+      - Potato_late_blight
+      - Raspberry_healthy
+      - Soybean_healthy
+      - Squash_powdery_mildew
+      - Strawberry_healthy
+      - Strawberry_leaf_scorch
+      - Tomato_bacterial_spot
+      - Tomato_early_blight
+      - Tomato_healthy
+      - Tomato_late_blight
+      - Tomato_leaf_mold
+      - Tomato_septoria_leaf_spot
+      - Tomato_spider_mites_two-spotted_spider_mite
+      - Tomato_target_spot
+      - Tomato_mosaic_virus
+      - Tomato_yellow_leaf_curl_virus
 
 # Evaluation configuration
 evaluation:
@@ -250,7 +345,7 @@ evaluation:
 # Prepare data configuration
 prepare_data:
   # Output directory for all preparation results
-  output_dir: "${paths.preprocessed_dir}"
+  output_dir: "data/processed"
   
   # Validation options
   dry_run: true  # Run without making changes (set to false to apply fixes)

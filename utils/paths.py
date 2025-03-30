@@ -129,6 +129,50 @@ def get_logs_dir(experiment_name: str) -> Path:
     return logs_dir
 
 
+def get_context_log_dir(cfg: DictConfig) -> Path:
+    """
+    Get a context-appropriate log directory based on the current command/operation.
+
+    This provides a different log directory depending on the context:
+    - During training: logs go in the model experiment folder
+    - During data preparation: logs go in the data preparation output folder
+    - During evaluation: logs go in the evaluation output folder
+    - Fallback: uses a standard logs directory
+
+    Args:
+        cfg: Configuration object containing command and path information
+
+    Returns:
+        Path to the appropriate logs directory for the current context
+    """
+    command = cfg.get("command", "unknown")
+
+    if command == "train":
+        # During training, use experiment-based log directory
+        experiment_name = cfg.paths.experiment_name
+        return get_logs_dir(experiment_name)
+
+    elif command == "prepare":
+        # During data preparation, logs go in the data preparation output folder
+        output_dir = Path(cfg.prepare_data.output_dir)
+        logs_dir = output_dir / "logs"
+        ensure_dir(logs_dir)
+        return logs_dir
+
+    elif command == "eval":
+        # During evaluation, logs go in the evaluation directory
+        experiment_name = cfg.paths.experiment_name
+        eval_dir = get_outputs_dir(experiment_name) / "evaluation"
+        logs_dir = eval_dir / "logs"
+        ensure_dir(logs_dir)
+        return logs_dir
+
+    # Default fallback - use centralized logs directory
+    logs_dir = get_project_root() / "logs"
+    ensure_dir(logs_dir)
+    return logs_dir
+
+
 def get_reports_dir(experiment_name: str) -> Path:
     """
     Get the path to the reports directory.

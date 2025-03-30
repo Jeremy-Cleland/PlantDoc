@@ -1547,16 +1547,24 @@ def create_augmentation_viz(
     text_color: str = "#f5f5f5",
     grid_color: str = "#404040",
 ):
-    """Internal helper to visualize augmentations."""
+    """
+    Create visualization of different augmentations.
+
+    Args:
+        cfg: Hydra configuration
+        data_dir: Data directory containing class folders
+        output_dir: Directory to save visualization
+        num_samples: Number of class samples to show
+        random_seed: Random seed for reproducibility
+        bg_color: Background color for plot
+        text_color: Text color for plot
+        grid_color: Grid color for plot
+    """
     random.seed(random_seed)
-    # Use get_transforms to get the configured training augmentations
+
     try:
-        # Pass only relevant parts of config if needed, or full cfg if get_transforms handles it
-        train_transforms = get_transforms(cfg, split="train")
-        # Extract individual transforms for display (this might be tricky depending on Compose structure)
-        # Or define a fixed set of augmentations to showcase here:
         showcase_augmentations = {
-            "Original": A.Compose([A.Resize(256, 256)]),  # Just resize
+            "Original": A.Compose([A.Resize(256, 256)]),
             "HorizontalFlip": A.Compose([A.Resize(256, 256), A.HorizontalFlip(p=1.0)]),
             "Rotate": A.Compose([A.Resize(256, 256), A.Rotate(limit=45, p=1.0)]),
             "BrightnessContrast": A.Compose(
@@ -1568,7 +1576,18 @@ def create_augmentation_viz(
             "CoarseDropout": A.Compose(
                 [
                     A.Resize(256, 256),
-                    A.CoarseDropout(max_holes=8, max_height=32, max_width=32, p=1.0),
+                    A.CoarseDropout(
+                        max_holes=8,
+                        max_height=32,
+                        max_width=32,
+                        min_holes=1,
+                        min_height=8,
+                        min_width=8,
+                        fill_value=0,
+                        mask_fill_value=0,
+                        size=(256, 256),
+                        p=1.0,
+                    ),
                 ]
             ),
         }

@@ -9,6 +9,8 @@ from typing import Any, Dict, List, Optional, Union
 
 from omegaconf import DictConfig, OmegaConf
 
+from utils.paths import get_context_log_dir
+
 
 def load_config(config_path: str, cli_args: Optional[List[str]] = None) -> DictConfig:
     """
@@ -68,13 +70,42 @@ def _configure_experiment_paths(config: DictConfig) -> DictConfig:
     # Add additional path configurations
     config.paths.experiment_dir = str(experiment_dir)
     config.paths.checkpoint_dir = str(experiment_dir / "checkpoints")
-    config.paths.log_dir = str(experiment_dir / "logs")
-    config.paths.plot_dir = str(experiment_dir / "plots")
 
-    # Create directories
+    # Create directory structure with more subdirectories
     Path(config.paths.experiment_dir).mkdir(parents=True, exist_ok=True)
     Path(config.paths.checkpoint_dir).mkdir(parents=True, exist_ok=True)
+
+    # Logs directory
+    config.paths.log_dir = str(experiment_dir / "logs")
     Path(config.paths.log_dir).mkdir(parents=True, exist_ok=True)
+
+    # Metrics directory
+    config.paths.metrics_dir = str(experiment_dir / "metrics")
+    Path(config.paths.metrics_dir).mkdir(parents=True, exist_ok=True)
+
+    # Visualization directory
+    config.paths.visualization_dir = str(experiment_dir / "visualization")
+    Path(config.paths.visualization_dir).mkdir(parents=True, exist_ok=True)
+
+    # Reports directory
+    config.paths.report_dir = str(experiment_dir / "reports")
+    Path(config.paths.report_dir).mkdir(parents=True, exist_ok=True)
+
+    # Plots directory inside reports
+    config.paths.plot_dir = str(experiment_dir / "reports" / "plots")
     Path(config.paths.plot_dir).mkdir(parents=True, exist_ok=True)
+
+    # GradCAM directory
+    config.paths.gradcam_dir = str(experiment_dir / "gradcam")
+    Path(config.paths.gradcam_dir).mkdir(parents=True, exist_ok=True)
+
+    # Dashboard directory
+    config.paths.dashboard_dir = str(experiment_dir / "dashboard")
+    Path(config.paths.dashboard_dir).mkdir(parents=True, exist_ok=True)
+
+    # Save config in experiment directory
+    config_save_path = Path(config.paths.experiment_dir) / "config.yaml"
+    with open(config_save_path, "w") as f:
+        OmegaConf.save(config=config, f=f)
 
     return config

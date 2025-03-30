@@ -250,10 +250,23 @@ class Trainer:
                 # No need to call _extract_transform_params if get_transforms reads cfg
 
         # --- Training Components ---
-        self.optimizer = get_optimizer(optimizer_cfg, self.model)
+        # Convert OmegaConf DictConfig to a regular Python dictionary
+        if isinstance(optimizer_cfg, DictConfig):
+            optimizer_dict = OmegaConf.to_container(optimizer_cfg, resolve=True)
+        else:
+            optimizer_dict = optimizer_cfg
+
+        self.optimizer = get_optimizer(optimizer_dict, self.model)
+
+        # Convert loss config if needed
+        if isinstance(loss_cfg, DictConfig):
+            loss_dict = OmegaConf.to_container(loss_cfg, resolve=True)
+        else:
+            loss_dict = loss_cfg
+
         # Loss config prep happens before get_loss_fn
-        self._prepare_loss_config(loss_cfg)  # Pass the specific sub-config
-        self.criterion = get_loss_fn(loss_cfg)
+        self._prepare_loss_config(loss_dict)  # Pass the specific sub-config
+        self.criterion = get_loss_fn(loss_dict)
 
         # --- Scheduler & Callbacks ---
         try:
@@ -264,15 +277,27 @@ class Trainer:
             logger.warning(f"Could not determine steps_per_epoch: {e}. Fallback=1.")
             self.steps_per_epoch = 1
 
+        # Convert scheduler config if needed
+        if isinstance(scheduler_cfg, DictConfig):
+            scheduler_dict = OmegaConf.to_container(scheduler_cfg, resolve=True)
+        else:
+            scheduler_dict = scheduler_cfg
+
         self.scheduler, scheduler_callback = get_scheduler_with_callback(
-            scheduler_cfg, self.optimizer, self.epochs, self.steps_per_epoch
+            scheduler_dict, self.optimizer, self.epochs, self.steps_per_epoch
         )
 
         self.callbacks = []
         if callbacks is not None:
             self.callbacks.extend(callbacks)
         # Pass the full OmegaConf object to get_callbacks if it expects it
-        standard_callbacks = get_callbacks(cfg, self.experiment_dir)  # Pass full cfg
+        standard_callbacks = get_callbacks(
+            config=cfg,
+            scheduler=None,  # Pass None explicitly for scheduler
+            experiment_dir=str(self.experiment_dir),
+            test_data=None,  # Pass None for test_data
+            skip_gradcam=True,  # Skip GradCAM callback in Trainer init
+        )  # Pass experiment_dir as a string
         self.callbacks.extend(standard_callbacks)
         if scheduler_callback is not None:
             if not any(
@@ -501,6 +526,7 @@ class Trainer:
             "best_epoch": self.best_epoch,
             "best_monitor_metric_value": self.best_monitor_metric_val,
             "model": self.model,
+            "optimizer": self.optimizer,
             "history": dict(self.history),
             "config": self.cfg,
         }
@@ -846,7 +872,7 @@ class Trainer:
         final_metrics["val_targets"] = full_val_targets
         return final_metrics
 
-    def train(self) -> Dict[str, Any]:
+    def fit(self) -> Dict[str, Any]:
         """Executes the main training loop."""
         if self.use_mps_optimizations:
             deep_clean_memory()
@@ -974,46 +1000,131 @@ class Trainer:
 
 # --- Convenience Function ---
 def train_model(
-    model: nn.Module,
-    train_loader: DataLoader,
-    val_loader: DataLoader,
-    cfg: DictConfig,  # Expect OmegaConf
-    experiment_dir: Optional[Union[str, Path]] = None,
-    device: Optional[str] = None,
-    callbacks: Optional[List[Callback]] = None,
+    model: torch.nn.Module,
+    train_loader: torch.utils.data.DataLoader,
+    val_loader: torch.utils.data.DataLoader,
+    cfg: DictConfig,
+    device=None,
+    callbacks=None,
+    **kwargs,
 ) -> Dict[str, Any]:
+    """
+    Train a PyTorch model with the given configuration.
+
+    Args:
+        model: PyTorch model to train
+        train_loader: DataLoader for training data
+        val_loader: DataLoader for validation data
+        cfg: OmegaConf configuration object
+        device: Optional device to use ('cpu', 'cuda', 'mps')
+        callbacks: Optional list of callbacks
+        **kwargs: Additional arguments to pass to the Trainer
+
+    Returns:
+        Dictionary of training results
+    """
+    # Determine device if not specified
     if device is None:
         device = (
             "mps"
             if is_mps_available()
             else ("cuda" if torch.cuda.is_available() else "cpu")
         )
-    if experiment_dir is None:
-        # Use OmegaConf select for safer access
-        exp_dir_str = OmegaConf.select(
-            cfg,
-            "paths.experiment_dir",
-            default=f"outputs/training_run_{int(time.time())}",
-        )
-        experiment_dir = Path(exp_dir_str)
-    else:
-        experiment_dir = Path(experiment_dir)
+        logger.info(f"No device specified, using: {device}")
 
-    # Ensure cfg is DictConfig if expected by Trainer/Callbacks
-    if not isinstance(cfg, DictConfig):
-        logger.warning(
-            f"Configuration provided to train_model is type {type(cfg)}, attempting to convert to OmegaConf DictConfig."
-        )
-    try:
-        cfg = OmegaConf.create(cfg)
-    except Exception as e:
-        logger.error(
-            f"Failed to convert config to OmegaConf DictConfig: {e}", exc_info=True
-        )
-        raise TypeError(
-            "Configuration must be an OmegaConf DictConfig or convertible to one."
+    # Create experiment directory from the config
+    experiment_dir = Path(cfg.paths.experiment_dir)
+    experiment_dir.mkdir(parents=True, exist_ok=True)
+
+    # Add metrics_dir to config if not already present
+    if not hasattr(cfg.paths, "metrics_dir"):
+        cfg.paths.metrics_dir = str(experiment_dir / "metrics")
+
+    # If logs_dir is not in config, add it
+    if not hasattr(cfg.paths, "log_dir"):
+        cfg.paths.log_dir = str(experiment_dir / "logs")
+
+    # Ensure the metrics and logs directories exist
+    Path(cfg.paths.metrics_dir).mkdir(parents=True, exist_ok=True)
+    Path(cfg.paths.log_dir).mkdir(parents=True, exist_ok=True)
+
+    # Create callbacks if none provided
+    if callbacks is None:
+        # Get lr scheduler if needed
+        scheduler = None
+        if hasattr(cfg, "scheduler") and cfg.scheduler.name:
+            # We'll let the Trainer handle optimizer creation
+            # Just get callbacks without the scheduler
+            pass
+
+        # Set up GradCAM test data if needed
+        test_samples = None
+        if (
+            hasattr(cfg, "callbacks")
+            and hasattr(cfg.callbacks, "gradcam")
+            and cfg.callbacks.gradcam.enabled
+        ):
+            # Extract class names from val_loader dataset
+            class_names = None
+            if hasattr(val_loader.dataset, "classes"):
+                class_names = val_loader.dataset.classes
+            elif hasattr(val_loader.dataset, "class_names"):
+                class_names = val_loader.dataset.class_names
+
+            # Set class_names in config
+            if class_names is not None:
+                cfg.callbacks.gradcam.class_names = class_names
+                logger.info(
+                    f"Set up {len(class_names)} class names for GradCAM visualization"
+                )
+            else:
+                logger.warning("Could not find class names for GradCAM visualization")
+
+            # Extract test samples for GradCAM (don't store in config)
+            logger.info(
+                "Setting up test data for GradCAM visualization from validation data"
+            )
+
+            # Extract a few samples from the validation loader
+            test_samples = []
+            sample_count = min(
+                cfg.callbacks.gradcam.get("n_samples", 5), len(val_loader.dataset)
+            )
+
+            # Get a few random indices
+            import random
+
+            indices = random.sample(range(len(val_loader.dataset)), sample_count)
+
+            # Extract those samples
+            for idx in indices:
+                sample = val_loader.dataset[idx]
+                if isinstance(sample, (list, tuple)) and len(sample) >= 2:
+                    test_samples.append((sample[0], sample[1]))
+                elif (
+                    isinstance(sample, dict) and "image" in sample and "label" in sample
+                ):
+                    # Handle dictionary format samples
+                    test_samples.append((sample["image"], sample["label"]))
+                else:
+                    logger.warning(
+                        f"Unexpected sample format for GradCAM: {type(sample)}"
+                    )
+
+            logger.info(
+                f"Set up {len(test_samples)} test samples for GradCAM visualization"
+            )
+
+        # Setup callbacks - pass actual metrics_dir path to ensure it's used
+        callbacks = get_callbacks(
+            config=cfg,
+            scheduler=None,  # No scheduler here
+            experiment_dir=str(experiment_dir),
+            test_data=test_samples,  # Pass test_samples directly instead of storing in config
+            skip_gradcam=False,  # Don't skip GradCAM in train_model
         )
 
+    # Create and run trainer
     trainer = Trainer(
         model=model,
         cfg=cfg,
@@ -1022,6 +1133,9 @@ def train_model(
         experiment_dir=experiment_dir,
         device=device,
         callbacks=callbacks,
+        **kwargs,
     )
-    results = trainer.train()
+
+    # Run the training process
+    results = trainer.fit()
     return results

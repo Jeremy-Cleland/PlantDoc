@@ -92,8 +92,8 @@ logger = get_logger(__name__)
         "type": "int",
         "default": 7,
         "description": "Kernel size for spatial attention in CBAM",
-        "choices": [3, 5, 7, 9]
-    }
+        "choices": [3, 5, 7, 9],
+    },
 )
 class CBAMResNet18Model(BaseModel):
     """
@@ -212,6 +212,20 @@ class CBAMResNet18Model(BaseModel):
             if stage > 0:
                 self.unfreeze_backbone()
 
+    def freeze_backbone(self):
+        """
+        Freeze backbone layers to prevent their weights from being updated.
+        This is useful for transfer learning or fine-tuning.
+        """
+        if hasattr(self.backbone, "freeze_layers"):
+            self.backbone.freeze_layers()
+            logger.info(f"Froze CBAM-ResNet18 backbone layers")
+        else:
+            for param in self.backbone.parameters():
+                param.requires_grad = False
+            logger.info(f"Froze CBAM-ResNet18 backbone using generic method")
+        self.frozen_backbone = True
+
     def forward_features(self, x):
         """
         Extract features without classification.
@@ -243,7 +257,7 @@ class CBAMResNet18Model(BaseModel):
         if not hasattr(self.backbone, "get_attention_maps"):
             logger.warning("Backbone does not support attention map extraction")
             return {}
-        
+
         return self.backbone.get_attention_maps(x)
 
     def get_gradcam_target_layer(self):
