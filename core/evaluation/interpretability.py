@@ -380,6 +380,16 @@ class GradCAM:
         # If target_category is None, use the predicted class
         if target_category is None:
             target_category = torch.argmax(output, dim=1).item()
+        else:
+            # Convert target_category to a Python int to handle ListConfig or other types
+            try:
+                target_category = int(target_category)
+            except (TypeError, ValueError):
+                logger.error(
+                    f"Invalid target category type: {type(target_category)}. Converting to int."
+                )
+                # Default to the predicted class if conversion fails
+                target_category = torch.argmax(output, dim=1).item()
 
         # Compute gradients
         target = output[0, target_category]

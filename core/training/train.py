@@ -26,7 +26,7 @@ from core.data.transforms import AlbumentationsWrapper, get_transforms
 
 # Import the Incremental Metrics Calculator
 from core.evaluation.metrics import IncrementalMetricsCalculator
-from utils.logger import get_logger
+from utils.logger import configure_logging, get_logger
 from utils.mps_utils import (
     MPSProfiler,
     deep_clean_memory,
@@ -1102,18 +1102,20 @@ def train_model(
     cfg: DictConfig,
     device=None,
     callbacks=None,
+    experiment_dir=None,
     **kwargs,
 ) -> Dict[str, Any]:
     """
-    Train a PyTorch model with the given configuration.
+    Train a model using the provided data loaders and configuration.
 
     Args:
-        model: PyTorch model to train
+        model: Model to train
         train_loader: DataLoader for training data
         val_loader: DataLoader for validation data
-        cfg: OmegaConf configuration object
-        device: Optional device to use ('cpu', 'cuda', 'mps')
+        cfg: Configuration object
+        device: Device to train on
         callbacks: Optional list of callbacks
+        experiment_dir: Directory for experiment output. If None, will try to get from cfg.paths.experiment_dir
         **kwargs: Additional arguments to pass to the Trainer
 
     Returns:
@@ -1128,21 +1130,45 @@ def train_model(
         )
         logger.info(f"No device specified, using: {device}")
 
-    # Create experiment directory from the config
-    experiment_dir = Path(cfg.paths.experiment_dir)
+    # Create experiment directory from the provided path or config
+    if experiment_dir is None:
+        # Fallback to config if provided
+        if hasattr(cfg.paths, "experiment_dir"):
+            experiment_dir = Path(cfg.paths.experiment_dir)
+        else:
+            raise ValueError("experiment_dir not provided and not found in config")
+    else:
+        experiment_dir = Path(experiment_dir)
+
     experiment_dir.mkdir(parents=True, exist_ok=True)
 
-    # Add metrics_dir to config if not already present
+    # Ensure experiment_dir is in cfg.paths for other components
+    if not hasattr(cfg.paths, "experiment_dir"):
+        cfg.paths.experiment_dir = str(experiment_dir)
+
+    # Add metrics_dir to config if not already present - ensure it's inside experiment_dir
     if not hasattr(cfg.paths, "metrics_dir"):
         cfg.paths.metrics_dir = str(experiment_dir / "metrics")
+    # Create metrics directory
+    Path(cfg.paths.metrics_dir).mkdir(parents=True, exist_ok=True)
 
-    # If logs_dir is not in config, add it
+    # If log_dir is not in config, add it - ensure it's inside experiment_dir
     if not hasattr(cfg.paths, "log_dir"):
         cfg.paths.log_dir = str(experiment_dir / "logs")
-
-    # Ensure the metrics and logs directories exist
-    Path(cfg.paths.metrics_dir).mkdir(parents=True, exist_ok=True)
+    # Create logs directory
     Path(cfg.paths.log_dir).mkdir(parents=True, exist_ok=True)
+
+    # Create a log file in experiment_dir/logs to ensure it exists
+    log_file = Path(cfg.paths.log_dir) / "train.log"
+    try:
+        # Touch the file to ensure it exists
+        log_file.touch(exist_ok=True)
+        logger.info(f"Initialized log file: {log_file}")
+    except Exception as e:
+        logger.error(f"Error initializing log file: {e}")
+
+    # Configure logging to use the experiment-specific log file
+    configure_logging(cfg)
 
     # Create callbacks if none provided
     if callbacks is None:

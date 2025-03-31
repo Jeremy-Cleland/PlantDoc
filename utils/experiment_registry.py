@@ -97,11 +97,14 @@ def register_experiment(
     if version is None:
         version = get_next_version(model_name)
 
+    # Convert experiment_dir to string if it's a Path
+    experiment_dir_str = str(experiment_dir)
+
     # Create experiment info
     experiment = {
         "model_name": model_name,
         "version": version,
-        "experiment_dir": str(experiment_dir),
+        "experiment_dir": experiment_dir_str,
         "created_at": datetime.now().isoformat(),
         "params": params or {},
         "description": description or f"Training run for {model_name} v{version}",
@@ -113,7 +116,9 @@ def register_experiment(
     # Save registry
     save_registry(registry)
 
-    logger.info(f"Registered experiment: {model_name} v{version} in {experiment_dir}")
+    logger.info(
+        f"Registered experiment: {model_name} v{version} in {experiment_dir_str}"
+    )
     return experiment
 
 

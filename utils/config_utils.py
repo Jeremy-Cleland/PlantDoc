@@ -60,12 +60,21 @@ def _configure_experiment_paths(config: DictConfig) -> DictConfig:
     Returns:
         Updated configuration with resolved paths
     """
-    # Create experiment directory path
+    # Get experiment name and output_dir from config
     experiment_name = config.paths.experiment_name
     output_dir = config.paths.output_dir
 
-    # Create experiment directory path
-    experiment_dir = Path(output_dir) / experiment_name
+    # Extract model name and version from the experiment_name
+    # Expect format like "cbam_only_resnet18_v3"
+    if "_v" in experiment_name:
+        # Extract model name and version (e.g., "cbam_only_resnet18_v2" -> "cbam_only_resnet18" and "2")
+        model_base_name, version_str = experiment_name.rsplit("_v", 1)
+        # Create directory with model name and version
+        dir_name = f"{model_base_name}_v{version_str}"
+        experiment_dir = Path(output_dir) / dir_name
+    else:
+        # If no version in name, use the experiment name directly with v1
+        experiment_dir = Path(output_dir) / f"{experiment_name}_v1"
 
     # Add additional path configurations
     config.paths.experiment_dir = str(experiment_dir)

@@ -71,11 +71,48 @@ def train(
         version = get_next_version(actual_model_name)
 
     # Generate clean versioned experiment name
-    if not experiment_name:
-        experiment_name = f"{actual_model_name}_v{version}"
+    # If experiment_name is provided, use it as the base name without version suffix
+    # If not, use the model name
+    base_name = experiment_name or actual_model_name
+
+    # Remove any existing version suffix if present (to avoid duplicates like model_v1_v2)
+    if "_v" in base_name:
+        base_name = base_name.split("_v")[0]
+
+    # Create the versioned experiment name
+    versioned_experiment_name = f"{base_name}_v{version}"
 
     # Override experiment name in config
-    cfg["paths"]["experiment_name"] = experiment_name
+    cfg["paths"]["experiment_name"] = versioned_experiment_name
+
+    # Clear any existing experiment_dir setting to ensure it's created freshly
+    if "experiment_dir" in cfg["paths"]:
+        del cfg["paths"]["experiment_dir"]
+
+    # Set experiment_dir to use the versioned name
+    cfg["paths"]["experiment_dir"] = f"outputs/{versioned_experiment_name}"
+    experiment_dir = Path(cfg["paths"]["experiment_dir"])
+    experiment_dir.mkdir(parents=True, exist_ok=True)
+
+    # Ensure log_dir and metrics_dir are set inside the experiment directory
+    cfg["paths"]["log_dir"] = str(experiment_dir / "logs")
+    cfg["paths"]["metrics_dir"] = str(experiment_dir / "metrics")
+
+    # Create the directories
+    Path(cfg["paths"]["log_dir"]).mkdir(parents=True, exist_ok=True)
+    Path(cfg["paths"]["metrics_dir"]).mkdir(parents=True, exist_ok=True)
+
+    # Also ensure any derived paths are removed so they'll be recreated based on the new experiment name
+    for path_key in [
+        "checkpoint_dir",
+        "visualization_dir",
+        "report_dir",
+        "plot_dir",
+        "gradcam_dir",
+        "dashboard_dir",
+    ]:
+        if path_key in cfg["paths"]:
+            del cfg["paths"][path_key]
 
     # Add other overrides
     if model_name:
@@ -96,11 +133,14 @@ def train(
     # Set absolute path
     cfg.callbacks.model_checkpoint.dirpath = "checkpoints"
 
-    # Configure logging
+    # Configure logging using experiment-specific log directory
     logger = configure_logging(cfg)
     logger.info(f"Starting training with model: {cfg.model.name}")
-    logger.info(f"Experiment name: {experiment_name}")
+    logger.info(f"Experiment name: {versioned_experiment_name}")
     logger.info(f"Experiment version: {version}")
+    logger.info(f"Experiment directory: {experiment_dir}")
+    logger.info(f"Log directory: {cfg.paths.log_dir}")
+    logger.info(f"Metrics directory: {cfg.paths.metrics_dir}")
 
     # Set seed for reproducibility
     set_manual_seed(cfg.data.random_seed, deterministic=cfg.training.deterministic)
@@ -125,7 +165,9 @@ def train(
     # Register the experiment in the registry
     register_experiment(
         model_name=actual_model_name,
-        experiment_dir=cfg.paths.experiment_dir,
+        experiment_dir=cfg.paths.get(
+            "experiment_dir", f"outputs/{versioned_experiment_name}"
+        ),
         params=model_params,
         version=version,
         description=description,
@@ -137,6 +179,10 @@ def train(
         train_loader=data_module.train_dataloader(),
         val_loader=data_module.val_dataloader(),
         cfg=cfg,
+        # Safely get experiment_dir with a default fallback
+        experiment_dir=cfg.paths.get(
+            "experiment_dir", f"outputs/{versioned_experiment_name}"
+        ),
     )
 
     logger.info(

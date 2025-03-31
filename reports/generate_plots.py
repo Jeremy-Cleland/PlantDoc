@@ -13,12 +13,15 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import torch
+from omegaconf import OmegaConf
 from sklearn.metrics import confusion_matrix
 
 from utils.logger import get_logger
 from utils.metrics import plot_confusion_matrix, plot_metrics_history
 from utils.paths import ensure_dir
 from utils.visualization import (
+    DEFAULT_THEME,
+    apply_dark_theme,
     plot_class_metrics,
     plot_confusion_matrix,
     plot_learning_rate,
@@ -157,9 +160,50 @@ def load_class_names(experiment_dir: Union[str, Path]) -> List[str]:
         return []
 
 
+def load_visualization_theme(experiment_dir: Union[str, Path]) -> Dict:
+    """
+    Load visualization theme from config file.
+
+    Args:
+        experiment_dir: Path to experiment directory
+
+    Returns:
+        Dictionary with theme settings
+    """
+    # Try to load config.yaml
+    config_path = Path(experiment_dir) / "config.yaml"
+
+    if not config_path.exists():
+        logger.warning(
+            f"No config.yaml found in {experiment_dir}, using default dark theme"
+        )
+        return DEFAULT_THEME
+
+    try:
+        cfg = OmegaConf.load(config_path)
+        if (
+            "prepare_data" in cfg
+            and "visualization_theme" in cfg.prepare_data
+            and cfg.prepare_data.visualization_theme
+        ):
+            # Extract theme from config
+            theme = OmegaConf.to_container(cfg.prepare_data.visualization_theme)
+            logger.info(f"Loaded custom visualization theme from config")
+            return theme
+        else:
+            logger.info(
+                f"No visualization_theme found in config, using default dark theme"
+            )
+            return DEFAULT_THEME
+    except Exception as e:
+        logger.error(f"Error loading theme from config: {e}")
+        return DEFAULT_THEME
+
+
 def plot_training_history_from_file(
     history: Dict[str, List[float]],
     output_path: Union[str, Path],
+    theme: Optional[Dict] = None,
 ) -> None:
     """
     Plot training history from a history dictionary.
@@ -167,6 +211,7 @@ def plot_training_history_from_file(
     Args:
         history: Dictionary of training history
         output_path: Path to save the plot
+        theme: Theme settings to apply
     """
     # Create output directory if it doesn't exist
     output_path = Path(output_path)
@@ -202,11 +247,12 @@ def plot_training_history_from_file(
         logger.warning("No suitable metrics found for plotting training history")
         return
 
-    # Plot training history
+    # Plot training history with theme
     plot_training_history(
         history=scalar_history,
         output_path=output_path,
         metrics=metrics_to_plot,
+        theme=theme,
     )
 
     logger.info(f"Saved training history plot to {output_path}")
@@ -216,6 +262,7 @@ def plot_confusion_matrix_from_file(
     cm: np.ndarray,
     class_names: List[str],
     output_path: Union[str, Path],
+    theme: Optional[Dict] = None,
 ) -> None:
     """
     Plot confusion matrix from a numpy array.
@@ -224,17 +271,19 @@ def plot_confusion_matrix_from_file(
         cm: Confusion matrix
         class_names: List of class names
         output_path: Path to save the plot
+        theme: Theme settings to apply
     """
     # Create output directory if it doesn't exist
     output_path = Path(output_path)
     ensure_dir(output_path.parent)
 
-    # Plot confusion matrix
+    # Plot confusion matrix with theme
     plot_confusion_matrix(
         cm=cm,
         class_names=class_names,
         output_path=output_path,
         normalize=True,
+        theme=theme,
     )
 
     logger.info(f"Saved confusion matrix plot to {output_path}")
@@ -243,6 +292,7 @@ def plot_confusion_matrix_from_file(
 def plot_training_time_from_history(
     history: Dict[str, List[float]],
     output_path: Union[str, Path],
+    theme: Optional[Dict] = None,
 ) -> None:
     """
     Plot training time from history.
@@ -250,6 +300,7 @@ def plot_training_time_from_history(
     Args:
         history: Dictionary of training history
         output_path: Path to save the plot
+        theme: Theme settings to apply
     """
     # Check if we have time per epoch
     time_key = "time" if "time" in history else "train_time"
@@ -260,10 +311,11 @@ def plot_training_time_from_history(
 
     times = history[time_key]
 
-    # Plot training time
+    # Plot training time with theme
     plot_training_time(
         epoch_times=times,
         output_path=output_path,
+        theme=theme,
     )
 
     logger.info(f"Saved training time plot to {output_path}")
@@ -273,6 +325,7 @@ def plot_class_metrics_from_metrics(
     metrics: Dict,
     class_names: List[str],
     output_path: Union[str, Path],
+    theme: Optional[Dict] = None,
 ) -> None:
     """
     Plot class metrics from a metrics dictionary.
@@ -281,6 +334,7 @@ def plot_class_metrics_from_metrics(
         metrics: Dictionary of metrics
         class_names: List of class names
         output_path: Path to save the plot
+        theme: Theme settings to apply
     """
     # Create output directory if it doesn't exist
     output_path = Path(output_path)
@@ -303,11 +357,12 @@ def plot_class_metrics_from_metrics(
         logger.warning("No class metrics found in metrics dictionary")
         return
 
-    # Plot class metrics
+    # Plot class metrics with theme
     plot_class_metrics(
         metrics=metrics,
         class_names=class_names,
         output_path=output_path,
+        theme=theme,
     )
 
     logger.info(f"Saved class metrics plot to {output_path}")
@@ -316,6 +371,7 @@ def plot_class_metrics_from_metrics(
 def plot_learning_rate_from_history(
     history: Dict[str, List[float]],
     output_path: Union[str, Path],
+    theme: Optional[Dict] = None,
 ) -> None:
     """
     Plot learning rate from history.
@@ -323,6 +379,7 @@ def plot_learning_rate_from_history(
     Args:
         history: Dictionary of training history
         output_path: Path to save the plot
+        theme: Theme settings to apply
     """
     # Check if we have learning rate data
     lr_key = "lr" if "lr" in history else "learning_rate"
@@ -333,10 +390,11 @@ def plot_learning_rate_from_history(
 
     lr_history = history[lr_key]
 
-    # Plot learning rate
+    # Plot learning rate with theme
     plot_learning_rate(
         lr_history=lr_history,
         output_path=output_path,
+        theme=theme,
     )
 
     logger.info(f"Saved learning rate plot to {output_path}")
@@ -374,11 +432,15 @@ def generate_plots_for_report(
     cm = load_confusion_matrix(experiment_dir)
     class_names = load_class_names(experiment_dir)
 
+    # Load visualization theme
+    theme = load_visualization_theme(experiment_dir)
+
     # Plot training history
     if history:
         plot_training_history_from_file(
             history=history,
             output_path=output_dir / "training_history.png",
+            theme=theme,
         )
 
     # Plot confusion matrix
@@ -387,6 +449,7 @@ def generate_plots_for_report(
             cm=cm,
             class_names=class_names,
             output_path=output_dir / "confusion_matrix.png",
+            theme=theme,
         )
 
     # Plot training time
@@ -394,6 +457,7 @@ def generate_plots_for_report(
         plot_training_time_from_history(
             history=history,
             output_path=output_dir / "training_time.png",
+            theme=theme,
         )
 
     # Plot class metrics
@@ -402,6 +466,7 @@ def generate_plots_for_report(
             metrics=metrics,
             class_names=class_names,
             output_path=output_dir / "class_metrics.png",
+            theme=theme,
         )
 
     # Plot learning rate
@@ -409,6 +474,7 @@ def generate_plots_for_report(
         plot_learning_rate_from_history(
             history=history,
             output_path=output_dir / "learning_rate.png",
+            theme=theme,
         )
 
     logger.info("Finished generating plots for report")

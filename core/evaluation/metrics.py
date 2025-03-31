@@ -280,3 +280,56 @@ class IncrementalMetricsCalculator:
             "per_class": per_class_metrics,
             "confusion_matrix": self.confusion_matrix.copy(),
         }
+
+    def get_confusion_matrix(self) -> np.ndarray:
+        """
+        Return the current confusion matrix.
+
+        Returns:
+            NumPy array with the confusion matrix
+        """
+        return self.confusion_matrix.copy()
+
+    def get_classification_report(self) -> Dict[str, Dict[str, float]]:
+        """
+        Return a classification report similar to sklearn's classification_report.
+
+        Returns:
+            Dictionary where keys are class names/indices and values are dictionaries
+            with 'precision', 'recall', and 'f1-score' metrics
+        """
+        report = {}
+
+        # Extract metrics for each class
+        for i, class_name in enumerate(self.class_names):
+            # Calculate metrics from confusion matrix
+            tp = self.confusion_matrix[i, i]
+            col_sum = np.sum(self.confusion_matrix[:, i])
+            row_sum = np.sum(self.confusion_matrix[i, :])
+
+            # Calculate precision, recall, and F1
+            precision = tp / col_sum if col_sum > 0 else 0
+            recall = tp / row_sum if row_sum > 0 else 0
+            f1 = (
+                2 * precision * recall / (precision + recall)
+                if (precision + recall) > 0
+                else 0
+            )
+
+            # Add to report using both class name and index as keys
+            # Class names can sometimes be more convenient
+            report[str(i)] = {
+                "precision": float(precision),
+                "recall": float(recall),
+                "f1-score": float(f1),
+                "support": int(row_sum),
+            }
+
+            report[class_name] = {
+                "precision": float(precision),
+                "recall": float(recall),
+                "f1-score": float(f1),
+                "support": int(row_sum),
+            }
+
+        return report
