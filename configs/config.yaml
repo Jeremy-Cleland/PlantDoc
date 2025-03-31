@@ -164,7 +164,7 @@ model:
   # Head settings
   head_type: "residual"  # Options: linear, mlp, residual
   hidden_dim: 256  # Hidden dimension for MLP or residual head
-  dropout_rate: 0.1  # Dropout rate for the head
+  dropout_rate: 0.09134925421514478  # Dropout rate for the head
   use_residual_head: true  # Whether to use residual head for classification
   
   # Backbone settings
@@ -177,16 +177,16 @@ model:
   
   # Regularization within model components
   regularization:
-    stochastic_depth_prob: 0.04  # Stochastic depth probability
-    drop_path_prob: 0.19  # Drop path probability
+    stochastic_depth_prob: 0.040397158459940234  # Stochastic depth probability
+    drop_path_prob: 0.19180035377564947  # Drop path probability
 
 # Optimizer settings
 optimizer:
-  name: AdamW  # Options: SGD, Adam, AdamW
-  lr: 0.001
-  weight_decay: 0.0001
-  betas: [0.9, 0.999]  # For Adam/AdamW
-  eps: 1.0e-8  # For Adam/AdamW
+  name: adam  # Options: SGD, Adam, AdamW
+  lr: 0.0010103979143644285
+  weight_decay: 2.1879976178790097e-05
+  betas: [0.9893042503956707, 0.9089280701773239]  # For Adam/AdamW
+  eps: 8.787817640460526e-10  # For Adam/AdamW
   momentum: 0.9  # For SGD
   nesterov: false  # For SGD
   differential_lr: false  # Whether to use different LRs for backbone vs. head
@@ -194,23 +194,26 @@ optimizer:
 
 # Loss function settings
 loss:
-  name: CrossEntropyLoss  # Options: CrossEntropyLoss, WeightedCrossEntropyLoss
+  name: weighted_cross_entropy  # Options: CrossEntropyLoss, WeightedCrossEntropyLoss
   reduction: mean  # Options: mean, sum, none
-  label_smoothing: 0.1
+  label_smoothing: 0.06782532481435205
   weights: null  # Class weights (null means auto-calculate or none)
   class_weighted: true  # Whether to use class weights
   weight_mode: sqrt_inv  # Options: inv, sqrt_inv, effective
+  gamma: 1.951906235563448
+  alpha: 0.4608707944983905
+  lambda_c: 0.0013863059136915556
 
 # Learning rate scheduler
 scheduler:
-  name: CosineAnnealingLR  # Options: StepLR, ReduceLROnPlateau, CosineAnnealingLR
+  name: reduce_on_plateau  # Options: StepLR, ReduceLROnPlateau, CosineAnnealingLR
   monitor: val_loss  # Metric to monitor for ReduceLROnPlateau
   mode: min  # min or max, for ReduceLROnPlateau
   step_mode: epoch  # epoch or step, controls when scheduler.step() is called
   T_max: null  # Set to null to auto-calculate based on epochs (for CosineAnnealingLR)
-  min_lr: 1.0e-6
-  factor: 0.1  # Factor by which to reduce LR (for ReduceLROnPlateau and StepLR)
-  patience: 5  # Epochs with no improvement after which LR will be reduced (for ReduceLROnPlateau)
+  min_lr: 7.940872011537383e-05
+  factor: 0.39440249582288583  # Factor by which to reduce LR (for ReduceLROnPlateau and StepLR)
+  patience: 2  # Epochs with no improvement after which LR will be reduced (for ReduceLROnPlateau)
   step_size: 30  # Period of LR decay (for StepLR)
   warmup_epochs: 5
   warmup_start_lr: 1.0e-5
@@ -227,12 +230,13 @@ progressive_resizing:
 training:
   epochs: 5
   batch_size: 128  # Already in loader section, but keeping for compatibility
-  learning_rate: 0.001  # Already in optimizer section, but keeping for compatibility
-  weight_decay: 0.0001  # Already in optimizer section, but keeping for compatibility
+  learning_rate: 0.0010103979143644285  # Already in optimizer section, but keeping for compatibility
+  weight_decay: 2.1879976178790097e-05  # Already in optimizer section, but keeping for compatibility
   deterministic: false  # Set to true for reproducible training
   use_mixed_precision: false  # Enable AMP (automatic mixed precision)
   gradient_clip_val: 1.0
   precision: "float32"  # Options: float32, float16, bfloat16
+  dropout: 0.20650123307899837
 
 # Transfer learning settings
 transfer_learning:
