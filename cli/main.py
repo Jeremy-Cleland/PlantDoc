@@ -143,14 +143,18 @@ def train(
         f"Training completed. Best validation accuracy: {results['best_val_acc']:.4f}"
     )
 
-    # Generate plots and report if enabled
-    if cfg.reporting.generate_plots:
+    # Always generate plots and report regardless of config settings
+    try:
         logger.info("Generating plots...")
         generate_plots_for_report(cfg.paths.experiment_dir)
+    except Exception as e:
+        logger.error(f"Error generating plots: {e}", exc_info=True)
 
-    if cfg.reporting.generate_report:
+    try:
         logger.info("Generating training report...")
         generate_report(cfg.paths.experiment_dir)
+    except Exception as e:
+        logger.error(f"Error generating report: {e}", exc_info=True)
 
     return results
 

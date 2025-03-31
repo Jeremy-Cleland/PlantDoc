@@ -18,12 +18,10 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from omegaconf import DictConfig, OmegaConf  # Import OmegaConf
+from omegaconf import DictConfig, OmegaConf
 from torch.utils.data import DataLoader, Dataset
 from tqdm.auto import tqdm
 
-# --- TODO: UPDATE THESE IMPORT PATHS ---
-# Imports for progressive resizing (using get_transforms)
 from core.data.transforms import AlbumentationsWrapper, get_transforms
 
 # Import the Incremental Metrics Calculator
@@ -36,7 +34,7 @@ from utils.mps_utils import (
     is_mps_available,
     log_memory_stats,
     set_manual_seed,
-    set_memory_limit,  # Added based on user code
+    set_memory_limit,
     synchronize,
 )
 
@@ -336,6 +334,11 @@ class Trainer:
         self.best_epoch = 0
         self.history = defaultdict(list)
 
+        # Initialize metrics calculator as a class member
+        self.metrics_calculator = IncrementalMetricsCalculator(
+            num_classes=self.num_classes, class_names=self.class_names
+        )
+
         logger.info("Trainer initialization complete.")
 
     # --- Helper Methods ---
@@ -519,6 +522,49 @@ class Trainer:
         # Restore logic is now handled by EarlyStopping callback if enabled.
         # This method just logs final summary and calls on_train_end for callbacks.
         total_time = time.time() - start_time
+
+        # Get class metrics and confusion matrix
+        class_metrics = None
+        confusion_matrix = None
+
+        try:
+            # Get confusion matrix
+            confusion_matrix = self.metrics_calculator.get_confusion_matrix()
+
+            # Get per-class metrics if class names are available
+            if self.class_names and hasattr(
+                self.metrics_calculator, "get_classification_report"
+            ):
+                try:
+                    class_f1, class_precision, class_recall = [], [], []
+                    report = self.metrics_calculator.get_classification_report()
+
+                    for i, class_name in enumerate(self.class_names):
+                        if str(i) in report:
+                            class_precision.append(report[str(i)]["precision"])
+                            class_recall.append(report[str(i)]["recall"])
+                            class_f1.append(report[str(i)]["f1-score"])
+                        elif class_name in report:
+                            class_precision.append(report[class_name]["precision"])
+                            class_recall.append(report[class_name]["recall"])
+                            class_f1.append(report[class_name]["f1-score"])
+
+                    if class_f1 and len(class_f1) == len(self.class_names):
+                        class_metrics = {
+                            "f1": class_f1,
+                            "precision": class_precision,
+                            "recall": class_recall,
+                        }
+                        logger.info(
+                            f"Including metrics for {len(class_metrics['f1'])} classes in final logs"
+                        )
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to get classification report in _handle_train_end: {e}"
+                    )
+        except Exception as e:
+            logger.warning(f"Error preparing metrics for callbacks: {e}")
+
         final_logs = {
             "total_time": total_time,
             "best_val_loss": self.best_val_loss,
@@ -529,6 +575,10 @@ class Trainer:
             "optimizer": self.optimizer,
             "history": dict(self.history),
             "config": self.cfg,
+            "class_metrics": class_metrics,
+            "confusion_matrix": confusion_matrix.tolist()
+            if confusion_matrix is not None
+            else None,
         }
         for callback in self.callbacks:
             callback.on_train_end(final_logs)  # Callbacks might restore weights here
@@ -684,9 +734,7 @@ class Trainer:
         self.model.train()
         epoch_loss = 0.0
         epoch_start_time = time.time()
-        metrics_calculator = IncrementalMetricsCalculator(
-            num_classes=self.num_classes, class_names=self.class_names
-        )
+        self.metrics_calculator.reset()  # Reset the metrics calculator for this epoch
         phase = "Fine-tuning" if self.is_fine_tuning else "Initial"
         pbar_desc = f"Epoch {self.epoch + 1}/{self.epochs} [{phase}] Train"
         pbar = tqdm(
@@ -735,7 +783,7 @@ class Trainer:
                 epoch_loss += loss_item * batch_size
                 if outputs.ndim >= 2:
                     preds = torch.argmax(outputs.detach(), dim=1)
-                    metrics_calculator.update(targets.cpu(), preds.cpu())
+                    self.metrics_calculator.update(targets.cpu(), preds.cpu())
                 pbar.set_postfix(loss=f"{loss_item:.4f}")
                 batch_end_logs = {
                     "batch": batch_idx,
@@ -764,9 +812,9 @@ class Trainer:
         ):
             synchronize()
         epoch_time = time.time() - epoch_start_time
-        metrics_result = metrics_calculator.compute()
+        metrics_result = self.metrics_calculator.compute()
         perf_metrics = metrics_result["overall"]
-        num_samples = metrics_calculator.total_samples
+        num_samples = self.metrics_calculator.total_samples
         avg_epoch_loss = epoch_loss / num_samples if num_samples > 0 else 0.0
         final_metrics = {
             "loss": avg_epoch_loss,
@@ -792,9 +840,7 @@ class Trainer:
         epoch_loss = 0.0
         epoch_start_time = time.time()
         all_outputs_list, all_targets_list = [], []  # For callbacks
-        metrics_calculator = IncrementalMetricsCalculator(
-            num_classes=self.num_classes, class_names=self.class_names
-        )
+        self.metrics_calculator.reset()  # Reset for validation
         phase = "Fine-tuning" if self.is_fine_tuning else "Initial"
         pbar_desc = f"Epoch {self.epoch + 1}/{self.epochs} [{phase}] Val"
         pbar = tqdm(
@@ -830,7 +876,7 @@ class Trainer:
             epoch_loss += loss_item * inputs.size(0)
             if outputs.ndim >= 2:
                 preds = torch.argmax(outputs.detach(), dim=1)
-                metrics_calculator.update(targets.cpu(), preds.cpu())
+                self.metrics_calculator.update(targets.cpu(), preds.cpu())
                 all_outputs_list.append(outputs.cpu())
                 all_targets_list.append(targets.cpu())  # Collect for callbacks
             pbar.set_postfix(loss=f"{loss_item:.4f}")
@@ -840,9 +886,9 @@ class Trainer:
         ):
             synchronize()
         epoch_time = time.time() - epoch_start_time
-        metrics_result = metrics_calculator.compute()
+        metrics_result = self.metrics_calculator.compute()
         perf_metrics = metrics_result["overall"]
-        num_samples = metrics_calculator.total_samples
+        num_samples = self.metrics_calculator.total_samples
         avg_epoch_loss = epoch_loss / num_samples if num_samples > 0 else 0.0
         final_metrics = {
             "val_loss": avg_epoch_loss,
@@ -988,6 +1034,52 @@ class Trainer:
                 break
 
         self._handle_train_end(start_time, restore_best_weights, primary_monitor_metric)
+
+        # End of training - final calculations and cleanup
+        try:
+            # Calculate final metrics
+            class_metrics = {}
+            confusion_matrix = None
+
+            # Get confusion matrix
+            confusion_matrix = self.metrics_calculator.get_confusion_matrix()
+
+            # Get per-class metrics
+            class_f1, class_precision, class_recall = [], [], []
+
+            if hasattr(self.metrics_calculator, "get_classification_report"):
+                try:
+                    report = self.metrics_calculator.get_classification_report()
+                    for i, class_name in enumerate(self.class_names):
+                        if str(i) in report:
+                            class_precision.append(report[str(i)]["precision"])
+                            class_recall.append(report[str(i)]["recall"])
+                            class_f1.append(report[str(i)]["f1-score"])
+                        elif class_name in report:
+                            class_precision.append(report[class_name]["precision"])
+                            class_recall.append(report[class_name]["recall"])
+                            class_f1.append(report[class_name]["f1-score"])
+                except Exception as e:
+                    logger.warning(f"Failed to get classification report: {e}")
+
+            if class_f1 and len(class_f1) == len(self.class_names):
+                class_metrics = {
+                    "f1": class_f1,
+                    "precision": class_precision,
+                    "recall": class_recall,
+                }
+
+            # Log that we've calculated class metrics
+            if class_metrics:
+                logger.info(
+                    f"Successfully calculated metrics for {len(class_metrics['f1'])} classes"
+                )
+            else:
+                logger.warning("Could not calculate per-class metrics")
+
+        except Exception as e:
+            logger.error(f"Error calculating final metrics: {e}", exc_info=True)
+
         return {
             "model": self.model,
             "best_val_loss": self.best_val_loss,
@@ -995,6 +1087,10 @@ class Trainer:
             "best_epoch": self.best_epoch,
             "total_time": time.time() - start_time,
             "history": dict(self.history),
+            "class_metrics": class_metrics if class_metrics else None,
+            "confusion_matrix": confusion_matrix.tolist()
+            if confusion_matrix is not None
+            else None,
         }
 
 

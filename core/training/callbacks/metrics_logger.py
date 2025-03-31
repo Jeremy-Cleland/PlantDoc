@@ -8,6 +8,8 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
+import numpy as np
+
 from utils.logger import get_logger
 
 from .base import Callback
@@ -24,6 +26,8 @@ class MetricsLogger(Callback):
         filename: Base filename (extensions added based on format)
         save_format: Format to save metrics in ('json', 'jsonl', 'csv')
         overwrite: Whether to overwrite existing files
+        experiment_dir: Directory to save additional report files
+        class_names: List of class names for class-specific metrics
     """
 
     priority = 70  # Run after most other callbacks
@@ -34,12 +38,16 @@ class MetricsLogger(Callback):
         filename: str = "training_metrics",
         save_format: str = "json",
         overwrite: bool = True,
+        experiment_dir: Optional[Union[str, Path]] = None,
+        class_names: Optional[List[str]] = None,
     ):
         super().__init__()
         self.metrics_dir = Path(metrics_dir)
         self.filename = filename
         self.save_format = save_format.lower()
         self.overwrite = overwrite
+        self.experiment_dir = Path(experiment_dir) if experiment_dir else None
+        self.class_names = class_names
 
         # Validate format
         if self.save_format not in ["json", "jsonl", "csv"]:
@@ -49,6 +57,10 @@ class MetricsLogger(Callback):
 
         # Create metrics directory
         os.makedirs(self.metrics_dir, exist_ok=True)
+
+        # If experiment_dir is provided, ensure it exists
+        if self.experiment_dir:
+            os.makedirs(self.experiment_dir, exist_ok=True)
 
         # Initialize metrics history
         self.history = []
@@ -142,6 +154,111 @@ class MetricsLogger(Callback):
             for metrics in self.history:
                 writer.writerow(metrics)
 
+    def _convert_history_format(self):
+        """Convert history from list of dicts to dict of lists for compatibility with report generator."""
+        converted_history = {}
+        for entry in self.history:
+            for key, value in entry.items():
+                if key not in converted_history:
+                    converted_history[key] = []
+                converted_history[key].append(value)
+        return converted_history
+
+    def _save_class_names(self):
+        """Save class names to a file if provided."""
+        if not self.class_names or not self.experiment_dir:
+            return
+
+        try:
+            class_names_path = self.experiment_dir / "class_names.txt"
+            with open(class_names_path, "w") as f:
+                for class_name in self.class_names:
+                    f.write(f"{class_name}\n")
+            logger.info(f"Saved class names to {class_names_path}")
+        except Exception as e:
+            logger.error(f"Error saving class names: {e}")
+
+    def _save_report_files(self, final_metrics: Dict[str, Any]):
+        """Save files needed for report generation."""
+        if not self.experiment_dir:
+            return
+
+        try:
+            # Save metrics.json in experiment directory
+            metrics_path = self.experiment_dir / "metrics.json"
+
+            # Extract class metrics if available in final metrics
+            class_metrics = {}
+            if (
+                self.class_names
+                and "class_metrics" in final_metrics
+                and final_metrics["class_metrics"]
+            ):
+                logger.info(
+                    "Found class metrics in final metrics, processing them for report"
+                )
+
+                class_data = final_metrics["class_metrics"]
+                if isinstance(class_data, dict) and "f1" in class_data:
+                    for i, class_name in enumerate(self.class_names):
+                        # Only process if we have enough values in the lists
+                        if i < len(class_data["f1"]):
+                            safe_name = class_name.replace(" ", "_")
+                            class_metrics[f"class_{safe_name}_f1"] = class_data["f1"][i]
+                            class_metrics[f"class_{safe_name}_precision"] = class_data[
+                                "precision"
+                            ][i]
+                            class_metrics[f"class_{safe_name}_recall"] = class_data[
+                                "recall"
+                            ][i]
+
+                    logger.info(
+                        f"Processed metrics for {len(self.class_names)} classes"
+                    )
+                else:
+                    logger.warning(
+                        "class_metrics found but data structure is not as expected"
+                    )
+
+            # Combine metrics - remove the complex class_metrics dict from the final report
+            report_metrics = {
+                k: v for k, v in final_metrics.items() if k != "class_metrics"
+            }
+            # Remove model key if it exists to avoid serialization issues
+            if "model" in report_metrics:
+                del report_metrics["model"]
+
+            # Add class metrics
+            report_metrics.update(class_metrics)
+
+            with open(metrics_path, "w") as f:
+                json.dump(report_metrics, f, indent=2)
+            logger.info(f"Saved metrics.json to {metrics_path}")
+
+            # Save history.json in correct format
+            history_path = self.experiment_dir / "history.json"
+            with open(history_path, "w") as f:
+                json.dump(self._convert_history_format(), f, indent=2)
+            logger.info(f"Saved history.json to {history_path}")
+
+            # Save class names
+            self._save_class_names()
+
+            # Save confusion matrix if it exists
+            if (
+                "confusion_matrix" in final_metrics
+                and final_metrics["confusion_matrix"] is not None
+            ):
+                cm_path = self.experiment_dir / "confusion_matrix.npy"
+                np.save(cm_path, np.array(final_metrics["confusion_matrix"]))
+                logger.info(f"Saved confusion matrix to {cm_path}")
+
+        except Exception as e:
+            import traceback
+
+            logger.error(f"Error saving report files: {e}")
+            logger.error(traceback.format_exc())
+
     def on_train_end(self, logs: Optional[Dict[str, Any]] = None) -> None:
         """Final save of metrics at the end of training."""
         logs = logs or {}
@@ -152,11 +269,31 @@ class MetricsLogger(Callback):
             if key in logs:
                 final_metrics[key] = logs[key]
 
+        # Add overall metrics
+        for key in ["accuracy", "precision", "recall", "f1", "val_loss"]:
+            for metrics in reversed(self.history):
+                if key in metrics:
+                    final_metrics[key] = metrics[key]
+                    break
+
+        # Add class metrics if available in logs
+        if "class_metrics" in logs and logs["class_metrics"]:
+            final_metrics["class_metrics"] = logs["class_metrics"]
+            logger.info("Added class metrics from logs to final metrics")
+
+        # Add confusion matrix if available in logs
+        if "confusion_matrix" in logs and logs["confusion_matrix"] is not None:
+            final_metrics["confusion_matrix"] = logs["confusion_matrix"]
+            logger.info("Added confusion matrix from logs to final metrics")
+
         if final_metrics:
             # Add to history
             self.history.append({"final_metrics": True, **final_metrics})
 
             # Save metrics
             self._save_metrics()
+
+            # Save files needed for report generation
+            self._save_report_files(final_metrics)
 
             logger.info(f"Final metrics saved to {self._get_filepath()}")

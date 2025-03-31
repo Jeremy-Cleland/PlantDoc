@@ -1,4 +1,4 @@
-EXPERIMENT ?= cbam_default
+EXPERIMENT ?= cbam
 CLI=PYTHONPATH=. python cli/main.py
 CONFIG=configs/config.yaml
 RAW_DIR ?= data/raw

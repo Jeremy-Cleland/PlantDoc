@@ -200,6 +200,15 @@ class ClassificationMetrics:
                 else:
                     serializable_metrics[k] = v
 
+            # Add confusion matrix
+            if hasattr(self, "confusion_mat") and self.confusion_mat is not None:
+                cm_path = output_dir / "confusion_matrix.npy"
+                np.save(cm_path, self.confusion_mat)
+                logger.info(f"Saved confusion matrix to {cm_path}")
+
+                # Also save a simplified version in the metrics
+                serializable_metrics["confusion_matrix"] = self.confusion_mat.tolist()
+
             with open(output_path, "w") as f:
                 json.dump(serializable_metrics, f, indent=2)
 

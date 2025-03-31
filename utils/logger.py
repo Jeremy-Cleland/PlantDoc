@@ -64,7 +64,7 @@ def get_logger(
         console_handler.setFormatter(formatter)
     logger.addHandler(console_handler)
 
-    # Optional file handler
+    # File handler - Handle both global and per-logger file handlers
     if log_dir and log_file:
         os.makedirs(log_dir, exist_ok=True)
         if timestamp:
@@ -72,15 +72,31 @@ def get_logger(
             log_file = f"{Path(log_file).stem}_{timestamp_str}{Path(log_file).suffix}"
         file_path = os.path.join(log_dir, log_file)
 
-        # Create a single global file handler for the main logger
-        if _GLOBAL_FILE_HANDLER is None and name == "plantdoc":
-            _GLOBAL_FILE_HANDLER = logging.FileHandler(file_path)
-            _GLOBAL_FILE_HANDLER.setFormatter(formatter)
-            logger.addHandler(_GLOBAL_FILE_HANDLER)
-            logger.debug(f"Logging to file: {file_path}")
-        # For other loggers, add the existing file handler if it exists
-        elif _GLOBAL_FILE_HANDLER is not None and name != "plantdoc":
-            logger.addHandler(_GLOBAL_FILE_HANDLER)
+        # Use global file handler for main logger and its children
+        if name == "plantdoc" or name.startswith("plantdoc."):
+            # Create a new file handler if not already present
+            if (
+                _GLOBAL_FILE_HANDLER is None
+                or _GLOBAL_FILE_HANDLER.baseFilename != file_path
+            ):
+                # Close previous handler if it exists
+                if _GLOBAL_FILE_HANDLER is not None:
+                    _GLOBAL_FILE_HANDLER.close()
+
+                _GLOBAL_FILE_HANDLER = logging.FileHandler(file_path, mode="a")
+                _GLOBAL_FILE_HANDLER.setFormatter(formatter)
+
+            # Ensure the handler is attached (it might have been removed)
+            if _GLOBAL_FILE_HANDLER not in logger.handlers:
+                logger.addHandler(_GLOBAL_FILE_HANDLER)
+                logger.info(f"Logging to file: {file_path}")
+        # For non-plantdoc loggers that need their own file handler
+        else:
+            # Create a new file handler for this logger
+            file_handler = logging.FileHandler(file_path, mode="a")
+            file_handler.setFormatter(formatter)
+            logger.addHandler(file_handler)
+            logger.info(f"Logging to file: {file_path}")
 
     _LOGGERS[name] = logger
     return logger
@@ -122,6 +138,7 @@ def configure_logging(cfg) -> logging.Logger:
     command = cfg.get("command", "run")
     log_level = cfg.logging.get("level", "INFO")
     use_colors = cfg.logging.get("use_colors", True)
+    log_to_file = cfg.logging.get("log_to_file", True)
 
     # Use log_dir from paths configuration
     if hasattr(cfg.paths, "log_dir"):
@@ -129,6 +146,9 @@ def configure_logging(cfg) -> logging.Logger:
     else:
         # Fallback if log_dir isn't configured yet
         log_dir = Path("outputs/logs")
+
+    # Ensure log directory exists
+    os.makedirs(log_dir, exist_ok=True)
 
     # Create log filename based on command
     log_file = cfg.logging.get("log_file", "command.log")
@@ -150,13 +170,20 @@ def configure_logging(cfg) -> logging.Logger:
         root_root_logger.removeHandler(handler)
 
     # Create main app logger
-    root_logger = get_logger(
-        "plantdoc",
-        log_level=log_level,
-        log_dir=log_dir,
-        log_file=log_file,
-        use_colors=use_colors,
-    )
+    if log_to_file:
+        root_logger = get_logger(
+            "plantdoc",
+            log_level=log_level,
+            log_dir=log_dir,
+            log_file=log_file,
+            use_colors=use_colors,
+        )
+    else:
+        root_logger = get_logger(
+            "plantdoc",
+            log_level=log_level,
+            use_colors=use_colors,
+        )
 
     # Set up module loggers
     for module in [
@@ -168,7 +195,27 @@ def configure_logging(cfg) -> logging.Logger:
         "cli",
         "utils",
     ]:
-        get_logger(f"core.{module}", log_level=log_level, use_colors=use_colors)
+        if log_to_file:
+            get_logger(
+                f"plantdoc.{module}",
+                log_level=log_level,
+                log_dir=log_dir,
+                log_file=log_file,
+                use_colors=use_colors,
+            )
+        else:
+            get_logger(f"plantdoc.{module}", log_level=log_level, use_colors=use_colors)
+
+    # Explicitly create a file in the log directory, even if empty, to ensure it exists
+    if log_to_file:
+        log_path = Path(log_dir) / log_file
+        try:
+            # Touch the file
+            with open(log_path, "a") as f:
+                pass  # Just create it if it doesn't exist
+            root_logger.info(f"Initialized log file: {log_path}")
+        except Exception as e:
+            root_logger.error(f"Error initializing log file: {e}")
 
     root_logger.info(f"Logging initialized. Level: {log_level} | Log dir: {log_dir}")
     return root_logger

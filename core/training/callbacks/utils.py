@@ -72,7 +72,16 @@ def get_callbacks(
 
         ensure_dir(metrics_dir)
 
-        metrics_logger = MetricsLogger(metrics_dir=metrics_dir)
+        # Get class names from config if available
+        class_names = None
+        if hasattr(config.data, "class_names"):
+            class_names = config.data.class_names
+
+        metrics_logger = MetricsLogger(
+            metrics_dir=metrics_dir,
+            experiment_dir=experiment_dir,  # Pass experiment_dir
+            class_names=class_names,  # Pass class_names
+        )
         callbacks.append(metrics_logger)
 
     # Add model checkpoint callback
