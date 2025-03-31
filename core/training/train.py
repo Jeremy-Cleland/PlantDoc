@@ -1258,6 +1258,15 @@ def train_model(
         **kwargs,
     )
 
+    # Copy config to experiment directory
+    if experiment_dir:
+        import shutil
+
+        config_path = Path(cfg._config_filename)
+        if config_path.exists():
+            shutil.copy2(config_path, Path(experiment_dir) / "config.yaml")
+            logger.info(f"Copied config to {experiment_dir}/config.yaml")
+
     # Run the training process
     results = trainer.fit()
     return results

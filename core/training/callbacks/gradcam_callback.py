@@ -162,6 +162,11 @@ class GradCAMCallback(Callback):
                 sample_dir = epoch_dir / f"sample_{idx}"
                 os.makedirs(sample_dir, exist_ok=True)
 
+                # Ensure the image is on the same device as the model
+                device = next(model.parameters()).device
+                if isinstance(image, torch.Tensor):
+                    image = image.to(device)
+
                 # Forward pass to get predictions
                 with torch.no_grad():
                     input_tensor = gradcam.preprocess_image(image)
@@ -173,14 +178,13 @@ class GradCAMCallback(Callback):
                     probs = torch.nn.functional.softmax(output, dim=1)[0]
 
                     # Get top-3 predictions
-                    top_probs, top_classes = torch.topk(
-                        probs, min(3, len(self.class_names))
-                    )
+                    top_k = min(3, len(self.class_names))
+                    top_probs, top_classes = torch.topk(probs, top_k)
                     top_probs = top_probs.cpu().numpy()
                     top_classes = top_classes.cpu().numpy()
 
                 # Generate GradCAM for predicted class
-                pred_class = top_classes[0]
+                pred_class = int(top_classes[0])  # Convert to int
                 pred_prob = top_probs[0]
                 pred_path = sample_dir / f"gradcam_pred_{pred_class}.png"
 
@@ -190,17 +194,26 @@ class GradCAMCallback(Callback):
 
                 # Generate GradCAM for true class if available
                 if target is not None:
-                    true_path = sample_dir / f"gradcam_true_{target}.png"
-                    true_prob = probs[target].item()
+                    # Convert target to Python int to avoid ListConfig issues
+                    if hasattr(target, 'item'):  # For tensor
+                        target_int = target.item()
+                    elif hasattr(target, '__class__') and 'ListConfig' in target.__class__.__name__:
+                        target_int = int(target)
+                    else:
+                        target_int = int(target)  # For native Python types
+
+                    true_path = sample_dir / f"gradcam_true_{target_int}.png"
+                    true_prob = probs[target_int].item()
                     self._generate_visualization(
-                        gradcam, image, target, true_prob, true_path, "True Class"
+                        gradcam, image, target_int, true_prob, true_path, "True Class"
                     )
 
                 # Generate GradCAM for top-1 and top-2 if different from prediction
                 for i, (cls, prob) in enumerate(zip(top_classes[1:3], top_probs[1:3])):
-                    top_path = sample_dir / f"gradcam_top{i + 1}_{cls}.png"
+                    cls_int = int(cls)  # Convert to int
+                    top_path = sample_dir / f"gradcam_top{i + 1}_{cls_int}.png"
                     self._generate_visualization(
-                        gradcam, image, cls, prob, top_path, f"Top-{i + 1} Class"
+                        gradcam, image, cls_int, prob, top_path, f"Top-{i + 1} Class"
                     )
 
             # Clean up GradCAM
@@ -229,11 +242,14 @@ class GradCAMCallback(Callback):
     ) -> None:
         """Generate and save a GradCAM visualization with confidence score."""
         try:
+            # Ensure class_idx is a Python int
+            class_idx = int(class_idx)
+            
             # Get original image
             original_image = self._get_original_image(image)
 
-            # Compute CAM
-            cam = gradcam(image, class_idx)
+            # Compute CAM using compute_cam method
+            cam = gradcam.compute_cam(image, class_idx)
 
             # Create heatmap
             cmap = plt.get_cmap("jet")

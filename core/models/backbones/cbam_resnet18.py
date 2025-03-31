@@ -149,6 +149,15 @@ class CBAMResNet(nn.Module):
             Dictionary of attention maps
         """
         return self.attention_maps
+        
+    def get_gradcam_target_layer(self):
+        """
+        Return the target layer for GradCAM visualization.
+        
+        Returns:
+            The appropriate convolutional layer for GradCAM
+        """
+        return self.layer4[-1].conv2
 
 
 def cbam_resnet18(pretrained=False, **kwargs):
@@ -395,6 +404,15 @@ class CBAMResNet18Backbone(nn.Module):
                 _ = self.forward(x)
                 
         return self._attention_maps
+        
+    def get_gradcam_target_layer(self):
+        """
+        Return the target layer for GradCAM visualization.
+        
+        Returns:
+            The appropriate convolutional layer for GradCAM
+        """
+        return self.backbone.layer4[-1].conv2
 
     def forward(self, x):
         """

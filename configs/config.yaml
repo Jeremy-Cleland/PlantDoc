@@ -229,13 +229,13 @@ progressive_resizing:
 # Training configuration
 training:
   epochs: 5
-  batch_size: 128  # Already in loader section, but keeping for compatibility
-  learning_rate: 0.0010103979143644285  # Already in optimizer section, but keeping for compatibility
-  weight_decay: 2.1879976178790097e-05  # Already in optimizer section, but keeping for compatibility
-  deterministic: false  # Set to true for reproducible training
-  use_mixed_precision: false  # Enable AMP (automatic mixed precision)
+  batch_size: 128
+  learning_rate: 0.0010103979143644285
+  weight_decay: 2.1879976178790097e-05
+  deterministic: false
+  use_mixed_precision: true  # Enable mixed precision training
   gradient_clip_val: 1.0
-  precision: "float32"  # Options: float32, float16, bfloat16
+  precision: "float16"  # Match hardware precision setting
   dropout: 0.20650123307899837
 
 # Transfer learning settings
@@ -400,9 +400,9 @@ prepare_data:
     similarity_matrix: true
     augmentations: true
 
-# Hardware configuration for specialized setups
+# Hardware configuration
 hardware:
-  precision: "float32"  # Global precision setting
+  precision: "float16"  # Changed from float32 to float16 for better MPS performance
   mps:  # Apple Silicon GPU specific settings
     memory:
       monitor: true
@@ -411,7 +411,7 @@ hardware:
       enable_sync_for_timing: true
       limit_fraction: 0.8  # Fraction of available memory to use
     model:
-      use_channels_last: true
+      use_channels_last: true  # Keep this for better memory access patterns
     profiling:
       enabled: false
     reproducibility:

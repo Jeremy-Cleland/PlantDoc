@@ -166,15 +166,7 @@ def evaluate_model(
 class GradCAM:
     """
     Enhanced Gradient-weighted Class Activation Mapping (Grad-CAM) implementation.
-
-    This class implements Grad-CAM, which visualizes important regions in the image
-    for model predictions by using gradients flowing into the final convolutional layer.
-
-    Features:
-    - Automatic target layer detection for various model architectures
-    - Supports both tensor inputs and direct image path inputs
-    - Provides comprehensive visualization options
-    - Handles both standard and CBAM-augmented models
+    Implements high-quality visualization techniques from recent research.
     """
 
     def __init__(
@@ -185,16 +177,7 @@ class GradCAM:
         mean: List[float] = [0.485, 0.456, 0.406],
         std: List[float] = [0.229, 0.224, 0.225],
     ):
-        """
-        Initialize GradCAM.
-
-        Args:
-            model: PyTorch model to analyze
-            target_layer: Target layer for GradCAM. If None, will try to find the most appropriate layer.
-            input_size: Size to which input images will be resized (height, width)
-            mean: Mean values for image normalization
-            std: Std values for image normalization
-        """
+        """Initialize GradCAM with enhanced visualization settings."""
         self.model = model
         self.model.eval()
         self.device = next(model.parameters()).device
@@ -296,158 +279,172 @@ class GradCAM:
 
     def _forward_hook(self, module, input, output):
         """Hook for forward pass to capture activations."""
-        self.activations = output.detach()
+        try:
+            self.activations = output.detach()
+            logger.debug(f"Captured activations shape: {self.activations.shape}")
+        except Exception as e:
+            logger.error(f"Error in forward hook: {e}")
 
     def _backward_hook(self, module, grad_input, grad_output):
         """Hook for backward pass to capture gradients."""
-        self.gradients = grad_output[0].detach()
+        try:
+            self.gradients = grad_output[0].detach()
+            logger.debug(f"Captured gradients shape: {self.gradients.shape}")
+        except Exception as e:
+            logger.error(f"Error in backward hook: {e}")
 
     def preprocess_image(
         self, image_input: Union[str, Image.Image, np.ndarray, torch.Tensor]
     ) -> torch.Tensor:
-        """
-        Preprocess image for model input.
-
-        Args:
-            image_input: Image input as path string, PIL Image, numpy array, or tensor
-
-        Returns:
-            Preprocessed image tensor (1, C, H, W)
-        """
-        # Handle various input types
-        if isinstance(image_input, str):
-            # Load image from path
-            if not os.path.exists(image_input):
-                raise FileNotFoundError(f"Image file not found: {image_input}")
-            image = Image.open(image_input).convert("RGB")
-        elif isinstance(image_input, Image.Image):
-            image = image_input
-        elif isinstance(image_input, np.ndarray):
-            # Convert numpy array to PIL Image
-            if image_input.dtype == np.uint8:
-                image = Image.fromarray(image_input)
+        """Preprocess image with enhanced error handling and logging."""
+        try:
+            # Handle various input types
+            if isinstance(image_input, str):
+                if not os.path.exists(image_input):
+                    raise FileNotFoundError(f"Image file not found: {image_input}")
+                image = Image.open(image_input).convert("RGB")
+            elif isinstance(image_input, Image.Image):
+                image = image_input
+            elif isinstance(image_input, np.ndarray):
+                if image_input.dtype == np.uint8:
+                    image = Image.fromarray(image_input)
+                else:
+                    image = Image.fromarray((image_input * 255).astype(np.uint8))
+            elif isinstance(image_input, torch.Tensor):
+                if image_input.ndim == 4:
+                    if image_input.size(0) != 1:
+                        logger.warning(
+                            "Batch size > 1 detected, using only the first image"
+                        )
+                    return image_input[:1].to(self.device)
+                elif image_input.ndim == 3:
+                    return image_input.unsqueeze(0).to(self.device)
+                else:
+                    raise ValueError(f"Unexpected tensor shape: {image_input.shape}")
             else:
-                # Assume float array in range [0, 1]
-                image = Image.fromarray((image_input * 255).astype(np.uint8))
-        elif isinstance(image_input, torch.Tensor):
-            # If already a tensor, ensure correct format and normalization
-            if image_input.ndim == 4:  # (B, C, H, W)
-                if image_input.size(0) != 1:
-                    logger.warning(
-                        f"Batch size > 1 detected, using only the first image"
-                    )
-                return image_input[:1].to(self.device)
-            elif image_input.ndim == 3:  # (C, H, W)
-                # Add batch dimension
-                return image_input.unsqueeze(0).to(self.device)
-            else:
-                raise ValueError(f"Unexpected tensor shape: {image_input.shape}")
-        else:
-            raise TypeError(f"Unsupported image input type: {type(image_input)}")
+                raise TypeError(f"Unsupported image input type: {type(image_input)}")
 
-        # Apply transforms to PIL Image
-        transform = transforms.Compose(
-            [
-                transforms.Resize(self.input_size),
-                transforms.ToTensor(),
-                transforms.Normalize(mean=self.mean, std=self.std),
-            ]
-        )
+            # Apply transforms with high-quality settings
+            transform = transforms.Compose(
+                [
+                    transforms.Resize(
+                        self.input_size,
+                        interpolation=transforms.InterpolationMode.BICUBIC,
+                    ),
+                    transforms.ToTensor(),
+                    transforms.Normalize(mean=self.mean, std=self.std),
+                ]
+            )
 
-        return transform(image).unsqueeze(0).to(self.device)
+            input_tensor = transform(image).unsqueeze(0).to(self.device)
+
+            # Log preprocessing details
+            logger.debug(f"Preprocessed tensor shape: {input_tensor.shape}")
+            logger.debug(
+                f"Preprocessed tensor range: [{input_tensor.min():.3f}, {input_tensor.max():.3f}]"
+            )
+
+            return input_tensor
+
+        except Exception as e:
+            logger.error(f"Error in preprocess_image: {e}", exc_info=True)
+            raise
 
     def compute_cam(
-        self, input_tensor: torch.Tensor, target_category: Optional[int] = None
+        self, input_tensor: Union[torch.Tensor, np.ndarray, Image.Image, str], target_category: Optional[int] = None
     ) -> np.ndarray:
-        """
-        Compute GradCAM activation map.
+        """Compute high-quality GradCAM activation map."""
+        try:
+            # Preprocess image if not already a tensor
+            if not isinstance(input_tensor, torch.Tensor):
+                input_tensor = self.preprocess_image(input_tensor)
+            else:
+                # If it's already a tensor, ensure it's on the correct device
+                # This is the key fix for the device mismatch error
+                input_tensor = input_tensor.to(self.device)
+                
+                # Ensure it has batch dimension
+                if input_tensor.ndim == 3:
+                    input_tensor = input_tensor.unsqueeze(0)
+                    
+            # Forward pass
+            self.model.zero_grad()
+            output = self.model(input_tensor)
+            logger.debug(f"Model output type: {type(output)}")
 
-        Args:
-            input_tensor: Preprocessed input image tensor (1, C, H, W)
-            target_category: Target class index. If None, uses the predicted class.
+            # Handle different output formats
+            if isinstance(output, tuple):
+                logger.debug(f"Output tuple length: {len(output)}")
+                if len(output) == 2:  # (logits, features)
+                    output = output[0]
+                elif len(output) == 3:  # (logits, features, attention_maps)
+                    output = output[0]
+                else:
+                    logger.warning(f"Unexpected output tuple length: {len(output)}")
+                    output = output[0]  # Use first element as fallback
 
-        Returns:
-            GradCAM activation map as numpy array (H, W)
-        """
-        # Forward pass
-        self.model.zero_grad()
-        output = self.model(input_tensor)
-
-        # Handle different output formats (some models might return (logits, features))
-        if isinstance(output, tuple):
-            output = output[0]
-
-        # If target_category is None, use the predicted class
-        if target_category is None:
-            target_category = torch.argmax(output, dim=1).item()
-        else:
-            # Convert target_category to a Python int to handle ListConfig or other types
-            try:
-                target_category = int(target_category)
-            except (TypeError, ValueError):
-                logger.error(
-                    f"Invalid target category type: {type(target_category)}. Converting to int."
-                )
-                # Default to the predicted class if conversion fails
+            # If target_category is None, use the predicted class
+            if target_category is None:
                 target_category = torch.argmax(output, dim=1).item()
+            else:
+                try:
+                    # Handle numeric types first
+                    if isinstance(target_category, (int, float, np.integer, np.floating)):
+                        target_category = int(target_category)
+                    # Handle tensor
+                    elif isinstance(target_category, torch.Tensor):
+                        target_category = target_category.item()
+                    # For OmegaConf's ListConfig indices, convert to Python int
+                    elif hasattr(target_category, '__class__') and 'ListConfig' in target_category.__class__.__name__:
+                        target_category = int(target_category)
+                    # If still not int, raise error
+                    if not isinstance(target_category, int):
+                        raise TypeError(f"Could not convert {type(target_category)} to int")
+                except (TypeError, ValueError) as e:
+                    logger.error(f"Invalid target category type: {type(target_category)}, error: {e}")
+                    target_category = torch.argmax(output, dim=1).item()
 
-        # Compute gradients
-        target = output[0, target_category]
-        target.backward()
+            # Compute gradients
+            target = output[0, target_category]
+            target.backward()
 
-        # Ensure gradients and activations are available
-        if self.gradients is None or self.activations is None:
-            logger.error(
-                "Gradients or activations are None. Hooks may not be properly set."
-            )
-            # Return empty array as fallback
+            # Ensure gradients and activations are available
+            if self.gradients is None or self.activations is None:
+                logger.error(
+                    "Gradients or activations are None. Hooks may not be properly set."
+                )
+                return np.zeros(self.input_size)
+
+            # Enhanced gradient computation
+            weights = torch.mean(self.gradients[0], dim=(1, 2))
+            weights = F.softmax(
+                weights, dim=0
+            )  # Apply softmax to weights for better visualization
+
+            # Weight the channels of the activation map
+            cam = torch.zeros_like(self.activations[0, 0]).to(self.device)
+            for i, w in enumerate(weights):
+                cam += w * self.activations[0, i]
+
+            # Enhanced CAM processing
+            cam = F.relu(cam)  # Apply ReLU
+            cam = cam - cam.min()
+            if cam.max() > 0:
+                cam = cam / (cam.max() + 1e-7)
+
+            # High-quality resizing
+            cam = F.interpolate(
+                cam.unsqueeze(0).unsqueeze(0),
+                size=self.input_size,
+                mode="bilinear",
+                align_corners=False,
+            ).squeeze()
+
+            return cam.cpu().numpy()
+
+        except Exception as e:
+            logger.error(f"Error in compute_cam: {e}", exc_info=True)
             return np.zeros(self.input_size)
-
-        # Global average pooling of gradients
-        weights = torch.mean(self.gradients[0], dim=(1, 2))
-
-        # Weight the channels of the activation map with the gradient weights
-        cam = torch.zeros_like(self.activations[0, 0]).to(self.device)
-        for i, w in enumerate(weights):
-            cam += w * self.activations[0, i]
-
-        # Apply ReLU and normalize
-        cam = F.relu(cam)
-        cam = cam - cam.min()
-        if cam.max() > 0:  # Avoid division by zero
-            cam = cam / (cam.max() + 1e-7)
-
-        # Resize to match input image size
-        cam = F.interpolate(
-            cam.unsqueeze(0).unsqueeze(0),
-            size=self.input_size,
-            mode="bilinear",
-            align_corners=False,
-        ).squeeze()
-
-        # Convert to numpy array
-        return cam.cpu().numpy()
-
-    def __call__(
-        self,
-        image_input: Union[str, Image.Image, np.ndarray, torch.Tensor],
-        target_category: Optional[int] = None,
-    ) -> np.ndarray:
-        """
-        Generate GradCAM for the input image.
-
-        Args:
-            image_input: Image input as path string, PIL Image, numpy array, or tensor
-            target_category: Target class index. If None, uses the predicted class.
-
-        Returns:
-            GradCAM activation map as numpy array (H, W)
-        """
-        # Preprocess image
-        input_tensor = self.preprocess_image(image_input)
-
-        # Compute CAM
-        return self.compute_cam(input_tensor, target_category)
 
     def visualize(
         self,
@@ -457,93 +454,196 @@ class GradCAM:
         alpha: float = 0.5,
         colormap: str = "jet",
         show: bool = False,
+        figsize: Tuple[int, int] = (15, 5),
+        dpi: int = 300,
+        fontsize: int = 12,
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """
-        Generate and visualize GradCAM for the input image.
+        """Generate high-quality GradCAM visualization."""
+        try:
+            # Get original image with high-quality processing
+            if isinstance(image_input, str):
+                original_image = np.array(
+                    Image.open(image_input)
+                    .convert("RGB")
+                    .resize(self.input_size, Image.Resampling.LANCZOS)
+                )
+            elif isinstance(image_input, Image.Image):
+                original_image = np.array(
+                    image_input.resize(self.input_size, Image.Resampling.LANCZOS)
+                )
+            elif isinstance(image_input, np.ndarray):
+                original_image = np.array(
+                    Image.fromarray(
+                        image_input.astype(np.uint8)
+                        if image_input.dtype != np.uint8
+                        else image_input
+                    ).resize(self.input_size, Image.Resampling.LANCZOS)
+                )
+            elif isinstance(image_input, torch.Tensor):
+                if image_input.ndim == 4:
+                    img_tensor = image_input[0]
+                else:
+                    img_tensor = image_input
 
-        Args:
-            image_input: Image input as path string, PIL Image, numpy array, or tensor
-            target_category: Target class index. If None, uses the predicted class.
-            output_path: Path to save the visualization. If None, doesn't save.
-            alpha: Blending factor for the heatmap overlay
-            colormap: Matplotlib colormap name for the heatmap
-            show: Whether to display the visualization
+                img_np = img_tensor.permute(1, 2, 0).cpu().numpy()
+                original_image = (img_np - img_np.min()) / (
+                    img_np.max() - img_np.min() + 1e-7
+                )
+                original_image = (original_image * 255).astype(np.uint8)
+                original_image = np.array(
+                    Image.fromarray(original_image).resize(
+                        self.input_size, Image.Resampling.LANCZOS
+                    )
+                )
+            else:
+                raise TypeError(f"Unsupported image input type: {type(image_input)}")
 
-        Returns:
-            Tuple of (original_image, heatmap, overlaid_image) as numpy arrays
-        """
-        # Get original image for visualization
-        if isinstance(image_input, str):
-            original_image = np.array(
-                Image.open(image_input).convert("RGB").resize(self.input_size)
+            # Compute CAM with enhanced quality
+            cam = self(image_input, target_category)
+
+            # Apply Gaussian smoothing for better visualization
+            cam = self._apply_gaussian_smoothing(cam)
+
+            # Create high-quality heatmap
+            cmap = plt.get_cmap(colormap)
+            heatmap = cmap(cam)[:, :, :3]  # Remove alpha channel
+
+            # Enhanced overlay with improved blending
+            overlaid = self._enhanced_overlay(original_image, heatmap, alpha)
+
+            # Save visualization if output path provided
+            if output_path:
+                self._save_visualization(
+                    original_image,
+                    heatmap,
+                    overlaid,
+                    output_path,
+                    figsize,
+                    dpi,
+                    fontsize,
+                    show,
+                )
+
+            return original_image, heatmap, overlaid
+
+        except Exception as e:
+            logger.error(f"Error in visualize: {e}", exc_info=True)
+            return (
+                np.zeros(self.input_size),
+                np.zeros(self.input_size),
+                np.zeros(self.input_size),
             )
-        elif isinstance(image_input, Image.Image):
-            original_image = np.array(image_input.resize(self.input_size))
-        elif isinstance(image_input, np.ndarray):
-            # Resize numpy array
-            original_image = np.array(
-                Image.fromarray(
-                    image_input.astype(np.uint8)
-                    if image_input.dtype != np.uint8
-                    else image_input
-                ).resize(self.input_size)
-            )
-        elif isinstance(image_input, torch.Tensor):
-            # Handle tensor (assume normalized)
-            if image_input.ndim == 4:  # (B, C, H, W)
-                img_tensor = image_input[0]
-            else:  # (C, H, W)
-                img_tensor = image_input
 
-            # Denormalize and convert to numpy
-            img_np = img_tensor.permute(1, 2, 0).cpu().numpy()
-            original_image = (img_np - img_np.min()) / (
-                img_np.max() - img_np.min() + 1e-7
-            )
-            original_image = (original_image * 255).astype(np.uint8)
-        else:
-            raise TypeError(f"Unsupported image input type: {type(image_input)}")
+    def _apply_gaussian_smoothing(
+        self, cam: np.ndarray, sigma: float = 2.0
+    ) -> np.ndarray:
+        """Apply Gaussian smoothing to the CAM for better visualization."""
+        from scipy.ndimage import gaussian_filter
 
-        # Compute CAM
-        cam = self(image_input, target_category)
+        return gaussian_filter(cam, sigma=sigma)
 
-        # Create heatmap
-        cmap = plt.get_cmap(colormap)
-        heatmap = cmap(cam)[:, :, :3]  # Remove alpha channel
+    def _enhanced_overlay(
+        self, original: np.ndarray, heatmap: np.ndarray, alpha: float
+    ) -> np.ndarray:
+        """Create enhanced overlay with improved blending and theme colors."""
+        # Convert to float for better blending
+        original = original.astype(float)
+        heatmap = heatmap.astype(float)
 
-        # Overlay heatmap on original image
-        overlaid = original_image * (1 - alpha) + heatmap * 255 * alpha
-        overlaid = overlaid.astype(np.uint8)
+        # Apply gamma correction to heatmap for better visibility
+        heatmap = np.power(heatmap, 0.8)
 
-        # Save visualization if output path provided
-        if output_path:
-            fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+        # Create custom colormap using theme colors
+        from matplotlib.colors import LinearSegmentedColormap
 
-            axes[0].imshow(original_image)
-            axes[0].set_title("Original Image")
-            axes[0].axis("off")
+        colors = [(0, "#121212"), (0.5, "#34d399"), (1, "#22d3ee")]
+        custom_cmap = LinearSegmentedColormap.from_list("custom", colors)
 
-            axes[1].imshow(heatmap)
-            axes[1].set_title("GradCAM Heatmap")
-            axes[1].axis("off")
+        # Apply custom colormap to heatmap
+        heatmap = custom_cmap(heatmap)[:, :, :3]
 
-            axes[2].imshow(overlaid)
-            axes[2].set_title("GradCAM Overlay")
-            axes[2].axis("off")
+        # Enhanced blending with improved contrast
+        overlaid = original * (1 - alpha) + heatmap * 255 * alpha
 
-            plt.tight_layout()
+        # Apply subtle contrast enhancement
+        overlaid = np.power(overlaid / 255.0, 0.9) * 255.0
 
-            # Create output directory if it doesn't exist
-            ensure_dir(Path(output_path).parent)
-            plt.savefig(output_path, dpi=300, bbox_inches="tight")
-            if not show:
-                plt.close(fig)
+        # Ensure values are in valid range
+        overlaid = np.clip(overlaid, 0, 255).astype(np.uint8)
 
-        # Show plot if requested
-        if show:
-            plt.show()
+        return overlaid
 
-        return original_image, heatmap, overlaid
+    def _save_visualization(
+        self,
+        original: np.ndarray,
+        heatmap: np.ndarray,
+        overlaid: np.ndarray,
+        output_path: str,
+        figsize: Tuple[int, int],
+        dpi: int,
+        fontsize: int,
+        show: bool,
+    ) -> None:
+        """Save high-quality visualization with enhanced formatting and dark theme."""
+        # Set dark theme style
+        plt.style.use("dark_background")
+
+        # Create figure with dark background
+        fig, axes = plt.subplots(1, 3, figsize=figsize, dpi=dpi)
+
+        # Set figure background color
+        fig.patch.set_facecolor("#121212")
+
+        # Set axes background color and styling
+        for ax in axes:
+            ax.set_facecolor("#121212")
+            ax.tick_params(colors="#f5f5f5")
+            ax.spines["bottom"].set_color("#404040")
+            ax.spines["top"].set_color("#404040")
+            ax.spines["left"].set_color("#404040")
+            ax.spines["right"].set_color("#404040")
+
+        # Plot original image
+        axes[0].imshow(original)
+        axes[0].set_title("Original Image", fontsize=fontsize, pad=10, color="#f5f5f5")
+        axes[0].axis("off")
+
+        # Plot heatmap with custom colormap using theme colors
+        from matplotlib.colors import LinearSegmentedColormap
+
+        colors = [(0, "#121212"), (0.5, "#34d399"), (1, "#22d3ee")]
+        custom_cmap = LinearSegmentedColormap.from_list("custom", colors)
+        axes[1].imshow(heatmap, cmap=custom_cmap)
+        axes[1].set_title("GradCAM Heatmap", fontsize=fontsize, pad=10, color="#f5f5f5")
+        axes[1].axis("off")
+
+        # Plot overlay with enhanced contrast
+        axes[2].imshow(overlaid)
+        axes[2].set_title("GradCAM Overlay", fontsize=fontsize, pad=10, color="#f5f5f5")
+        axes[2].axis("off")
+
+        # Add subtle grid lines
+        for ax in axes:
+            ax.grid(True, color="#404040", linestyle="--", alpha=0.3)
+
+        # Adjust layout with dark theme padding
+        plt.tight_layout(pad=0.5)
+
+        # Create output directory if it doesn't exist
+        ensure_dir(Path(output_path).parent)
+
+        # Save with high quality and dark theme
+        plt.savefig(
+            output_path,
+            dpi=dpi,
+            bbox_inches="tight",
+            facecolor="#121212",
+            edgecolor="#404040",
+            pad_inches=0.1,
+        )
+
+        if not show:
+            plt.close(fig)
 
     def predict_and_explain(
         self,
@@ -564,7 +664,7 @@ class GradCAM:
         Returns:
             Dictionary with prediction results and explanations
         """
-        # Preprocess image
+        # Preprocess image and move to device
         input_tensor = self.preprocess_image(image_input)
 
         # Forward pass
@@ -587,18 +687,21 @@ class GradCAM:
 
         # Create class labels
         if class_names is not None:
-            class_labels = [class_names[i] for i in top_classes]
+            class_labels = [class_names[int(i)] for i in top_classes]
         else:
             class_labels = [f"Class {i}" for i in top_classes]
 
         # Generate explanations for each top prediction
         explanations = []
         for i, class_idx in enumerate(top_classes):
+            # Convert to Python int to avoid issues with tensor types
+            class_idx_int = int(class_idx)
+            
             # Generate CAM for this class
-            cam = self.compute_cam(input_tensor, class_idx)
+            cam = self.compute_cam(input_tensor, class_idx_int)
             explanations.append(
                 {
-                    "class_index": int(class_idx),
+                    "class_index": class_idx_int,
                     "class_name": class_labels[i],
                     "probability": float(top_probs[i]),
                     "cam": cam,
@@ -692,10 +795,15 @@ class GradCAM:
         }
 
     def cleanup(self):
-        """Remove hooks when done to prevent memory leaks."""
-        self.forward_hook.remove()
-        self.backward_hook.remove()
-        logger.info("GradCAM hooks removed")
+        """Remove registered hooks and clean up resources."""
+        try:
+            if hasattr(self, "forward_hook"):
+                self.forward_hook.remove()
+            if hasattr(self, "backward_hook"):
+                self.backward_hook.remove()
+            logger.debug("GradCAM hooks removed successfully")
+        except Exception as e:
+            logger.error(f"Error during GradCAM cleanup: {e}")
 
     def __del__(self):
         """Clean up hooks when instance is deleted."""
@@ -704,6 +812,20 @@ class GradCAM:
             self.backward_hook.remove()
         except:
             pass  # Hooks might already be removed or model might be gone
+
+    # Make the class callable
+    def __call__(self, image_input, target_category=None):
+        """
+        Callable interface for computing GradCAM.
+        
+        Args:
+            image_input: Input image
+            target_category: Target class index
+            
+        Returns:
+            Numpy array of CAM
+        """
+        return self.compute_cam(image_input, target_category)
 
 
 # Example usage functions

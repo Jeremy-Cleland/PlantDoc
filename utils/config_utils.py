@@ -30,6 +30,9 @@ def load_config(config_path: str, cli_args: Optional[List[str]] = None) -> DictC
     # Load base config
     config = OmegaConf.load(config_path)
 
+    # Add config filename to the config
+    config._config_filename = config_path
+
     # Handle CLI overrides if provided, otherwise use sys.argv
     if cli_args:
         cli_conf = OmegaConf.from_dotlist(cli_args)
