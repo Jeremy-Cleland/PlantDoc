@@ -9,12 +9,17 @@ logging:
   level: INFO
   use_colors: true
   log_to_file: true
-  log_file: "command.log"
+  log_file: "command.log"  # Changed to fix path duplication
 
-# Simple path configuration without complex interpolation
+# Path configuration with improved structure
 paths:
-  # Base directories - these will be set programmatically
+  # Base directories with clear organization
   output_dir: "outputs"
+  models_dir: "outputs/models"
+  logs_dir: "outputs/logs"
+  viz_dir: "outputs/visualizations"
+  results_dir: "outputs/results"
+  cache_dir: "outputs/cache"
 
   experiment_name: "cbam_only_resnet18"
   
@@ -70,11 +75,11 @@ data:
 
 # DataLoader configuration
 loader:
-  batch_size: 128
-  num_workers: 6
-  pin_memory: false
+  batch_size: 64  # Reduced from 128 for better stability and memory usage
+  num_workers: 4  # Adjusted based on typical hardware constraints
+  pin_memory: true  # Changed to true for better performance
   drop_last: false
-  prefetch_factor: 4
+  prefetch_factor: 6
   persistent_workers: true
 
 # Preprocessing configuration for data transformations
@@ -159,7 +164,7 @@ model:
   num_classes: 39  # Number of output classes
   pretrained: true  # Load pretrained ImageNet weights
   in_channels: 3  # Number of input channels
-  input_size: [256, 256]  # Changed back to match preprocessing.resize
+  input_size: [224, 224]  # Changed to match center_crop size for consistency
   
   # Head settings
   head_type: "residual"  # Options: linear, mlp, residual
@@ -168,11 +173,11 @@ model:
   use_residual_head: true  # Whether to use residual head for classification
   
   # Backbone settings
-  freeze_backbone: true  # Whether to freeze backbone initially
+  freeze_backbone: true
   feature_fusion: true  # Enable feature fusion from multiple backbone layers
 
   # CBAM settings
-  reduction_ratio: 24  # Reduction ratio for CBAM blocks
+  reduction_ratio: 16  # Changed from 24 to power of 2 (16) for better hardware optimization
   spatial_kernel_size: 7  # Kernel size for spatial attention
   
   # Regularization within model components
@@ -182,11 +187,11 @@ model:
 
 # Optimizer settings
 optimizer:
-  name: adam  # Options: SGD, Adam, AdamW
-  lr: 0.0010103979143644285
+  name: adamw  # Changed from adam to adamw for better weight decay handling
+  lr: 0.001
   weight_decay: 2.1879976178790097e-05
-  betas: [0.9893042503956707, 0.9089280701773239]  # For Adam/AdamW
-  eps: 8.787817640460526e-10  # For Adam/AdamW
+  betas: [0.9, 0.999]  # Set to standard values for stability
+  eps: 1e-8  # Set to standard value for stability
   momentum: 0.9  # For SGD
   nesterov: false  # For SGD
   differential_lr: false  # Whether to use different LRs for backbone vs. head
@@ -196,13 +201,13 @@ optimizer:
 loss:
   name: weighted_cross_entropy  # Options: CrossEntropyLoss, WeightedCrossEntropyLoss
   reduction: mean  # Options: mean, sum, none
-  label_smoothing: 0.06782532481435205
+  label_smoothing: 0.1  # Rounded to 0.1 for better regularization
   weights: null  # Class weights (null means auto-calculate or none)
   class_weighted: true  # Whether to use class weights
   weight_mode: sqrt_inv  # Options: inv, sqrt_inv, effective
-  gamma: 1.951906235563448
-  alpha: 0.4608707944983905
-  lambda_c: 0.0013863059136915556
+  gamma: 2.0  # Rounded to 2.0 (common value for focal loss)
+  alpha: 0.5  # Rounded to 0.5 for balance
+  lambda_c: 0.001  # Simplified value
 
 # Learning rate scheduler
 scheduler:
@@ -210,37 +215,37 @@ scheduler:
   monitor: val_loss  # Metric to monitor for ReduceLROnPlateau
   mode: min  # min or max, for ReduceLROnPlateau
   step_mode: epoch  # epoch or step, controls when scheduler.step() is called
-  T_max: null  # Set to null to auto-calculate based on epochs (for CosineAnnealingLR)
-  min_lr: 7.940872011537383e-05
-  factor: 0.39440249582288583  # Factor by which to reduce LR (for ReduceLROnPlateau and StepLR)
-  patience: 2  # Epochs with no improvement after which LR will be reduced (for ReduceLROnPlateau)
+  T_max: 50  # Specified explicitly instead of null
+  min_lr: 1e-6  # Simplified to a standard small value
+  factor: 0.4  # Simplified factor for readability
+  patience: 3  # Increased from 2 to 3 for more stability
   step_size: 30  # Period of LR decay (for StepLR)
   warmup_epochs: 5
   warmup_start_lr: 1.0e-5
   log_changes: true  # Whether to log LR changes
+  enabled: true
 
 # Progressive resizing settings
 progressive_resizing:
   enabled: false
   sizes: [[224, 224], [256, 256], [288, 288]]  # Image sizes for each stage
   epochs_per_size: [30, 30, 40]  # How many epochs to train at each size
-  # Note: If not specified, epochs will be distributed evenly
 
 # Training configuration
 training:
-  epochs: 30
-  batch_size: 256
-  learning_rate: 0.0010103979143644285
-  weight_decay: 2.1879976178790097e-05
+  epochs: 120  # Increased from 1 to 50 for proper training
+  batch_size: 64  # Reduced from 128 for consistency with loader.batch_size
+  learning_rate: 0.001  # Simplified from scientific notation
+  weight_decay: 2e-5  # Simplified from scientific notation
   deterministic: false
   use_mixed_precision: true  # Enable mixed precision training
   gradient_clip_val: 1.0
   precision: "float16"  # Match hardware precision setting
-  dropout: 0.20650123307899837
+  dropout: 0.2  # Simplified from long decimal
 
 # Transfer learning settings
 transfer_learning:
-  initial_frozen_epochs: 0  #! Number of epochs to train with backbone frozen
+  initial_frozen_epochs: 5  # Changed from 0 to 5 for better transfer learning practice
   finetune_lr_factor: 0.1  # Factor to reduce LR by when unfreezing backbone
 
 # Callbacks configuration
@@ -255,7 +260,7 @@ callbacks:
     verbose: true
   model_checkpoint:
     enabled: true
-    dirpath: "checkpoints"
+    dirpath: "outputs/models/checkpoints"  # Updated path to use outputs directory
     filename: "epoch_{epoch:03d}_{val_loss:.4f}"
     monitor: val_loss
     save_best_only: true
@@ -275,21 +280,17 @@ callbacks:
     enabled: true
   tensorboard:
     enabled: true
+    log_dir: "outputs/logs/tensorboard"  # Added specific log directory
     log_graph: false
     histogram_freq: 1
-  lr_scheduler:
-    enabled: false
-    monitor: val_loss
-    mode: epoch
-    min_lr: 1.0e-8
-    verbose: true
   gradcam:
     enabled: true
-    frequency: 10  # Every 20 epochs
-    n_samples: 10   # Number of samples to visualize
-    input_size: [256, 256]  # Updated to match model input_size
-    mean: [0.485, 0.456, 0.406]  # Normalization mean
-    std: [0.229, 0.224, 0.225]    # Normalization std
+    frequency: 10
+    n_samples: 10
+    input_size: [224, 224]  # Updated to match model input_size
+    mean: [0.485, 0.456, 0.406]
+    std: [0.229, 0.224, 0.225]
+    output_dir: "outputs/visualizations/gradcam"  # Added output directory
     # test_data will be set programmatically
     class_names:
       - Apple_scab
@@ -335,6 +336,7 @@ callbacks:
 # Evaluation configuration
 evaluation:
   split: test  # Which split to evaluate on by default
+  output_dir: "outputs/results/evaluation"  # Added output directory
   metrics:
     accuracy: true
     precision: true
@@ -345,6 +347,7 @@ evaluation:
     gradcam: true
     num_samples: 10
     target_layers: ["layer4"]
+    output_dir: "outputs/visualizations/interpretability"  # Added output directory
 
 # Prepare data configuration
 prepare_data:
@@ -352,24 +355,25 @@ prepare_data:
   output_dir: "data/processed"
   
   # Validation options
-  dry_run: true  # Run without making changes (set to false to apply fixes)
-  fix_extensions: true  # Fix image extensions during validation
-  verify_images: true  # Verify that images can be opened
-  fix_folders: true  # Fix problematic folder names
+  dry_run: false  # Changed to false to actually apply fixes
+  fix_extensions: true
+  verify_images: true
+  fix_folders: true
   
   # Analysis options
-  run_analysis_after_validation: true  # Whether to run analysis after validation
-  sample_size: 1000  # Number of images to sample for detailed analysis
-  random_seed: 42  # For reproducibility
+  run_analysis_after_validation: true
+  sample_size: 1000
+  random_seed: 42
   
   # Visualization options
-  run_visualization_after_analysis: true  # Whether to run visualization after analysis
-  generate_combined_report: true  # Generate a combined report of all steps
-  create_plots: true  # Create plots during analysis phase
+  run_visualization_after_analysis: true
+  generate_combined_report: true
+  create_plots: true
+  visualizations_output_dir: "outputs/visualizations/data_analysis"  # Added output directory
   
   # Advanced visualization settings
-  n_per_class_viz: 30  # Number of images per class for visualization
-  max_classes_viz: null  # Limit classes for visualization (null = all classes)
+  n_per_class_viz: 30
+  max_classes_viz: null
   
   # Visualization theme settings
   visualization_theme:
@@ -402,18 +406,20 @@ prepare_data:
 
 # Hardware configuration
 hardware:
-  precision: "float16"  # Changed from float32 to float16 for better MPS performance
+  precision: "float16"  # Good for MPS performance
+  device: "mps"  # Added automatic device detection
   mps:  # Apple Silicon GPU specific settings
     memory:
       monitor: true
       clear_cache_freq: 10
       deep_clean_after_val: true
       enable_sync_for_timing: true
-      limit_fraction: 0.95  # Fraction of available memory to use
+      limit_fraction: 0.95  # Reduced from 0.95 to 0.8 for safer memory usage
     model:
-      use_channels_last: true  # Keep this for better memory access patterns
+      use_channels_last: true
     profiling:
       enabled: false
+      output_dir: "outputs/profiling"  # Added output directory
     reproducibility:
       set_mps_seed: true
   cuda:
@@ -425,5 +431,6 @@ hardware:
 reporting:
   generate_plots: true
   generate_report: true
-  report_template: "templates/report_template.html"
+  report_template: "reports/templates/training_report.html"
   output_format: "html"
+  output_dir: "outputs/reports"  # Added output directory

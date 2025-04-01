@@ -378,14 +378,14 @@ class GradCAMCallback(Callback):
             else:  # (C, H, W)
                 img_tensor = image
 
-            # Denormalize and convert to numpy
-            img_np = img_tensor.permute(1, 2, 0).cpu().numpy()
+            # Properly denormalize using ImageNet mean and std
+            mean = torch.tensor(self.mean).view(3, 1, 1).to(img_tensor.device)
+            std = torch.tensor(self.std).view(3, 1, 1).to(img_tensor.device)
+            img_tensor = img_tensor * std + mean
 
-            # Handle normalized images
-            if img_np.max() <= 1.0:
-                img_np = (img_np * 255).astype(np.uint8)
-            else:
-                img_np = img_np.astype(np.uint8)
+            # Convert to numpy and proper RGB order
+            img_np = img_tensor.clamp(0, 1).permute(1, 2, 0).cpu().numpy()
+            img_np = (img_np * 255).astype(np.uint8)
 
             return np.array(Image.fromarray(img_np).resize(self.input_size))
         else:

@@ -674,11 +674,22 @@ class GradCAM:
                 else:
                     img_tensor = image_input
 
-                img_np = img_tensor.permute(1, 2, 0).cpu().numpy()
-                original_image = (img_np - img_np.min()) / (
-                    img_np.max() - img_np.min() + 1e-7
+                # Properly denormalize using ImageNet mean and std
+                mean = (
+                    torch.tensor([0.485, 0.456, 0.406])
+                    .view(3, 1, 1)
+                    .to(img_tensor.device)
                 )
-                original_image = (original_image * 255).astype(np.uint8)
+                std = (
+                    torch.tensor([0.229, 0.224, 0.225])
+                    .view(3, 1, 1)
+                    .to(img_tensor.device)
+                )
+                img_tensor = img_tensor * std + mean
+
+                # Convert to numpy and proper RGB order
+                img_np = img_tensor.clamp(0, 1).permute(1, 2, 0).cpu().numpy()
+                original_image = (img_np * 255).astype(np.uint8)
                 original_image = np.array(
                     Image.fromarray(original_image).resize(
                         self.input_size, Image.Resampling.LANCZOS
@@ -926,12 +937,22 @@ class GradCAM:
                     else:  # (C, H, W)
                         img_tensor = input_tensor
 
-                    # Denormalize and convert to numpy
-                    img_np = img_tensor.permute(1, 2, 0).cpu().numpy()
-                    original_image = (img_np - img_np.min()) / (
-                        img_np.max() - img_np.min() + 1e-7
+                    # Properly denormalize using ImageNet mean and std
+                    mean = (
+                        torch.tensor([0.485, 0.456, 0.406])
+                        .view(3, 1, 1)
+                        .to(img_tensor.device)
                     )
-                    original_image = (original_image * 255).astype(np.uint8)
+                    std = (
+                        torch.tensor([0.229, 0.224, 0.225])
+                        .view(3, 1, 1)
+                        .to(img_tensor.device)
+                    )
+                    img_tensor = img_tensor * std + mean
+
+                    # Convert to numpy and proper RGB order
+                    img_np = img_tensor.clamp(0, 1).permute(1, 2, 0).cpu().numpy()
+                    original_image = (img_np * 255).astype(np.uint8)
 
                 # Create figure with original image and top-k explanations
                 nrows = min(top_k, 3)

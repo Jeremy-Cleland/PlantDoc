@@ -291,11 +291,11 @@ class Trainer:
         # Pass the full OmegaConf object to get_callbacks if it expects it
         standard_callbacks = get_callbacks(
             config=cfg,
-            scheduler=None,  # Pass None explicitly for scheduler
+            scheduler=self.scheduler,  # Pass the created scheduler
             experiment_dir=str(self.experiment_dir),
             test_data=None,  # Pass None for test_data
             skip_gradcam=True,  # Skip GradCAM callback in Trainer init
-        )  # Pass experiment_dir as a string
+        )
         self.callbacks.extend(standard_callbacks)
         if scheduler_callback is not None:
             if not any(

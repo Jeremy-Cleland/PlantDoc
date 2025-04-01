@@ -114,7 +114,6 @@ def get_transforms(cfg: DictConfig, split: str = "train") -> A.Compose:
                         scale=aug_cfg.random_resized_crop.scale,
                         ratio=aug_cfg.random_resized_crop.ratio,
                         p=1.0,  # Usually always applied
-                        always_apply=True,  # Ensure it's always considered
                     )
                 )
             else:
@@ -153,27 +152,42 @@ def get_transforms(cfg: DictConfig, split: str = "train") -> A.Compose:
                 )
             if hasattr(aug_cfg, "shift_scale_rotate"):
                 transforms_list.append(
-                    A.ShiftScaleRotate(
-                        shift_limit=aug_cfg.shift_scale_rotate.shift_limit,
-                        scale_limit=aug_cfg.shift_scale_rotate.scale_limit,
-                        rotate_limit=aug_cfg.shift_scale_rotate.rotate_limit,
+                    # Replaced ShiftScaleRotate with Affine as recommended by Albumentations
+                    A.Affine(
+                        scale=(
+                            1 - aug_cfg.shift_scale_rotate.scale_limit,
+                            1 + aug_cfg.shift_scale_rotate.scale_limit,
+                        ),
+                        translate_percent=(
+                            -aug_cfg.shift_scale_rotate.shift_limit,
+                            aug_cfg.shift_scale_rotate.shift_limit,
+                        ),
+                        rotate=(
+                            -aug_cfg.shift_scale_rotate.rotate_limit,
+                            aug_cfg.shift_scale_rotate.rotate_limit,
+                        ),
                         p=aug_cfg.shift_scale_rotate.p,
+                        # Add other Affine parameters if needed (e.g., shear, interpolation)
+                        interpolation=cv2.INTER_LINEAR,  # Default interpolation
                     )
+                    # Original:
+                    # A.ShiftScaleRotate(
+                    #     shift_limit=aug_cfg.shift_scale_rotate.shift_limit,
+                    #     scale_limit=aug_cfg.shift_scale_rotate.scale_limit,
+                    #     rotate_limit=aug_cfg.shift_scale_rotate.rotate_limit,
+                    #     p=aug_cfg.shift_scale_rotate.p,
+                    # )
                 )
-            if hasattr(aug_cfg, "cutout"):  # Corresponds to CoarseDropout
-                transforms_list.append(
-                    A.CoarseDropout(
-                        max_holes=aug_cfg.cutout.num_holes,
-                        max_height=aug_cfg.cutout.max_h_size,
-                        max_width=aug_cfg.cutout.max_w_size,
-                        min_holes=1,
-                        min_height=8,
-                        min_width=8,  # Reasonable defaults
-                        fill_value=0,  # Fill with black
-                        size=(crop_height, crop_width),
-                        p=aug_cfg.cutout.p,
-                    )
-                )
+            # Commenting out problematic cutout transform entirely
+            # if hasattr(aug_cfg, "cutout"):  # Corresponds to CoarseDropout
+            #     transforms_list.append(
+            #         A.Cutout(
+            #             num_holes=aug_cfg.cutout.num_holes,
+            #             max_h_size=aug_cfg.cutout.max_h_size,
+            #             max_w_size=aug_cfg.cutout.max_w_size,
+            #             p=aug_cfg.cutout.p,
+            #         )
+            #     )
 
             # Ensure CenterCrop is applied if RandomResized/RandomCrop wasn't
             if not any(
