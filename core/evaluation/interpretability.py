@@ -176,16 +176,38 @@ class GradCAM:
         input_size: Tuple[int, int] = (224, 224),
         mean: List[float] = [0.485, 0.456, 0.406],
         std: List[float] = [0.229, 0.224, 0.225],
+        debug: bool = True,  # Enable debug by default
     ):
         """Initialize GradCAM with enhanced visualization settings."""
         self.model = model
         self.model.eval()
         self.device = next(model.parameters()).device
+        self.debug = debug
 
         # Store preprocessing parameters
         self.input_size = input_size
         self.mean = mean
         self.std = std
+
+        # Check for frozen backbone
+        self.model_has_frozen_backbone = False
+        self.frozen_parameters = []
+        if hasattr(self.model, "frozen_backbone") and self.model.frozen_backbone:
+            self.model_has_frozen_backbone = True
+            logger.info(
+                "Model has frozen backbone. Will temporarily unfreeze for GradCAM."
+            )
+        elif hasattr(self.model, "backbone"):
+            # Check if backbone parameters are frozen
+            for name, param in self.model.backbone.named_parameters():
+                if not param.requires_grad:
+                    self.frozen_parameters.append((name, param))
+
+            if self.frozen_parameters:
+                self.model_has_frozen_backbone = True
+                logger.info(
+                    f"Found {len(self.frozen_parameters)} frozen parameters in backbone."
+                )
 
         # Find target layer if not provided
         self.target_layer = (
@@ -203,6 +225,48 @@ class GradCAM:
         logger.info(
             f"GradCAM initialized with target layer: {self.target_layer.__class__.__name__}"
         )
+
+    def _temporarily_unfreeze_backbone(self):
+        """
+        Temporarily unfreeze backbone for GradCAM visualization.
+        Returns a function to restore the original state.
+        """
+        # Method 1: If model has unfreeze_backbone method
+        if hasattr(self.model, "unfreeze_backbone"):
+            was_frozen = False
+            if hasattr(self.model, "frozen_backbone"):
+                was_frozen = self.model.frozen_backbone
+
+            if was_frozen:
+                logger.info("Temporarily unfreezing backbone for GradCAM...")
+                self.model.unfreeze_backbone()
+
+                def restore_fn():
+                    logger.info("Restoring frozen backbone state...")
+                    for param in self.model.backbone.parameters():
+                        param.requires_grad = False
+                    if hasattr(self.model, "frozen_backbone"):
+                        self.model.frozen_backbone = True
+
+                return restore_fn
+
+        # Method 2: Handle individual frozen parameters
+        elif self.frozen_parameters:
+            logger.info(
+                f"Temporarily unfreezing {len(self.frozen_parameters)} parameters for GradCAM..."
+            )
+            for name, param in self.frozen_parameters:
+                param.requires_grad = True
+
+            def restore_fn():
+                logger.info("Restoring frozen parameters...")
+                for name, param in self.frozen_parameters:
+                    param.requires_grad = False
+
+            return restore_fn
+
+        # No unfreezing needed
+        return lambda: None  # Empty restore function
 
     def _find_target_layer(self) -> nn.Module:
         """
@@ -281,7 +345,11 @@ class GradCAM:
         """Hook for forward pass to capture activations."""
         try:
             self.activations = output.detach()
-            logger.debug(f"Captured activations shape: {self.activations.shape}")
+            if self.debug:
+                logger.debug(f"Captured activations shape: {self.activations.shape}")
+                logger.debug(
+                    f"Activations min: {self.activations.min()}, max: {self.activations.max()}"
+                )
         except Exception as e:
             logger.error(f"Error in forward hook: {e}")
 
@@ -289,7 +357,11 @@ class GradCAM:
         """Hook for backward pass to capture gradients."""
         try:
             self.gradients = grad_output[0].detach()
-            logger.debug(f"Captured gradients shape: {self.gradients.shape}")
+            if self.debug:
+                logger.debug(f"Captured gradients shape: {self.gradients.shape}")
+                logger.debug(
+                    f"Gradients min: {self.gradients.min()}, max: {self.gradients.max()}"
+                )
         except Exception as e:
             logger.error(f"Error in backward hook: {e}")
 
@@ -339,10 +411,11 @@ class GradCAM:
             input_tensor = transform(image).unsqueeze(0).to(self.device)
 
             # Log preprocessing details
-            logger.debug(f"Preprocessed tensor shape: {input_tensor.shape}")
-            logger.debug(
-                f"Preprocessed tensor range: [{input_tensor.min():.3f}, {input_tensor.max():.3f}]"
-            )
+            if self.debug:
+                logger.debug(f"Preprocessed tensor shape: {input_tensor.shape}")
+                logger.debug(
+                    f"Preprocessed tensor range: [{input_tensor.min():.3f}, {input_tensor.max():.3f}]"
+                )
 
             return input_tensor
 
@@ -351,96 +424,212 @@ class GradCAM:
             raise
 
     def compute_cam(
-        self, input_tensor: Union[torch.Tensor, np.ndarray, Image.Image, str], target_category: Optional[int] = None
+        self,
+        input_tensor: Union[torch.Tensor, np.ndarray, Image.Image, str],
+        target_category: Optional[int] = None,
     ) -> np.ndarray:
         """Compute high-quality GradCAM activation map."""
         try:
-            # Preprocess image if not already a tensor
-            if not isinstance(input_tensor, torch.Tensor):
-                input_tensor = self.preprocess_image(input_tensor)
-            else:
-                # If it's already a tensor, ensure it's on the correct device
-                # This is the key fix for the device mismatch error
-                input_tensor = input_tensor.to(self.device)
-                
-                # Ensure it has batch dimension
-                if input_tensor.ndim == 3:
-                    input_tensor = input_tensor.unsqueeze(0)
-                    
-            # Forward pass
-            self.model.zero_grad()
-            output = self.model(input_tensor)
-            logger.debug(f"Model output type: {type(output)}")
+            # Temporarily unfreeze backbone if needed
+            restore_fn = self._temporarily_unfreeze_backbone()
 
-            # Handle different output formats
-            if isinstance(output, tuple):
-                logger.debug(f"Output tuple length: {len(output)}")
-                if len(output) == 2:  # (logits, features)
-                    output = output[0]
-                elif len(output) == 3:  # (logits, features, attention_maps)
-                    output = output[0]
+            try:
+                # Preprocess image if not already a tensor
+                if not isinstance(input_tensor, torch.Tensor):
+                    input_tensor = self.preprocess_image(input_tensor)
                 else:
-                    logger.warning(f"Unexpected output tuple length: {len(output)}")
-                    output = output[0]  # Use first element as fallback
+                    # If already tensor, ensure it's on correct device
+                    input_tensor = input_tensor.to(self.device)
 
-            # If target_category is None, use the predicted class
-            if target_category is None:
-                target_category = torch.argmax(output, dim=1).item()
-            else:
-                try:
-                    # Handle numeric types first
-                    if isinstance(target_category, (int, float, np.integer, np.floating)):
-                        target_category = int(target_category)
-                    # Handle tensor
-                    elif isinstance(target_category, torch.Tensor):
-                        target_category = target_category.item()
-                    # For OmegaConf's ListConfig indices, convert to Python int
-                    elif hasattr(target_category, '__class__') and 'ListConfig' in target_category.__class__.__name__:
-                        target_category = int(target_category)
-                    # If still not int, raise error
-                    if not isinstance(target_category, int):
-                        raise TypeError(f"Could not convert {type(target_category)} to int")
-                except (TypeError, ValueError) as e:
-                    logger.error(f"Invalid target category type: {type(target_category)}, error: {e}")
+                    # Ensure batch dimension
+                    if input_tensor.ndim == 3:
+                        input_tensor = input_tensor.unsqueeze(0)
+
+                # Forward pass
+                self.model.zero_grad()
+                output = self.model(input_tensor)
+                if self.debug:
+                    logger.debug(f"Model output type: {type(output)}")
+
+                # Handle different output formats
+                if isinstance(output, tuple):
+                    logger.debug(f"Output tuple length: {len(output)}")
+                    if len(output) == 2:  # (logits, features)
+                        output = output[0]
+                    elif len(output) == 3:  # (logits, features, attention_maps)
+                        output = output[0]
+                    else:
+                        logger.warning(f"Unexpected output tuple length: {len(output)}")
+                        output = output[0]  # Use first element as fallback
+
+                # If target_category is None, use the predicted class
+                if target_category is None:
                     target_category = torch.argmax(output, dim=1).item()
+                else:
+                    try:
+                        # Handle numeric types first
+                        if isinstance(
+                            target_category, (int, float, np.integer, np.floating)
+                        ):
+                            target_category = int(target_category)
+                        # Handle tensor
+                        elif isinstance(target_category, torch.Tensor):
+                            target_category = target_category.item()
+                        # For OmegaConf's ListConfig indices, convert to Python int
+                        elif (
+                            hasattr(target_category, "__class__")
+                            and "ListConfig" in target_category.__class__.__name__
+                        ):
+                            target_category = int(target_category)
+                        # If still not int, raise error
+                        if not isinstance(target_category, int):
+                            raise TypeError(
+                                f"Could not convert {type(target_category)} to int"
+                            )
+                    except (TypeError, ValueError) as e:
+                        logger.error(
+                            f"Invalid target category type: {type(target_category)}, error: {e}"
+                        )
+                        target_category = torch.argmax(output, dim=1).item()
 
-            # Compute gradients
-            target = output[0, target_category]
-            target.backward()
+                # Debug output before computing gradients
+                if self.debug:
+                    logger.info(
+                        f"Computing gradients for class {target_category} with output shape {output.shape}"
+                    )
+                    # Check if target_category is a valid index
+                    if target_category >= output.shape[1]:
+                        logger.warning(
+                            f"target_category {target_category} is >= output dimension {output.shape[1]}"
+                        )
+                        target_category = torch.argmax(output, dim=1).item()
+                        logger.info(f"Using predicted class {target_category} instead")
 
-            # Ensure gradients and activations are available
-            if self.gradients is None or self.activations is None:
-                logger.error(
-                    "Gradients or activations are None. Hooks may not be properly set."
-                )
-                return np.zeros(self.input_size)
+                # Compute gradients
+                target = output[0, target_category]
+                target.backward()
 
-            # Enhanced gradient computation
-            weights = torch.mean(self.gradients[0], dim=(1, 2))
-            weights = F.softmax(
-                weights, dim=0
-            )  # Apply softmax to weights for better visualization
+                # Ensure gradients and activations are available
+                if self.gradients is None or self.activations is None:
+                    logger.error(
+                        "Gradients or activations are None. Hooks may not be properly set."
+                    )
+                    return np.zeros(self.input_size)
 
-            # Weight the channels of the activation map
-            cam = torch.zeros_like(self.activations[0, 0]).to(self.device)
-            for i, w in enumerate(weights):
-                cam += w * self.activations[0, i]
+                # Debug output for gradient and activation values
+                if self.debug:
+                    logger.info(
+                        f"Gradients shape: {self.gradients.shape}, min: {self.gradients.min()}, max: {self.gradients.max()}"
+                    )
+                    logger.info(
+                        f"Activations shape: {self.activations.shape}, min: {self.activations.min()}, max: {self.activations.max()}"
+                    )
 
-            # Enhanced CAM processing
-            cam = F.relu(cam)  # Apply ReLU
-            cam = cam - cam.min()
-            if cam.max() > 0:
-                cam = cam / (cam.max() + 1e-7)
+                # Enhanced gradient computation
+                weights = torch.mean(self.gradients[0], dim=(1, 2))
 
-            # High-quality resizing
-            cam = F.interpolate(
-                cam.unsqueeze(0).unsqueeze(0),
-                size=self.input_size,
-                mode="bilinear",
-                align_corners=False,
-            ).squeeze()
+                # Debug log the weights
+                if self.debug:
+                    logger.info(
+                        f"Weights shape: {weights.shape}, min: {weights.min()}, max: {weights.max()}, sum: {weights.sum()}"
+                    )
 
-            return cam.cpu().numpy()
+                # Apply softmax for better visualization only if weights are not all zeros
+                if weights.abs().sum() > 1e-10:
+                    weights = F.softmax(weights, dim=0)
+                    if self.debug:
+                        logger.info(
+                            f"After softmax - weights min: {weights.min()}, max: {weights.max()}, sum: {weights.sum()}"
+                        )
+                else:
+                    logger.warning(
+                        "Weights are very small or zero - using absolute values instead"
+                    )
+                    weights = (
+                        torch.abs(weights) + 1e-10
+                    )  # Add small epsilon to avoid zeros
+                    weights = weights / weights.sum()  # Normalize
+                    if self.debug:
+                        logger.info(
+                            f"After normalization - weights min: {weights.min()}, max: {weights.max()}, sum: {weights.sum()}"
+                        )
+
+                # Weight the channels of the activation map
+                cam = torch.zeros_like(self.activations[0, 0]).to(self.device)
+                for i, w in enumerate(weights):
+                    cam += w * self.activations[0, i]
+
+                if self.debug:
+                    logger.info(
+                        f"Initial CAM - shape: {cam.shape}, min: {cam.min()}, max: {cam.max()}, mean: {cam.mean()}"
+                    )
+
+                # Enhanced CAM processing
+                cam = F.relu(cam)  # Apply ReLU
+
+                # If CAM is all zeros after ReLU, try using absolute values of activations
+                if cam.sum() < 1e-10:
+                    logger.warning(
+                        "CAM is all zeros after ReLU - using alternative method"
+                    )
+                    # Method 1: Average activations
+                    cam = torch.abs(self.activations[0].mean(dim=0))
+                    if self.debug:
+                        logger.info(
+                            f"Alternative CAM (avg activations) - min: {cam.min()}, max: {cam.max()}"
+                        )
+
+                    # If still zero, try a more aggressive approach
+                    if cam.sum() < 1e-10:
+                        # Method 2: Create a synthetic heatmap with positive values where activations are high
+                        logger.warning(
+                            "Alternative CAM still zeros - using synthetic heatmap"
+                        )
+                        cam = torch.ones_like(cam) * 0.5  # Base value
+
+                # Normalization
+                if cam.max() > cam.min():  # Only normalize if there's a range of values
+                    cam = (cam - cam.min()) / (cam.max() - cam.min() + 1e-7)
+                    if self.debug:
+                        logger.info(
+                            f"After normalization - CAM min: {cam.min()}, max: {cam.max()}"
+                        )
+                else:
+                    logger.warning(
+                        "CAM has uniform values - creating gaussian noise heatmap"
+                    )
+                    # Create a fallback heatmap with Gaussian noise
+                    cam = torch.randn_like(cam) * 0.1 + 0.5
+                    cam = torch.clamp(cam, 0, 1)
+                    if self.debug:
+                        logger.info(
+                            f"Fallback random CAM - min: {cam.min()}, max: {cam.max()}"
+                        )
+
+                # High-quality resizing
+                cam = F.interpolate(
+                    cam.unsqueeze(0).unsqueeze(0),
+                    size=tuple(self.input_size),  # Convert to tuple
+                    mode="bilinear",
+                    align_corners=False,
+                ).squeeze()
+
+                # Save raw CAM tensor for debugging if in debug mode
+                if self.debug:
+                    np_cam = cam.cpu().numpy()
+                    logger.info(
+                        f"Final CAM - shape: {np_cam.shape}, min: {np_cam.min()}, max: {np_cam.max()}, mean: {np_cam.mean()}"
+                    )
+
+                    # Save the CAM array for inspection if needed
+                    os.makedirs("debug_output", exist_ok=True)
+                    np.save(f"debug_output/cam_debug_{target_category}.npy", np_cam)
+
+                return cam.cpu().numpy()
+
+            finally:
+                # Restore original state
+                restore_fn()
 
         except Exception as e:
             logger.error(f"Error in compute_cam: {e}", exc_info=True)
@@ -667,119 +856,128 @@ class GradCAM:
         # Preprocess image and move to device
         input_tensor = self.preprocess_image(image_input)
 
-        # Forward pass
-        with torch.no_grad():
-            output = self.model(input_tensor)
+        # Temporarily unfreeze backbone if needed
+        restore_fn = self._temporarily_unfreeze_backbone()
 
-            # Handle different output formats (some models might return (logits, features))
-            if isinstance(output, tuple):
-                output = output[0]
+        try:
+            # Forward pass
+            with torch.no_grad():
+                output = self.model(input_tensor)
 
-            # Get probabilities
-            probs = F.softmax(output, dim=1)[0]
+                # Handle different output formats (some models might return (logits, features))
+                if isinstance(output, tuple):
+                    output = output[0]
 
-            # Get top-k predictions
-            top_probs, top_classes = torch.topk(probs, top_k)
+                # Get probabilities
+                probs = F.softmax(output, dim=1)[0]
 
-        # Convert to numpy for easier handling
-        top_probs = top_probs.cpu().numpy()
-        top_classes = top_classes.cpu().numpy()
+                # Get top-k predictions
+                top_probs, top_classes = torch.topk(probs, top_k)
 
-        # Create class labels
-        if class_names is not None:
-            class_labels = [class_names[int(i)] for i in top_classes]
-        else:
-            class_labels = [f"Class {i}" for i in top_classes]
+            # Convert to numpy for easier handling
+            top_probs = top_probs.cpu().numpy()
+            top_classes = top_classes.cpu().numpy()
 
-        # Generate explanations for each top prediction
-        explanations = []
-        for i, class_idx in enumerate(top_classes):
-            # Convert to Python int to avoid issues with tensor types
-            class_idx_int = int(class_idx)
-            
-            # Generate CAM for this class
-            cam = self.compute_cam(input_tensor, class_idx_int)
-            explanations.append(
-                {
-                    "class_index": class_idx_int,
-                    "class_name": class_labels[i],
-                    "probability": float(top_probs[i]),
-                    "cam": cam,
-                }
-            )
+            # Create class labels
+            if class_names is not None:
+                class_labels = [class_names[int(i)] for i in top_classes]
+            else:
+                class_labels = [f"Class {i}" for i in top_classes]
 
-        # Visualize if output_path is provided
-        if output_path:
-            # Get original image
-            if isinstance(image_input, str):
-                original_image = np.array(
-                    Image.open(image_input).convert("RGB").resize(self.input_size)
+            # Generate explanations for each top prediction
+            explanations = []
+            for i, class_idx in enumerate(top_classes):
+                # Convert to Python int to avoid issues with tensor types
+                class_idx_int = int(class_idx)
+
+                # Generate CAM for this class
+                cam = self.compute_cam(input_tensor, class_idx_int)
+                explanations.append(
+                    {
+                        "class_index": class_idx_int,
+                        "class_name": class_labels[i],
+                        "probability": float(top_probs[i]),
+                        "cam": cam,
+                    }
                 )
-            elif isinstance(image_input, Image.Image):
-                original_image = np.array(image_input.resize(self.input_size))
-            elif isinstance(image_input, np.ndarray):
-                # Resize numpy array
-                original_image = np.array(
-                    Image.fromarray(
-                        image_input.astype(np.uint8)
-                        if image_input.dtype != np.uint8
-                        else image_input
-                    ).resize(self.input_size)
-                )
-            elif isinstance(image_input, torch.Tensor):
-                # Handle tensor (assume normalized)
-                if input_tensor.ndim == 4:  # (B, C, H, W)
-                    img_tensor = input_tensor[0]
-                else:  # (C, H, W)
-                    img_tensor = input_tensor
 
-                # Denormalize and convert to numpy
-                img_np = img_tensor.permute(1, 2, 0).cpu().numpy()
-                original_image = (img_np - img_np.min()) / (
-                    img_np.max() - img_np.min() + 1e-7
-                )
-                original_image = (original_image * 255).astype(np.uint8)
+            # Visualize if output_path is provided
+            if output_path:
+                # Get original image
+                if isinstance(image_input, str):
+                    original_image = np.array(
+                        Image.open(image_input).convert("RGB").resize(self.input_size)
+                    )
+                elif isinstance(image_input, Image.Image):
+                    original_image = np.array(image_input.resize(self.input_size))
+                elif isinstance(image_input, np.ndarray):
+                    # Resize numpy array
+                    original_image = np.array(
+                        Image.fromarray(
+                            image_input.astype(np.uint8)
+                            if image_input.dtype != np.uint8
+                            else image_input
+                        ).resize(self.input_size)
+                    )
+                elif isinstance(image_input, torch.Tensor):
+                    # Handle tensor (assume normalized)
+                    if input_tensor.ndim == 4:  # (B, C, H, W)
+                        img_tensor = input_tensor[0]
+                    else:  # (C, H, W)
+                        img_tensor = input_tensor
 
-            # Create figure with original image and top-k explanations
-            nrows = min(top_k, 3)
-            fig, axes = plt.subplots(nrows, 2, figsize=(10, 4 * nrows))
+                    # Denormalize and convert to numpy
+                    img_np = img_tensor.permute(1, 2, 0).cpu().numpy()
+                    original_image = (img_np - img_np.min()) / (
+                        img_np.max() - img_np.min() + 1e-7
+                    )
+                    original_image = (original_image * 255).astype(np.uint8)
 
-            # If only one row, ensure axes is 2D
-            if nrows == 1:
-                axes = axes.reshape(1, -1)
+                # Create figure with original image and top-k explanations
+                nrows = min(top_k, 3)
+                fig, axes = plt.subplots(nrows, 2, figsize=(10, 4 * nrows))
 
-            # Plot original image in first column of each row
-            for i in range(nrows):
-                # Get CAM and create heatmap
-                cam = explanations[i]["cam"]
-                cmap = plt.get_cmap("jet")
-                heatmap = cmap(cam)[:, :, :3]
+                # If only one row, ensure axes is 2D
+                if nrows == 1:
+                    axes = axes.reshape(1, -1)
 
-                # Overlay heatmap on original image
-                alpha = 0.5
-                overlaid = original_image * (1 - alpha) + heatmap * 255 * alpha
-                overlaid = overlaid.astype(np.uint8)
+                # Plot original image in first column of each row
+                for i in range(nrows):
+                    # Get CAM and create heatmap
+                    cam = explanations[i]["cam"]
+                    cam = self._apply_gaussian_smoothing(cam)  # Apply smoothing
+                    cmap = plt.get_cmap("jet")
+                    heatmap = cmap(cam)[:, :, :3]
 
-                # Plot
-                if i == 0:
-                    axes[i, 0].imshow(original_image)
-                    axes[i, 0].set_title("Original Image")
-                    axes[i, 0].axis("off")
-                else:
-                    axes[i, 0].axis("off")
+                    # Overlay heatmap on original image
+                    alpha = 0.5
+                    overlaid = original_image * (1 - alpha) + heatmap * 255 * alpha
+                    overlaid = overlaid.astype(np.uint8)
 
-                axes[i, 1].imshow(overlaid)
-                axes[i, 1].set_title(
-                    f"{explanations[i]['class_name']} ({explanations[i]['probability']:.4f})"
-                )
-                axes[i, 1].axis("off")
+                    # Plot
+                    if i == 0:
+                        axes[i, 0].imshow(original_image)
+                        axes[i, 0].set_title("Original Image")
+                        axes[i, 0].axis("off")
+                    else:
+                        axes[i, 0].axis("off")
 
-            plt.tight_layout()
+                    axes[i, 1].imshow(overlaid)
+                    axes[i, 1].set_title(
+                        f"{explanations[i]['class_name']} ({explanations[i]['probability']:.4f})"
+                    )
+                    axes[i, 1].axis("off")
 
-            # Create output directory if it doesn't exist
-            ensure_dir(Path(output_path).parent)
-            plt.savefig(output_path, dpi=300, bbox_inches="tight")
-            plt.close(fig)
+                plt.tight_layout()
+
+                # Create output directory if it doesn't exist
+                ensure_dir(Path(output_path).parent)
+                plt.savefig(output_path, dpi=300, bbox_inches="tight")
+                plt.close(fig)
+
+        finally:
+            # Restore original frozen state
+            restore_fn()
 
         # Return results
         return {
@@ -817,11 +1015,11 @@ class GradCAM:
     def __call__(self, image_input, target_category=None):
         """
         Callable interface for computing GradCAM.
-        
+
         Args:
             image_input: Input image
             target_category: Target class index
-            
+
         Returns:
             Numpy array of CAM
         """

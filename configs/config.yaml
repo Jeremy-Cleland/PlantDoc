@@ -16,7 +16,7 @@ paths:
   # Base directories - these will be set programmatically
   output_dir: "outputs"
 
-  experiment_name: "cbam"
+  experiment_name: "cbam_only_resnet18"
   
   # Data directories - relative to project root
   raw_dir: "data/raw"
@@ -159,7 +159,7 @@ model:
   num_classes: 39  # Number of output classes
   pretrained: true  # Load pretrained ImageNet weights
   in_channels: 3  # Number of input channels
-  input_size: [256, 256]  # Expected input image size
+  input_size: [256, 256]  # Changed back to match preprocessing.resize
   
   # Head settings
   head_type: "residual"  # Options: linear, mlp, residual
@@ -168,7 +168,7 @@ model:
   use_residual_head: true  # Whether to use residual head for classification
   
   # Backbone settings
-  freeze_backbone: false  # Whether to freeze backbone initially
+  freeze_backbone: true  # Whether to freeze backbone initially
   feature_fusion: true  # Enable feature fusion from multiple backbone layers
 
   # CBAM settings
@@ -228,8 +228,8 @@ progressive_resizing:
 
 # Training configuration
 training:
-  epochs: 5
-  batch_size: 128
+  epochs: 30
+  batch_size: 256
   learning_rate: 0.0010103979143644285
   weight_decay: 2.1879976178790097e-05
   deterministic: false
@@ -240,7 +240,7 @@ training:
 
 # Transfer learning settings
 transfer_learning:
-  initial_frozen_epochs: 5  # Number of epochs to train with backbone frozen
+  initial_frozen_epochs: 0  #! Number of epochs to train with backbone frozen
   finetune_lr_factor: 0.1  # Factor to reduce LR by when unfreezing backbone
 
 # Callbacks configuration
@@ -285,9 +285,9 @@ callbacks:
     verbose: true
   gradcam:
     enabled: true
-    frequency: 20  # Every 20 epochs
-    n_samples: 5   # Number of samples to visualize
-    input_size: [224, 224]  # Size of input images for visualization
+    frequency: 10  # Every 20 epochs
+    n_samples: 10   # Number of samples to visualize
+    input_size: [256, 256]  # Updated to match model input_size
     mean: [0.485, 0.456, 0.406]  # Normalization mean
     std: [0.229, 0.224, 0.225]    # Normalization std
     # test_data will be set programmatically
@@ -409,7 +409,7 @@ hardware:
       clear_cache_freq: 10
       deep_clean_after_val: true
       enable_sync_for_timing: true
-      limit_fraction: 0.8  # Fraction of available memory to use
+      limit_fraction: 0.95  # Fraction of available memory to use
     model:
       use_channels_last: true  # Keep this for better memory access patterns
     profiling:

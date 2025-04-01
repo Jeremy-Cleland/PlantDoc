@@ -5,7 +5,7 @@ Command-line interface for the CBAM Classification project.
 import os
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 import typer
 from omegaconf import DictConfig, OmegaConf
@@ -22,10 +22,11 @@ from utils.experiment_registry import (
     get_next_version,
     register_experiment,
 )
-from utils.logger import configure_logging, log_execution_params
+from utils.logger import configure_logging, get_logger, log_execution_params
 from utils.mps_utils import set_manual_seed
 
 app = typer.Typer(help="CBAM Classification CLI")
+logger = get_logger(__name__)
 
 
 @app.command()
@@ -51,16 +52,14 @@ def train(
     description: Optional[str] = typer.Option(
         None, "--description", "-d", help="Description of the experiment"
     ),
+    cli_args: Optional[List[str]] = None,
 ):
     """
     Run the training pipeline.
 
     This command trains a model using the specified configuration.
     """
-    # Prepare CLI override arguments
-    cli_args = []
-
-    # Load configuration using OmegaConf directly
+    # Load configuration
     cfg = load_config(config_path, cli_args)
 
     # Use model name from command line or from config
@@ -85,14 +84,16 @@ def train(
     # Override experiment name in config
     cfg["paths"]["experiment_name"] = versioned_experiment_name
 
-    # Clear any existing experiment_dir setting to ensure it's created freshly
-    if "experiment_dir" in cfg["paths"]:
-        del cfg["paths"]["experiment_dir"]
-
     # Set experiment_dir to use the versioned name
-    cfg["paths"]["experiment_dir"] = f"outputs/{versioned_experiment_name}"
-    experiment_dir = Path(cfg["paths"]["experiment_dir"])
-    experiment_dir.mkdir(parents=True, exist_ok=True)
+    experiment_dir = Path("outputs") / versioned_experiment_name
+    cfg["paths"]["experiment_dir"] = str(experiment_dir)
+
+    # Only create the directory if it doesn't exist
+    if not experiment_dir.exists():
+        experiment_dir.mkdir(parents=True, exist_ok=True)
+        logger.info(f"Created new experiment directory: {experiment_dir}")
+    else:
+        logger.info(f"Using existing experiment directory: {experiment_dir}")
 
     # Ensure log_dir and metrics_dir are set inside the experiment directory
     cfg["paths"]["log_dir"] = str(experiment_dir / "logs")
@@ -134,7 +135,7 @@ def train(
     cfg.callbacks.model_checkpoint.dirpath = "checkpoints"
 
     # Configure logging using experiment-specific log directory
-    logger = configure_logging(cfg)
+    configure_logging(cfg)
     logger.info(f"Starting training with model: {cfg.model.name}")
     logger.info(f"Experiment name: {versioned_experiment_name}")
     logger.info(f"Experiment version: {version}")
