@@ -4,7 +4,6 @@ Learning rate scheduler callback for adjusting learning rates during training.
 
 from typing import Any, Dict, Optional, Union
 
-import torch
 from torch.optim.lr_scheduler import LRScheduler, ReduceLROnPlateau
 
 from utils.logger import get_logger

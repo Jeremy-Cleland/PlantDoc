@@ -227,7 +227,7 @@ scheduler:
 
 # Progressive resizing settings
 progressive_resizing:
-  enabled: false
+  enabled: true
   sizes: [[224, 224], [256, 256], [288, 288]]  # Image sizes for each stage
   epochs_per_size: [30, 30, 40]  # How many epochs to train at each size
 

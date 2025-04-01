@@ -6,23 +6,19 @@ using IncrementalMetricsCalculator. Compatible with OmegaConf configuration.
 
 import inspect
 import numbers
-import os
 import random
 import time
 from collections import defaultdict
 from contextlib import nullcontext
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from omegaconf import DictConfig, OmegaConf
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
-
-from core.data.transforms import AlbumentationsWrapper, get_transforms
 
 # Import the Incremental Metrics Calculator
 from core.evaluation.metrics import IncrementalMetricsCalculator
@@ -129,10 +125,7 @@ class Trainer:
             logger.error(
                 f"Missing required configuration key via attribute access: {e}"
             )
-            raise ValueError(f"Missing required configuration key: {e}")
-        except Exception as e:
-            logger.error(f"Error accessing configuration: {e}", exc_info=True)
-            raise
+            raise ValueError(f"Missing required configuration key: {e}") from e
 
         # --- Device and Reproducibility ---
         self.device_name = self.device.type

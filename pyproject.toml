@@ -71,6 +71,7 @@ exclude = '''
   | buck-out
   | build
   | dist
+  | outputs
 )/
 '''
 
@@ -83,6 +84,7 @@ line_length = 88
 line-length = 88
 target-version = "py38"
 
+[tool.ruff.lint]
 select = [
   "E",   # pycodestyle errors
   "W",   # pycodestyle warnings
@@ -98,7 +100,7 @@ ignore = [
 ]
 
 [tool.mypy]
-python_version = "3.8"
+python_version = "3.11"
 warn_unused_configs = true
 disallow_untyped_defs = true
 disallow_incomplete_defs = true

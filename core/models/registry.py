@@ -4,7 +4,7 @@
 Enhanced registry for model classes with parameter metadata.
 """
 
-from typing import Any, Dict, List, Optional, Type, Union
+from typing import Any, Dict, Type
 
 from core.models.base import BaseModel
 from utils.logger import get_logger
@@ -113,10 +113,7 @@ def validate_model_params(name: str, params: Dict[str, Any]) -> Dict[str, Any]:
             return {k: convert_to_serializable(v) for k, v in obj.__dict__.items()}
         elif isinstance(obj, dict):
             return {k: convert_to_serializable(v) for k, v in obj.items()}
-        elif isinstance(obj, list):
-            return [convert_to_serializable(item) for item in obj]
-        # Handle OmegaConf ListConfig and DictConfig
-        elif str(type(obj)).endswith("ListConfig'>"):
+        elif isinstance(obj, list) or str(type(obj)).endswith("ListConfig'>"):
             return [convert_to_serializable(item) for item in obj]
         elif str(type(obj)).endswith("DictConfig'>"):
             return {k: convert_to_serializable(v) for k, v in obj.items()}

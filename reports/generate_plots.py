@@ -4,24 +4,17 @@ Generate plots for training reports.
 
 import argparse
 import json
-import os
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
-import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
-import seaborn as sns
-import torch
 from omegaconf import OmegaConf
-from sklearn.metrics import confusion_matrix
 
 from utils.logger import get_logger
-from utils.metrics import plot_confusion_matrix, plot_metrics_history
+from utils.metrics import plot_confusion_matrix
 from utils.paths import ensure_dir
 from utils.visualization import (
     DEFAULT_THEME,
-    apply_dark_theme,
     plot_class_metrics,
     plot_confusion_matrix,
     plot_learning_rate,
@@ -43,7 +36,7 @@ def load_json(file_path: Union[str, Path]) -> Dict:
         Dictionary of loaded data
     """
     try:
-        with open(file_path, "r") as f:
+        with open(file_path) as f:
             return json.load(f)
     except Exception as e:
         logger.error(f"Failed to load JSON from {file_path}: {e}")
@@ -68,7 +61,7 @@ def load_history(experiment_dir: Union[str, Path]) -> Dict[str, List[float]]:
         if logger_path.exists():
             try:
                 # Load JSONL file (one JSON object per line)
-                with open(logger_path, "r") as f:
+                with open(logger_path) as f:
                     lines = f.readlines()
 
                 history = {}
@@ -153,7 +146,7 @@ def load_class_names(experiment_dir: Union[str, Path]) -> List[str]:
         return []
 
     try:
-        with open(class_names_path, "r") as f:
+        with open(class_names_path) as f:
             return [line.strip() for line in f if line.strip()]
     except Exception as e:
         logger.error(f"Failed to load class names from {class_names_path}: {e}")
@@ -188,11 +181,11 @@ def load_visualization_theme(experiment_dir: Union[str, Path]) -> Dict:
         ):
             # Extract theme from config
             theme = OmegaConf.to_container(cfg.prepare_data.visualization_theme)
-            logger.info(f"Loaded custom visualization theme from config")
+            logger.info("Loaded custom visualization theme from config")
             return theme
         else:
             logger.info(
-                f"No visualization_theme found in config, using default dark theme"
+                "No visualization_theme found in config, using default dark theme"
             )
             return DEFAULT_THEME
     except Exception as e:

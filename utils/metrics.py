@@ -4,25 +4,18 @@ Metrics calculation and tracking utilities for model evaluation.
 """
 
 import json
-import os
-from collections import defaultdict
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 import seaborn as sns
 import torch
-import torch.nn as nn
 from sklearn.metrics import (
     accuracy_score,
     classification_report,
     confusion_matrix,
-    f1_score,
     precision_recall_fscore_support,
-    precision_score,
-    recall_score,
 )
 
 from utils.logger import get_logger

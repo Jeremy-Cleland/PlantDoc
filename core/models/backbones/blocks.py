@@ -2,11 +2,8 @@
 Building blocks for ResNet architectures with CBAM attention.
 """
 
-import math
 
-import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 # Import the attention modules from the centralized implementation
 from core.models.attention import ChannelAttention, DropPath, SpatialAttention

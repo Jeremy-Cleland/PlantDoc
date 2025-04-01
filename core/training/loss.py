@@ -106,7 +106,7 @@ def get_loss_fn(cfg: Dict[str, Any]) -> nn.Module:
         return nn.CrossEntropyLoss(reduction=reduction, label_smoothing=label_smoothing)
 
     elif loss_name in ["weightedcrossentropy", "weightedcrossentropyloss"]:
-        weights_list = cfg.get("weights", None)
+        weights_list = cfg.get("weights")
         weights_tensor = None
         if weights_list is not None:
             try:

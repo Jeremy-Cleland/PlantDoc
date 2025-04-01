@@ -3,7 +3,6 @@ Experiment registry for tracking model versions and experiment paths.
 """
 
 import json
-import os
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Union
@@ -135,7 +134,7 @@ def load_registry() -> Dict:
         return {"experiments": []}
 
     try:
-        with open(REGISTRY_FILE, "r") as f:
+        with open(REGISTRY_FILE) as f:
             return json.load(f)
     except Exception as e:
         logger.error(f"Error loading registry: {e}")
@@ -168,10 +167,7 @@ def save_registry(registry: Dict) -> None:
                 return {
                     k: convert_to_serializable(v, depth + 1) for k, v in obj.items()
                 }
-            elif isinstance(obj, list):
-                return [convert_to_serializable(item, depth + 1) for item in obj]
-            # Handle OmegaConf objects explicitly
-            elif str(type(obj)).endswith("ListConfig'>"):
+            elif isinstance(obj, list) or str(type(obj)).endswith("ListConfig'>"):
                 return [convert_to_serializable(item, depth + 1) for item in obj]
             elif str(type(obj)).endswith("DictConfig'>"):
                 return {

@@ -3,6 +3,7 @@
 import optuna
 from omegaconf import DictConfig
 
+
 def suggest_optimizer_params(trial: optuna.trial.Trial, cfg: DictConfig) -> DictConfig:
     """Suggests optimizer hyperparameters."""
     # Example: Suggest learning rate based on optimizer type

@@ -140,7 +140,7 @@ class CBAMResNet(nn.Module):
         x = self.fc(x)
 
         return x
-    
+
     def get_attention_maps(self):
         """
         Get the collected attention maps.
@@ -149,7 +149,7 @@ class CBAMResNet(nn.Module):
             Dictionary of attention maps
         """
         return self.attention_maps
-        
+
     def get_gradcam_target_layer(self):
         """
         Return the target layer for GradCAM visualization.
@@ -182,7 +182,7 @@ def cbam_resnet18(pretrained=False, **kwargs):
             weights=models.ResNet18_Weights.DEFAULT
         ).state_dict()
         model.load_state_dict(state_dict, strict=False)
-        logger.info(f"Loaded pretrained weights for ResNet18")
+        logger.info("Loaded pretrained weights for ResNet18")
 
     return model
 
@@ -243,7 +243,7 @@ class CBAMResNet18Backbone(nn.Module):
         # For storing intermediate attention maps
         self._attention_hooks = []
         self._attention_maps = {}
-        
+
         # Register hooks to capture attention maps
         self._register_attention_hooks()
 
@@ -272,30 +272,30 @@ class CBAMResNet18Backbone(nn.Module):
             # Global average pooling to maintain output shape
             self.global_pool = nn.AdaptiveAvgPool2d((1, 1))
 
-            logger.info(f"Initialized feature fusion for multi-scale features")
+            logger.info("Initialized feature fusion for multi-scale features")
 
         logger.info(f"Initialized CBAMResNet18Backbone with features={self.output_dim}")
 
     def _register_attention_hooks(self):
         """Register forward hooks to capture attention maps"""
-        
+
         # Clear any existing hooks
         for hook in self._attention_hooks:
             hook.remove()
         self._attention_hooks = []
-        
+
         # Function to capture channel attention maps
         def get_channel_attention_hook(name):
             def hook(module, input, output):
                 self._attention_maps[f"{name}_channel"] = output.detach()
             return hook
-            
+
         # Function to capture spatial attention maps
         def get_spatial_attention_hook(name):
             def hook(module, input, output):
                 self._attention_maps[f"{name}_spatial"] = output.detach()
             return hook
-        
+
         # Register hooks for BasicBlock attention modules
         for layer_name, layer in [
             ("layer1", self.backbone.layer1),
@@ -309,7 +309,7 @@ class CBAMResNet18Backbone(nn.Module):
                         get_channel_attention_hook(f"{layer_name}_{block_idx}")
                     )
                     self._attention_hooks.append(hook)
-                
+
                 if hasattr(block, "sa"):
                     hook = block.sa.register_forward_hook(
                         get_spatial_attention_hook(f"{layer_name}_{block_idx}")
@@ -402,9 +402,9 @@ class CBAMResNet18Backbone(nn.Module):
         if x is not None:
             with torch.no_grad():
                 _ = self.forward(x)
-                
+
         return self._attention_maps
-        
+
     def get_gradcam_target_layer(self):
         """
         Return the target layer for GradCAM visualization.
@@ -426,7 +426,7 @@ class CBAMResNet18Backbone(nn.Module):
         """
         # Reset attention maps before forward pass
         self._attention_maps = {}
-        
+
         # Get stem features
         x = self.backbone.conv1(x)
         x = self.backbone.bn1(x)

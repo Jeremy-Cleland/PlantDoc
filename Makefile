@@ -14,6 +14,21 @@ clean-pyc:
 	find . -name '*.egg-info' -exec rm -rf {} +
 	find . -name '*.egg' -exec rm -f {} +
 
+lint:
+	ruff check .
+
+lint-fix:
+	ruff check --fix .
+
+format:
+	black .
+	isort .
+
+typecheck:
+	mypy .
+
+check-all: lint format typecheck
+
 	
 train:
 	$(CLI) train

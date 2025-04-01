@@ -4,10 +4,9 @@ Utilities for working with callbacks.
 
 import os
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import List, Optional
 
-import torch
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 
 from core.training.callbacks import (
     Callback,

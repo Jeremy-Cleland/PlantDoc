@@ -2,9 +2,8 @@
 Optimizer configurations for model training.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
-import torch
 import torch.nn as nn
 from torch.optim import SGD, Adam, AdamW, Optimizer
 

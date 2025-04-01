@@ -10,7 +10,7 @@ from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 import albumentations as A
 import cv2
@@ -18,18 +18,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-import torch
 from omegaconf import DictConfig
 from PIL import Image, UnidentifiedImageError
 from scipy.cluster.hierarchy import dendrogram, linkage
-from sklearn.cluster import AgglomerativeClustering
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.preprocessing import StandardScaler
 from tqdm import tqdm
-
-from core.data.transforms import get_transforms
 
 # Assuming these utilities and transforms are available in your project structure
 from utils.logger import get_logger
@@ -91,7 +87,7 @@ def validate_image(file_path: Path) -> bool:
         # with Image.open(file_path) as img:
         #     img.load()
         return True
-    except (UnidentifiedImageError, OSError, IOError, SyntaxError) as e:
+    except (UnidentifiedImageError, OSError, SyntaxError) as e:
         logger.debug(f"Invalid image {file_path}: {e}")
         return False
     except Exception as e:
@@ -591,7 +587,7 @@ def run_analysis(cfg: DictConfig) -> Tuple[Optional[pd.DataFrame], Dict[str, Any
 
     # --- Generate Plots (if enabled) ---
     if create_plots and not df.empty:
-        logger.info(f"Generating analysis plots")
+        logger.info("Generating analysis plots")
 
         # Get theme settings from config or use defaults
         theme = prep_cfg.get("visualization_theme", {})
@@ -1806,7 +1802,7 @@ def run_prepare_data(cfg: DictConfig):
                             f.write(f"| {cls} | {count} | {percentage:.2f}% |\n")
 
                         if len(analysis_stats.get("class_distribution", {})) > 10:
-                            f.write(f"| ... | ... | ... |\n")
+                            f.write("| ... | ... | ... |\n")
 
                     if prep_cfg.create_plots:
                         f.write("\n**Generated Plots:**\n\n")

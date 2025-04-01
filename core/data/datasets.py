@@ -1,7 +1,6 @@
 # Path: core/data/datasets.py
 # Description: Dataset class for plant disease classification
 
-import os
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
@@ -9,7 +8,6 @@ import numpy as np
 import torch
 from PIL import Image, UnidentifiedImageError
 from torch.utils.data import Dataset
-from tqdm import tqdm
 
 from utils.logger import get_logger
 

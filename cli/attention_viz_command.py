@@ -5,7 +5,7 @@ Command-line interface for visualizing attention maps.
 import os
 import sys
 from pathlib import Path
-from typing import List, Optional
+from typing import Optional
 
 import torch
 import typer
@@ -133,7 +133,7 @@ def visualize(
 
         if report_path:
             logger.info(f"Attention visualization report generated at: {report_path}")
-            logger.info(f"Open the report in a web browser to view the visualizations.")
+            logger.info("Open the report in a web browser to view the visualizations.")
         else:
             logger.error("Failed to generate attention visualization report.")
             raise typer.Exit(code=1)

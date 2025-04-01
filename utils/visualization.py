@@ -2,20 +2,15 @@
 Visualization utilities for model analysis and reporting.
 """
 
-import json
-import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
 import torch
-import torch.nn.functional as F
 from matplotlib.figure import Figure
-from PIL import Image
-from sklearn.metrics import confusion_matrix
 
 from utils.logger import get_logger
 from utils.paths import ensure_dir

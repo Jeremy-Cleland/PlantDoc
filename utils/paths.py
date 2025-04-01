@@ -3,14 +3,10 @@
 Path handling utilities for the project.
 """
 
-import os
-import sys
-from functools import lru_cache
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Optional, Union
 
-import yaml
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 
 from utils.logger import get_logger
 

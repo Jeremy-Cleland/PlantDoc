@@ -5,8 +5,6 @@ Early Stopping callback to halt training when a monitored metric stops improving
 import numbers
 from typing import Any, Dict, Optional
 
-import torch
-
 from utils.logger import get_logger
 
 from .base import Callback

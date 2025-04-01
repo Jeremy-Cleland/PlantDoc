@@ -5,7 +5,6 @@ CBAM-Only ResNet18 model for plant disease classification.
 """
 
 import torch
-import torch.nn as nn
 
 from core.models.backbones.cbam_resnet18 import CBAMResNet18Backbone
 from core.models.heads.residual import ResidualHead
@@ -219,11 +218,11 @@ class CBAMResNet18Model(BaseModel):
         """
         if hasattr(self.backbone, "freeze_layers"):
             self.backbone.freeze_layers()
-            logger.info(f"Froze CBAM-ResNet18 backbone layers")
+            logger.info("Froze CBAM-ResNet18 backbone layers")
         else:
             for param in self.backbone.parameters():
                 param.requires_grad = False
-            logger.info(f"Froze CBAM-ResNet18 backbone using generic method")
+            logger.info("Froze CBAM-ResNet18 backbone using generic method")
         self.frozen_backbone = True
 
     def forward_features(self, x):

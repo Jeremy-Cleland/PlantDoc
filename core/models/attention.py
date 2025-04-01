@@ -9,7 +9,6 @@ the representation power of CNNs. Based on the paper:
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 from utils.logger import get_logger
 
@@ -29,7 +28,7 @@ class ChannelAttention(nn.Module):
     """
 
     def __init__(self, channels, reduction_ratio=16):
-        super(ChannelAttention, self).__init__()
+        super().__init__()
         self.avg_pool = nn.AdaptiveAvgPool2d(1)
         self.max_pool = nn.AdaptiveMaxPool2d(1)
 
@@ -66,7 +65,7 @@ class SpatialAttention(nn.Module):
     """
 
     def __init__(self, kernel_size=7):
-        super(SpatialAttention, self).__init__()
+        super().__init__()
 
         # Ensure kernel size is odd for padding='same' behavior
         assert kernel_size % 2 == 1, "Kernel size must be odd"
@@ -92,7 +91,7 @@ class SpatialAttention(nn.Module):
 class DropPath(nn.Module):
     """
     Drop paths (Stochastic Depth) per sample.
-    
+
     Implements the stochastic depth regularization technique
     described in the paper: "Deep Networks with Stochastic Depth"
     (https://arxiv.org/abs/1603.09382)
@@ -102,7 +101,7 @@ class DropPath(nn.Module):
     """
 
     def __init__(self, drop_prob=0.0):
-        super(DropPath, self).__init__()
+        super().__init__()
         self.drop_prob = drop_prob
 
     def forward(self, x):
@@ -133,14 +132,16 @@ class CBAM(nn.Module):
     def __init__(
         self, channels, reduction_ratio=16, spatial_kernel_size=7, drop_path_prob=0.0
     ):
-        super(CBAM, self).__init__()
+        super().__init__()
 
         self.channel_attention = ChannelAttention(channels, reduction_ratio)
         self.spatial_attention = SpatialAttention(spatial_kernel_size)
 
         # Use the more sophisticated DropPath implementation
         self.drop_path_prob = drop_path_prob
-        self.drop_path = DropPath(drop_path_prob) if drop_path_prob > 0 else nn.Identity()
+        self.drop_path = (
+            DropPath(drop_path_prob) if drop_path_prob > 0 else nn.Identity()
+        )
 
         logger.info(
             f"Initialized CBAM with channels={channels}, reduction_ratio={reduction_ratio}, "

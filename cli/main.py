@@ -2,13 +2,11 @@
 Command-line interface for the CBAM Classification project.
 """
 
-import os
-import sys
 from pathlib import Path
 from typing import List, Optional
 
 import typer
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import OmegaConf
 
 from core.data.datamodule import PlantDiseaseDataModule
 from core.data.prepare_data import run_prepare_data
@@ -18,7 +16,6 @@ from reports.generate_plots import generate_plots_for_report
 from reports.generate_report import generate_report
 from utils.config_utils import load_config
 from utils.experiment_registry import (
-    get_experiment_name,
     get_next_version,
     register_experiment,
 )
@@ -311,7 +308,7 @@ def eval(
     )
 
     # Print evaluation results
-    logger.info(f"Evaluation completed. Results:")
+    logger.info("Evaluation completed. Results:")
     logger.info(f"Accuracy: {metrics['accuracy']:.4f}")
     logger.info(f"Precision: {metrics['precision']:.4f}")
     logger.info(f"Recall: {metrics['recall']:.4f}")
@@ -509,7 +506,7 @@ def prepare(
     if output_dir:
         cli_args.append(f"prepare_data.output_dir={output_dir}")
     if dry_run:
-        cli_args.append(f"prepare_data.dry_run=true")
+        cli_args.append("prepare_data.dry_run=true")
 
     # Load configuration
     cfg = load_config(config_path, cli_args)
@@ -699,6 +696,285 @@ def attention(
         output_dir=output_dir,
         layers=layers,
     )
+
+
+@app.command()
+def analyze_confidence(
+    model_name: str = typer.Option(
+        "cbam_only_resnet18", "--model", "-m", help="Model name to analyze"
+    ),
+    config_path: str = typer.Option(
+        "configs/config.yaml", "--config", "-c", help="Path to configuration file"
+    ),
+    checkpoint_path: Optional[str] = typer.Option(
+        None, "--checkpoint", "-ckpt", help="Path to model checkpoint"
+    ),
+    image_path: str = typer.Option(..., "--image", "-i", help="Path to input image"),
+    output_dir: str = typer.Option(
+        "outputs/confidence_analysis",
+        "--output",
+        "-o",
+        help="Output directory for analysis results",
+    ),
+    target_layer: Optional[str] = typer.Option(
+        None,
+        "--target-layer",
+        "-l",
+        help="Specific target layer for GradCAM (e.g., 'layer3.1.conv2')",
+    ),
+    temperature: float = typer.Option(
+        1.0,
+        "--temperature",
+        "-t",
+        help="Temperature for confidence scaling (lower = sharper)",
+    ),
+):
+    """
+    Analyze confidence discrepancy between direct prediction and GradCAM visualization.
+
+    This command compares confidence scores from different evaluation modes to help
+    diagnose and fix inconsistencies between model predictions and visualizations.
+    """
+    # Load configuration
+    cfg = load_config(config_path)
+
+    # Configure logging
+    logger = configure_logging(cfg)
+    logger.info(f"Starting confidence analysis for model: {model_name}")
+    logger.info(f"Input image: {image_path}")
+
+    # Import necessary modules
+    from pathlib import Path
+
+    import matplotlib.pyplot as plt
+    import numpy as np
+    import torch
+    import torch.nn.functional as F
+    from PIL import Image
+    from torchvision import transforms
+
+    from core.data.datamodule import PlantDiseaseDataModule
+    from core.evaluation.interpretability import GradCAM
+
+    # Import model-related modules
+    from core.models.registry import get_model_class
+
+    # Set seed for reproducibility
+    set_manual_seed(cfg.data.random_seed)
+
+    # Create output directory
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Set up transform for preprocessing the image
+    transform = transforms.Compose(
+        [
+            transforms.Resize((224, 224)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ]
+    )
+
+    # Load image
+    try:
+        img = Image.open(image_path).convert("RGB")
+        input_tensor = transform(img).unsqueeze(0)
+    except Exception as e:
+        logger.error(f"Error loading image: {e}")
+        raise typer.Exit(code=1)
+
+    # Create data module to get class names
+    data_module = PlantDiseaseDataModule(cfg)
+    data_module.prepare_data()
+    data_module.setup(stage="test")
+    class_names = data_module.get_class_names()
+
+    # Get model class and initialize model
+    model_class = get_model_class(model_name)
+    model_params = {k: v for k, v in cfg.model.items() if k != "name"}
+    model = model_class(**model_params)
+
+    # Load checkpoint if provided
+    if checkpoint_path:
+        checkpoint_path = Path(checkpoint_path)
+        if not checkpoint_path.exists():
+            logger.error(f"Checkpoint file not found: {checkpoint_path}")
+            raise typer.Exit(code=1)
+
+        logger.info(f"Loading checkpoint: {checkpoint_path}")
+        checkpoint = torch.load(checkpoint_path, map_location="cpu")
+        if "state_dict" in checkpoint:
+            model.load_state_dict(checkpoint["state_dict"])
+        else:
+            model.load_state_dict(checkpoint)
+
+    # Set model to evaluation mode
+    model.eval()
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = model.to(device)
+    input_tensor = input_tensor.to(device)
+
+    # Part 1: Direct inference for predicted class
+    with torch.no_grad():
+        output = model(input_tensor)
+        probs = F.softmax(output, dim=1)
+        confidence, predicted = torch.max(probs, 1)
+
+        # Get top-k predictions
+        top_k = 5
+        topk_probs, topk_indices = torch.topk(probs, top_k)
+
+        logger.info("=" * 50)
+        logger.info("DIRECT INFERENCE RESULTS:")
+        logger.info(
+            f"Predicted Class: {class_names[predicted.item()]} ({predicted.item()})"
+        )
+        logger.info(f"Confidence: {confidence.item() * 100:.2f}%")
+        logger.info("Top classes:")
+        for i in range(top_k):
+            idx = topk_indices[0, i].item()
+            prob = topk_probs[0, i].item() * 100
+            logger.info(f"  {i + 1}. {class_names[idx]} ({idx}): {prob:.2f}%")
+
+    # Part 2: GradCAM analysis
+    logger.info("=" * 50)
+    logger.info("GRADCAM ANALYSIS:")
+
+    def find_layer_by_name(model, layer_name):
+        """Find a layer in the model by its name."""
+        if not layer_name:
+            return None
+
+        names = layer_name.split(".")
+        current = model
+
+        for name in names:
+            if hasattr(current, name):
+                current = getattr(current, name)
+            else:
+                return None
+        return current
+
+    # Get target layer if specified
+    target_layer_module = None
+    if target_layer:
+        target_layer_module = find_layer_by_name(model, target_layer)
+        if target_layer_module is None:
+            logger.warning(
+                f"Target layer '{target_layer}' not found in model. Using default."
+            )
+
+    # Create GradCAM instance
+    gradcam = GradCAM(model, target_layer=target_layer_module)
+
+    # Save original state
+    was_training = model.training
+    backbone_frozen = False
+    if hasattr(model, "frozen_backbone"):
+        backbone_frozen = model.frozen_backbone
+
+    # Debug information
+    logger.info(f"Model training mode: {was_training}")
+    logger.info(f"Backbone frozen: {backbone_frozen}")
+
+    try:
+        # Get GradCAM visualization with various temperature settings
+        for temp in [temperature, 0.5, 0.2]:
+            # Track original and GradCAM predictions
+            with torch.no_grad():
+                output = model(input_tensor)
+                probs = F.softmax(output, dim=1)
+                orig_confidence, orig_predicted = torch.max(probs, 1)
+                orig_class = orig_predicted.item()
+
+            logger.info(f"\nTesting with temperature={temp}")
+
+            # Use temperature scaling for confidence
+            scaled_probs = F.softmax(output / temp, dim=1)
+            scaled_confidence, scaled_predicted = torch.max(scaled_probs, 1)
+
+            logger.info(
+                f"Original prediction: {class_names[orig_class]} ({orig_class}) with {orig_confidence.item() * 100:.2f}%"
+            )
+            logger.info(
+                f"Scaled prediction: {class_names[scaled_predicted.item()]} ({scaled_predicted.item()}) with {scaled_confidence.item() * 100:.2f}%"
+            )
+
+            # Run GradCAM for original prediction
+            cam_image, viz_result = gradcam.generate_cam(
+                input_tensor, target_category=orig_class, class_names=class_names
+            )
+
+            gradcam_probs = viz_result.get("probs", torch.zeros_like(probs))
+            gradcam_confidence, gradcam_predicted = torch.max(gradcam_probs, 0)
+
+            logger.info(
+                f"GradCAM prediction: {class_names[gradcam_predicted.item()]} ({gradcam_predicted.item()}) with {gradcam_confidence.item() * 100:.2f}%"
+            )
+
+            # Save the comparison to file
+            fig, ax = plt.subplots(1, 2, figsize=(12, 6))
+
+            # Original image
+            ax[0].imshow(np.array(img))
+            ax[0].set_title(
+                f"Original\nPrediction: {class_names[orig_class]}\nConfidence: {orig_confidence.item() * 100:.2f}%"
+            )
+            ax[0].axis("off")
+
+            # GradCAM visualization
+            ax[1].imshow(cam_image)
+            ax[1].set_title(
+                f"GradCAM (Temp={temp})\nPrediction: {class_names[gradcam_predicted.item()]}\nConfidence: {gradcam_confidence.item() * 100:.2f}%"
+            )
+            ax[1].axis("off")
+
+            plt.tight_layout()
+            plt.savefig(output_dir / f"comparison_temp{temp}.png")
+            plt.close()
+
+            # Top-k comparison
+            top_k = 5
+            gradcam_topk = torch.topk(gradcam_probs, top_k)
+
+            with open(output_dir / f"comparison_temp{temp}.txt", "w") as f:
+                f.write(f"CONFIDENCE ANALYSIS (Temperature: {temp})\n")
+                f.write("=" * 50 + "\n\n")
+
+                f.write("DIRECT INFERENCE:\n")
+                top_orig = torch.topk(probs, top_k)
+                for i in range(top_k):
+                    idx = top_orig.indices[0][i].item()
+                    prob = top_orig.values[0][i].item() * 100
+                    f.write(f"{i + 1}. {class_names[idx]} ({idx}): {prob:.2f}%\n")
+
+                f.write("\nSCALED PREDICTIONS:\n")
+                top_scaled = torch.topk(scaled_probs, top_k)
+                for i in range(top_k):
+                    idx = top_scaled.indices[0][i].item()
+                    prob = top_scaled.values[0][i].item() * 100
+                    f.write(f"{i + 1}. {class_names[idx]} ({idx}): {prob:.2f}%\n")
+
+                f.write("\nGRADCAM PREDICTIONS:\n")
+                for i in range(min(top_k, len(gradcam_probs))):
+                    # Get index of the i-th highest probability
+                    idx = gradcam_topk.indices[i].item()
+                    prob = gradcam_topk.values[i].item() * 100
+                    f.write(f"{i + 1}. {class_names[idx]} ({idx}): {prob:.2f}%\n")
+
+    finally:
+        # Restore original training mode
+        if was_training:
+            model.train()
+        else:
+            model.eval()
+
+        # Restore backbone frozen state if needed
+        if backbone_frozen and hasattr(model, "freeze_backbone"):
+            model.freeze_backbone()
+
+    logger.info("=" * 50)
+    logger.info(f"Confidence analysis completed. Results saved to {output_dir}")
 
 
 if __name__ == "__main__":

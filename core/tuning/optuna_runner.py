@@ -3,7 +3,6 @@
 import time
 from pathlib import Path
 
-import hydra
 import optuna
 from omegaconf import DictConfig, OmegaConf
 

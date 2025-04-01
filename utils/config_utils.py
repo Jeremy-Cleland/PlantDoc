@@ -2,14 +2,11 @@
 Configuration utilities for loading and managing config without Hydra.
 """
 
-import os
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import List, Optional
 
 from omegaconf import DictConfig, OmegaConf
-
-from utils.paths import get_context_log_dir
 
 
 def load_config(config_path: str, cli_args: Optional[List[str]] = None) -> DictConfig:

@@ -5,22 +5,18 @@ Generate HTML reports from training results using Jinja2 templates.
 
 import argparse
 import json
-import os
 import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
-import jinja2
-import matplotlib.pyplot as plt
-import numpy as np
 import torch
 import yaml
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from reports.generate_plots import generate_plots_for_report
 from utils.logger import get_logger
-from utils.paths import ensure_dir, get_reports_dir
+from utils.paths import ensure_dir
 
 logger = get_logger(__name__)
 
@@ -64,7 +60,7 @@ def load_metrics(metrics_path: Union[str, Path]) -> Dict[str, Any]:
         Dictionary of metrics
     """
     try:
-        with open(metrics_path, "r") as f:
+        with open(metrics_path) as f:
             return json.load(f)
     except Exception as e:
         logger.error(f"Failed to load metrics from {metrics_path}: {e}")
@@ -82,7 +78,7 @@ def load_config(config_path: Union[str, Path]) -> Dict[str, Any]:
         Dictionary of configuration
     """
     try:
-        with open(config_path, "r") as f:
+        with open(config_path) as f:
             return yaml.safe_load(f)
     except Exception as e:
         logger.error(f"Failed to load config from {config_path}: {e}")
@@ -100,7 +96,7 @@ def load_history(history_path: Union[str, Path]) -> Dict[str, List[float]]:
         Dictionary of training history
     """
     try:
-        with open(history_path, "r") as f:
+        with open(history_path) as f:
             return json.load(f)
     except Exception as e:
         logger.error(f"Failed to load history from {history_path}: {e}")
@@ -118,7 +114,7 @@ def load_class_names(class_names_path: Union[str, Path]) -> List[str]:
         List of class names
     """
     try:
-        with open(class_names_path, "r") as f:
+        with open(class_names_path) as f:
             return [line.strip() for line in f if line.strip()]
     except Exception as e:
         logger.error(f"Failed to load class names from {class_names_path}: {e}")

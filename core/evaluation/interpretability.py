@@ -12,7 +12,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from PIL import Image
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 
 from utils.logger import get_logger
@@ -319,9 +319,7 @@ class GradCAM:
                 m for m in self.model.features.modules() if isinstance(m, nn.Conv2d)
             ]
             if conv_layers:
-                logger.info(
-                    f"Using the last Conv2d layer from features as target layer"
-                )
+                logger.info("Using the last Conv2d layer from features as target layer")
                 return conv_layers[-1]
 
         # Generic approach: find the last conv layer in the entire model
@@ -454,9 +452,7 @@ class GradCAM:
                 # Handle different output formats
                 if isinstance(output, tuple):
                     logger.debug(f"Output tuple length: {len(output)}")
-                    if len(output) == 2:  # (logits, features)
-                        output = output[0]
-                    elif len(output) == 3:  # (logits, features, attention_maps)
+                    if len(output) == 2 or len(output) == 3:  # (logits, features)
                         output = output[0]
                     else:
                         logger.warning(f"Unexpected output tuple length: {len(output)}")
@@ -1013,6 +1009,99 @@ class GradCAM:
             "explanations": explanations,
         }
 
+    def generate_cam(
+        self,
+        input_tensor: Union[torch.Tensor, np.ndarray, Image.Image, str],
+        target_category: Optional[int] = None,
+        class_names: Optional[List[str]] = None,
+        temperature: float = 0.5,  # Add temperature parameter for confidence scaling
+    ) -> Tuple[np.ndarray, Dict]:
+        """
+        Enhanced CAM generation that returns both the CAM and probabilities.
+        This method ensures consistent confidence values between direct inference and GradCAM.
+
+        Args:
+            input_tensor: Image input as tensor, numpy array, PIL image, or path string
+            target_category: Target class index (if None, uses predicted class)
+            class_names: List of class names (optional)
+            temperature: Temperature for scaling confidence (lower = sharper distribution)
+
+        Returns:
+            Tuple of (cam_image, result_dict) where result_dict contains 'probs' and other metadata
+        """
+        # Save current model state
+        was_training = self.model.training
+        was_frozen = False
+        if hasattr(self.model, "frozen_backbone"):
+            was_frozen = self.model.frozen_backbone
+
+        # Ensure model is in eval mode for consistent results
+        self.model.eval()
+
+        # Preprocess image if needed
+        if not isinstance(input_tensor, torch.Tensor):
+            input_tensor = self.preprocess_image(input_tensor)
+        else:
+            # If already tensor, ensure it's on correct device
+            input_tensor = input_tensor.to(self.device)
+
+            # Ensure batch dimension
+            if input_tensor.ndim == 3:
+                input_tensor = input_tensor.unsqueeze(0)
+
+        # Record original output before applying GradCAM
+        with torch.no_grad():
+            orig_output = self.model(input_tensor)
+            if isinstance(orig_output, tuple):
+                orig_output = orig_output[0]
+
+            # Get standard probabilities with temperature scaling
+            orig_probs = F.softmax(orig_output / temperature, dim=1)[0]
+
+            # Get predicted class if target not specified
+            if target_category is None:
+                target_category = torch.argmax(orig_probs, dim=0).item()
+
+        # Compute the CAM
+        cam = self.compute_cam(input_tensor, target_category)
+
+        # Apply Gaussian smoothing for better visualization
+        cam_smoothed = self._apply_gaussian_smoothing(cam)
+
+        # Create heatmap
+        cmap = plt.get_cmap("jet")
+        heatmap = cmap(cam_smoothed)[:, :, :3]  # Remove alpha channel
+
+        # Create results dictionary
+        result = {
+            "probs": orig_probs,  # Keep original probabilities
+            "target_category": target_category,
+            "cam": cam,
+            "heatmap": heatmap,
+        }
+
+        # Add class information if available
+        if class_names is not None:
+            top_k = min(5, len(class_names))
+            top_probs, top_indices = torch.topk(orig_probs, top_k)
+
+            result["top_classes"] = [
+                {
+                    "index": idx.item(),
+                    "name": class_names[idx.item()],
+                    "probability": prob.item(),
+                }
+                for idx, prob in zip(top_indices, top_probs)
+            ]
+
+        # Restore original model state if needed
+        if was_training:
+            self.model.train()
+        if was_frozen and hasattr(self.model, "freeze_backbone"):
+            self.model.freeze_backbone()
+
+        return cam_smoothed, result
+
     def cleanup(self):
         """Remove registered hooks and clean up resources."""
         try:
@@ -1114,3 +1203,19 @@ def explain_model_predictions(
     gradcam.cleanup()
 
     return results
+
+
+def apply_gradcam_to_images(
+    model: nn.Module,
+    dataset: Dataset,
+    target_layer: Optional[nn.Module] = None,
+    input_size: Tuple[int, int] = (224, 224),
+    mean: Optional[List[float]] = None,
+    std: Optional[List[float]] = None,
+    debug: bool = True,  # Enable debug by default
+):
+    # Use default mean/std if not provided
+    if mean is None:
+        mean = [0.485, 0.456, 0.406]
+    if std is None:
+        std = [0.229, 0.224, 0.225]

@@ -4,7 +4,6 @@ Learning rate schedulers for training optimization.
 
 from typing import Any, Dict, Optional, Tuple, Union
 
-import torch
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import (
     CosineAnnealingLR,
