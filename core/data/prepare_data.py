@@ -27,16 +27,9 @@ from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.preprocessing import StandardScaler
 from tqdm import tqdm
 
-# Assuming these utilities and transforms are available in your project structure
 from utils.logger import get_logger
 
-# Import basic plotting functions if they are separate, otherwise define inline or import
-# Example: from utils.visualization import basic_plots, advanced_plots
-# For simplicity here, plotting functions are included below where needed.
-
 logger = get_logger(__name__)
-
-# --- Helper Functions (from validation script) ---
 
 
 def fix_filename(filename: str) -> str:

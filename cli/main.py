@@ -71,7 +71,6 @@ def train(
     # If not, use the model name
     base_name = experiment_name or actual_model_name
 
-    # Remove any existing version suffix if present (to avoid duplicates like model_v1_v2)
     if "_v" in base_name:
         base_name = base_name.split("_v")[0]
 
@@ -100,7 +99,7 @@ def train(
     Path(cfg["paths"]["log_dir"]).mkdir(parents=True, exist_ok=True)
     Path(cfg["paths"]["metrics_dir"]).mkdir(parents=True, exist_ok=True)
 
-    # Also ensure any derived paths are removed so they'll be recreated based on the new experiment name
+    # Remove any derived paths so they'll be recreated based on the new experiment name
     for path_key in [
         "checkpoint_dir",
         "visualization_dir",
@@ -200,7 +199,134 @@ def train(
     except Exception as e:
         logger.error(f"Error generating report: {e}", exc_info=True)
 
+    # Generate attention visualizations for sample test images
+    try:
+        logger.info("Generating attention visualizations...")
+        generate_attention_visualizations(
+            cfg=cfg,
+            model=model,
+            data_module=data_module,
+            checkpoint_path=str(
+                Path(cfg.paths.experiment_dir) / "checkpoints" / "best_model.pth"
+            ),
+            n_samples=OmegaConf.select(
+                cfg, "callbacks.attention_viz.n_samples", default=5
+            ),  # Get from config or use default
+        )
+    except Exception as e:
+        logger.error(f"Error generating attention visualizations: {e}", exc_info=True)
+
     return results
+
+
+def generate_attention_visualizations(
+    cfg, model, data_module, checkpoint_path, n_samples=5
+):
+    """
+    Generate attention visualizations for sample images after training.
+
+    Args:
+        cfg: Configuration
+        model: Trained model
+        data_module: Data module with test data
+        checkpoint_path: Path to the best model checkpoint
+        n_samples: Number of sample images to visualize
+    """
+    import random
+    from pathlib import Path
+
+    import torch
+    from PIL import Image
+    from torchvision import transforms
+
+    from core.visualization.attention_viz import generate_attention_report
+
+    # Create output directory
+    attention_dir = Path(cfg.paths.experiment_dir) / "attention_visualizations"
+    attention_dir.mkdir(parents=True, exist_ok=True)
+
+    # Ensure test dataloader is set up
+    test_loader = data_module.test_dataloader()
+
+    # Get a few random samples
+    test_samples = []
+    class_names = data_module.get_class_names()
+    images_by_class = {}
+
+    # Try to get at least one image per class, up to n_samples
+    for images, labels in test_loader:
+        for img, label in zip(images, labels):
+            label_idx = label.item()
+            label_name = class_names[label_idx]
+
+            if label_name not in images_by_class:
+                images_by_class[label_name] = img
+
+            if len(images_by_class) >= min(n_samples, len(class_names)):
+                break
+
+        if len(images_by_class) >= min(n_samples, len(class_names)):
+            break
+
+    # If we couldn't get samples for all classes, add some random ones to reach n_samples
+    if len(images_by_class) < n_samples:
+        for images, labels in test_loader:
+            for img, label in zip(images, labels):
+                label_idx = label.item()
+                label_name = class_names[label_idx]
+
+                # Only add if we need more samples and don't already have this class
+                if (
+                    label_name not in images_by_class
+                    and len(images_by_class) < n_samples
+                ):
+                    images_by_class[label_name] = img
+
+                if len(images_by_class) >= n_samples:
+                    break
+
+            if len(images_by_class) >= n_samples:
+                break
+
+    # Convert to list of (image, class_name) tuples
+    test_samples = [(img, class_name) for class_name, img in images_by_class.items()]
+
+    logger.info(f"Generating attention visualizations for {len(test_samples)} samples")
+
+    # Load the best model checkpoint
+    checkpoint = torch.load(checkpoint_path, map_location="cpu")
+    if "model_state_dict" in checkpoint:
+        model.load_state_dict(checkpoint["model_state_dict"])
+    elif "state_dict" in checkpoint:
+        model.load_state_dict(checkpoint["state_dict"])
+    else:
+        model.load_state_dict(checkpoint)
+
+    model.eval()
+
+    # Process each sample
+    for i, (image_tensor, class_name) in enumerate(test_samples):
+        try:
+            # Generate the report
+            report_path = generate_attention_report(
+                model=model,
+                image=image_tensor,
+                output_dir=str(attention_dir),
+                title_prefix=f"Class: {class_name}",
+                filename_prefix=f"sample_{i + 1}_{class_name.replace(' ', '_')}",
+            )
+
+            if report_path:
+                logger.info(f"Generated attention visualization for class {class_name}")
+            else:
+                logger.warning(
+                    f"Failed to generate attention visualization for class {class_name}"
+                )
+
+        except Exception as e:
+            logger.error(f"Error generating visualization for class {class_name}: {e}")
+
+    logger.info(f"Attention visualizations saved to {attention_dir}")
 
 
 @app.command()
@@ -685,10 +811,10 @@ def attention(
 
     This command generates visualizations of CBAM attention maps for a given input image.
     """
-    from cli.attention_viz_command import visualize
+    from core.visualization.attention_command import visualize_attention
 
-    # Import inside function to avoid circular imports
-    visualize(
+    # Call the new implementation
+    visualize_attention(
         model_name=model_name,
         config_path=config_path,
         checkpoint_path=checkpoint_path,

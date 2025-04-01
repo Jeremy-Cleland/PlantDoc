@@ -11,48 +11,26 @@ from omegaconf import DictConfig
 from torch.utils.data import DataLoader, WeightedRandomSampler, random_split
 
 # Import from the new project structure
-from core.data.datasets import (
-    PlantDiseaseDataset,
-)
-from core.data.transforms import (  # Assuming transforms.py exists based on the second example
-    AlbumentationsWrapper,
-    get_transforms,
-)
+from core.data.datasets import PlantDiseaseDataset
+from core.data.transforms import AlbumentationsWrapper, get_transforms
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 
 class PlantDiseaseDataModule:
-    """
-    PyTorch Lightning DataModule for plant disease classification.
-
-    Handles dataset splitting, transformations, and data loading.
-    """
+    """PyTorch Lightning DataModule for plant disease classification."""
 
     def __init__(self, cfg: DictConfig):
         """
         Initialize the data module.
 
         Args:
-            cfg: Configuration object (Hydra DictConfig). Expected keys:
-                data:
-                    data_dir: Root directory of the raw dataset.
-                    train_val_test_split: List/tuple of ratios for train, val, test splits.
-                    random_seed: Seed for reproducibility of splits.
-                loader:
-                    batch_size: Batch size for data loaders.
-                    num_workers: Number of workers for data loading.
-                    pin_memory: Whether to use pin_memory.
-                    drop_last: Whether to drop the last batch if smaller.
-                    prefetch_factor: Prefetch factor for DataLoader.
-                preprocessing: Configuration for image transforms (used by get_transforms).
-                augmentation: Configuration for image augmentations (used by get_transforms).
+            cfg: Configuration object with data, loader, preprocessing and augmentation settings
         """
         super().__init__()
         self.cfg = cfg
-        # Use OmegaConf interpolation or direct access for paths
-        self.data_dir = cfg.paths.raw_dir  # Use resolved path from config
+        self.data_dir = cfg.paths.raw_dir
         self.batch_size = cfg.loader.batch_size
         self.num_workers = cfg.loader.num_workers
         self.pin_memory = cfg.loader.pin_memory
@@ -73,40 +51,32 @@ class PlantDiseaseDataModule:
         logger.info(f"Batch size: {self.batch_size}, Num workers: {self.num_workers}")
 
     def prepare_data(self):
-        """
-        Download or prepare data. Only runs on the main process.
-        Placeholder for potential download logic.
-        """
-        # Example: Check if data exists, if not, download/extract
+        """Verify data existence. Only runs on the main process."""
         if not os.path.exists(self.data_dir):
             logger.error(f"Data directory not found: {self.data_dir}")
             raise FileNotFoundError(f"Data directory not found: {self.data_dir}")
         logger.info("Data preparation step completed (checking data existence).")
-        # If using HDF5 caching (from plantdl), this is where you might trigger cache creation.
 
     def setup(self, stage: Optional[str] = None):
         """
-        Set up the datasets and splits. Runs on all processes.
+        Set up datasets for the specified stage.
 
         Args:
-            stage: 'fit', 'validate', 'test', 'predict', or None.
-                   Determines which datasets to set up.
+            stage: 'fit', 'validate', 'test', 'predict', or None
         """
         logger.info(f"Setting up DataModule for stage: {stage}")
 
         # Get transforms for each split
-        # Assuming get_transforms uses cfg.preprocessing and cfg.augmentation
         train_transform = AlbumentationsWrapper(get_transforms(self.cfg, split="train"))
         val_transform = AlbumentationsWrapper(get_transforms(self.cfg, split="val"))
         test_transform = AlbumentationsWrapper(get_transforms(self.cfg, split="test"))
 
-        # --- Determine Class Names ---
-        # Create a temporary dataset just to get class names consistently
+        # Determine class names
         try:
             temp_dataset = PlantDiseaseDataset(
-                data_dir=self.data_dir,  # Assumes classes are subdirs of data_dir
+                data_dir=self.data_dir,
                 transform=None,
-                split="train",  # Split doesn't matter here
+                split="train",
             )
             self.class_names = temp_dataset.classes
             self.num_classes = len(self.class_names)
@@ -120,7 +90,7 @@ class PlantDiseaseDataModule:
             logger.error(f"Error initializing temporary dataset to find classes: {e}")
             raise
 
-        # --- Create Datasets (Handle pre-split or split on the fly) ---
+        # Create datasets using pre-split directories or split on the fly
         train_data_path = os.path.join(self.data_dir, "train")
         val_data_path = os.path.join(self.data_dir, "val")
         test_data_path = os.path.join(self.data_dir, "test")
@@ -151,7 +121,6 @@ class PlantDiseaseDataModule:
                     split="test",
                     classes=self.class_names,
                 )
-            # Handle validate stage explicitly if needed (usually covered by 'fit')
             if stage == "validate" and self.val_dataset is None:
                 self.val_dataset = PlantDiseaseDataset(
                     data_dir=val_data_path,
@@ -161,17 +130,15 @@ class PlantDiseaseDataModule:
                 )
 
         else:
-            logger.info(
-                "Pre-split directories not found. Splitting dataset on the fly."
-            )
+            logger.info("Pre-split directories not found. Splitting dataset on the fly.")
             logger.info(
                 f"Using split ratio: {self.train_val_test_split} and seed: {self.random_seed}"
             )
 
             full_dataset = PlantDiseaseDataset(
                 data_dir=self.data_dir,
-                transform=None,  # Apply transforms after splitting
-                split="all",  # Indicate it's the full dataset
+                transform=None,
+                split="all",
                 classes=self.class_names,
             )
 
@@ -184,19 +151,17 @@ class PlantDiseaseDataModule:
                 logger.warning(
                     f"Split lengths ({train_len}, {val_len}, {test_len}) do not sum to total ({total_len}). Adjusting test_len."
                 )
-                test_len = total_len - train_len - val_len  # Recalculate to be safe
+                test_len = total_len - train_len - val_len
 
             logger.info(
                 f"Splitting into Train: {train_len}, Val: {val_len}, Test: {test_len}"
             )
 
-            # Split the dataset using torch.utils.data.random_split
             generator = torch.Generator().manual_seed(self.random_seed)
             train_subset, val_subset, test_subset = random_split(
                 full_dataset, [train_len, val_len, test_len], generator=generator
             )
 
-            # Create new datasets from subsets with the correct transforms
             if stage == "fit" or stage is None:
                 self.train_dataset = self._create_dataset_from_subset(
                     train_subset, train_transform, "train"
@@ -208,7 +173,6 @@ class PlantDiseaseDataModule:
                 self.test_dataset = self._create_dataset_from_subset(
                     test_subset, test_transform, "test"
                 )
-            # Handle validate stage explicitly if needed
             if stage == "validate" and self.val_dataset is None:
                 self.val_dataset = self._create_dataset_from_subset(
                     val_subset, val_transform, "val"
@@ -226,25 +190,22 @@ class PlantDiseaseDataModule:
         self, subset, transform, split_name: str
     ) -> PlantDiseaseDataset:
         """
-        Helper to create a PlantDiseaseDataset instance from a Subset,
-        applying the correct transform.
+        Create a dataset from a subset with appropriate transforms.
 
         Args:
-            subset: A torch.utils.data.Subset instance.
-            transform: The transformations to apply.
-            split_name: Name of the split ('train', 'val', 'test').
+            subset: A torch.utils.data.Subset instance
+            transform: Transformations to apply
+            split_name: Name of the split ('train', 'val', 'test')
 
         Returns:
-            A new PlantDiseaseDataset instance containing only the subset samples.
+            New PlantDiseaseDataset with subset samples
         """
-        # Create a new dataset instance but populate it with subset samples
         dataset = PlantDiseaseDataset(
-            data_dir=self.data_dir,  # Keep original data_dir reference if needed
+            data_dir=self.data_dir,
             transform=transform,
             split=split_name,
             classes=self.class_names,
         )
-        # Overwrite samples with only those from the subset
         dataset.samples = [subset.dataset.samples[i] for i in subset.indices]
         return dataset
 
@@ -256,38 +217,33 @@ class PlantDiseaseDataModule:
         if not self.train_dataset:
             raise RuntimeError("Train dataset not initialized. Call setup() first.")
 
-        # --- Weighted Random Sampling ---
+        # Weighted Random Sampling
         logger.info("Setting up weighted random sampler for training.")
         targets = [label for _, label in self.train_dataset.samples]
 
         class_counts = np.bincount(targets, minlength=self.num_classes)
         logger.debug(f"Class counts for sampling: {class_counts}")
 
-        # Handle zero counts to avoid division by zero
         weights = np.where(class_counts > 0, 1.0 / np.sqrt(class_counts), 0)
-        weights[class_counts == 0] = (
-            0  # Explicitly set weight to 0 for classes with 0 samples
-        )
+        weights[class_counts == 0] = 0
 
-        # Assign weight to each sample based on its class
         sample_weights = torch.tensor([weights[t] for t in targets], dtype=torch.float)
 
         sampler = WeightedRandomSampler(
             weights=sample_weights,
             num_samples=len(sample_weights),
-            replacement=True,  # Sample with replacement
+            replacement=True,
         )
-        # --- End Sampling ---
 
         return DataLoader(
             self.train_dataset,
             batch_size=self.batch_size,
-            sampler=sampler,  # Use sampler, shuffle=False is implicit
+            sampler=sampler,
             num_workers=self.num_workers,
             pin_memory=self.pin_memory,
             drop_last=self.drop_last,
             prefetch_factor=self.prefetch_factor if self.num_workers > 0 else None,
-            persistent_workers=True if self.num_workers > 0 else False,
+            persistent_workers=bool(self.num_workers > 0),
         )
 
     def val_dataloader(self) -> DataLoader:
@@ -303,12 +259,12 @@ class PlantDiseaseDataModule:
         return DataLoader(
             self.val_dataset,
             batch_size=self.batch_size,
-            shuffle=False,  # No shuffling for validation
+            shuffle=False,
             num_workers=self.num_workers,
             pin_memory=self.pin_memory,
-            drop_last=False,  # Keep all validation samples
+            drop_last=False,
             prefetch_factor=self.prefetch_factor if self.num_workers > 0 else None,
-            persistent_workers=True if self.num_workers > 0 else False,
+            persistent_workers=bool(self.num_workers > 0),
         )
 
     def test_dataloader(self) -> DataLoader:
@@ -322,12 +278,12 @@ class PlantDiseaseDataModule:
         return DataLoader(
             self.test_dataset,
             batch_size=self.batch_size,
-            shuffle=False,  # No shuffling for testing
+            shuffle=False,
             num_workers=self.num_workers,
             pin_memory=self.pin_memory,
-            drop_last=False,  # Keep all test samples
+            drop_last=False,
             prefetch_factor=self.prefetch_factor if self.num_workers > 0 else None,
-            persistent_workers=True if self.num_workers > 0 else False,
+            persistent_workers=bool(self.num_workers > 0),
         )
 
     def get_class_names(self) -> List[str]:
@@ -366,14 +322,10 @@ class PlantDiseaseDataModule:
         class_counts = np.bincount(targets, minlength=self.num_classes)
 
         if mode == "inv":
-            # Inverse frequency
             weights = np.where(class_counts > 0, 1.0 / class_counts, 0)
         elif mode == "sqrt_inv":
-            # Inverse square root frequency (often balances better)
             weights = np.where(class_counts > 0, 1.0 / np.sqrt(class_counts), 0)
         elif mode == "effective":
-            # Effective Number of Samples weighting: (1 - beta^N) / (1 - beta)
-            # Commonly used beta values are 0.9, 0.99, 0.999, 0.9999
             beta = 0.999
             effective_num = 1.0 - np.power(beta, class_counts)
             weights = np.where(effective_num > 0, (1.0 - beta) / effective_num, 0)
@@ -381,13 +333,12 @@ class PlantDiseaseDataModule:
             logger.error(f"Unknown class weight mode: {mode}")
             return None
 
-        # Normalize weights to sum to num_classes (optional, but common)
         total_weight = np.sum(weights)
         if total_weight > 0:
             weights = weights / total_weight * self.num_classes
         else:
             logger.warning("Total weight is zero, cannot normalize.")
-            weights = np.ones_like(weights)  # Fallback to equal weights
+            weights = np.ones_like(weights)
 
         logger.info(f"Calculated class weights (mode={mode}): {weights}")
         return torch.tensor(weights, dtype=torch.float32)

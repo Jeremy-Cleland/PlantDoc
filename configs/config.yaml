@@ -225,12 +225,6 @@ scheduler:
   log_changes: true  # Whether to log LR changes
   enabled: true
 
-# Progressive resizing settings
-progressive_resizing:
-  enabled: true
-  sizes: [[224, 224], [256, 256], [288, 288]]  # Image sizes for each stage
-  epochs_per_size: [30, 30, 40]  # How many epochs to train at each size
-
 # Training configuration
 training:
   epochs: 120  # Increased from 1 to 50 for proper training
@@ -332,6 +326,33 @@ callbacks:
       - Tomato_target_spot
       - Tomato_mosaic_virus
       - Tomato_yellow_leaf_curl_virus
+  attention_viz:
+    enabled: true
+    n_samples: 10  # Number of sample images to visualize for attention maps
+    
+  # Confidence monitoring
+  confidence_monitor:
+    enabled: true
+    monitor_frequency: 1  # Calculate every epoch
+    threshold_warning: 0.7  # Threshold for low confidence warnings
+    ece_bins: 10  # Number of bins for Expected Calibration Error
+    log_per_class: true  # Log per-class confidence
+
+  # Stochastic Weight Averaging
+  swa:
+    enabled: true  # Disabled by default
+    swa_start_frac: 0.75  # Start SWA at 75% of training
+    swa_lr: 0.001  # SWA learning rate
+    anneal_epochs: 5  # Epochs for LR annealing
+    anneal_strategy: "cos"  # "cos" or "linear"
+    update_bn_epochs: 5  # Update batch norm stats every N epochs
+  
+  # Adaptive weight adjustment
+  adaptive_weight:
+    enabled: true  # Disabled by default
+    focal_loss_gamma_range: [2.0, 5.0]  # Min/max for Focal Loss gamma
+    center_loss_weight_range: [0.5, 2.0]  # Min/max for Center Loss weight
+    adjust_frequency: 5  # Adjust weights every N epochs
 
 # Evaluation configuration
 evaluation:

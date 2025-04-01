@@ -9,12 +9,15 @@ from typing import List, Optional
 from omegaconf import DictConfig
 
 from core.training.callbacks import (
+    AdaptiveWeightAdjustmentCallback,
     Callback,
+    ConfidenceMonitorCallback,
     EarlyStopping,
     GradCAMCallback,
     LearningRateSchedulerCallback,
     MetricsLogger,
     ModelCheckpoint,
+    SWACallback,
 )
 from utils.logger import get_logger
 from utils.paths import ensure_dir
@@ -229,5 +232,57 @@ def get_callbacks(
             logger.warning(
                 "GradCAM callback enabled but missing test_data or class_names"
             )
+
+    # Add confidence monitoring callback
+    if (
+        hasattr(callback_config, "confidence_monitor")
+        and callback_config.confidence_monitor.enabled
+    ):
+        logger.info("Adding ConfidenceMonitor callback")
+        conf_config = callback_config.confidence_monitor
+
+        # Create the callback with settings from config
+        confidence_monitor = ConfidenceMonitorCallback(
+            monitor_frequency=conf_config.get("monitor_frequency", 1),
+            threshold_warning=conf_config.get("threshold_warning", 0.7),
+            ece_bins=conf_config.get("ece_bins", 10),
+            log_per_class=conf_config.get("log_per_class", True),
+        )
+        callbacks.append(confidence_monitor)
+
+    # Add Stochastic Weight Averaging callback
+    if hasattr(callback_config, "swa") and callback_config.swa.enabled:
+        logger.info("Adding SWA callback")
+        swa_config = callback_config.swa
+
+        # Create the callback with settings from config
+        swa_callback = SWACallback(
+            swa_start_frac=swa_config.get("swa_start_frac", 0.75),
+            swa_lr=swa_config.get("swa_lr", 0.05),
+            anneal_epochs=swa_config.get("anneal_epochs", 10),
+            anneal_strategy=swa_config.get("anneal_strategy", "cos"),
+            update_bn_epochs=swa_config.get("update_bn_epochs", 5),
+        )
+        callbacks.append(swa_callback)
+
+    # Add Adaptive Weight Adjustment callback
+    if (
+        hasattr(callback_config, "adaptive_weight")
+        and callback_config.adaptive_weight.enabled
+    ):
+        logger.info("Adding AdaptiveWeightAdjustment callback")
+        adapt_config = callback_config.adaptive_weight
+
+        # Create the callback with settings from config
+        adaptive_callback = AdaptiveWeightAdjustmentCallback(
+            focal_loss_gamma_range=adapt_config.get(
+                "focal_loss_gamma_range", (2.0, 5.0)
+            ),
+            center_loss_weight_range=adapt_config.get(
+                "center_loss_weight_range", (0.5, 2.0)
+            ),
+            adjust_frequency=adapt_config.get("adjust_frequency", 5),
+        )
+        callbacks.append(adaptive_callback)
 
     return callbacks

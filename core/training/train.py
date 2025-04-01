@@ -1,7 +1,14 @@
 # Path: <your_project>/core/training/train.py  <- Adjust path as needed
 """
-PyTorch trainer with support for progressive resizing, callbacks, and device optimizations,
-using IncrementalMetricsCalculator. Compatible with OmegaConf configuration.
+PyTorch trainer with support for callbacks and device optimizations,
+particularly suited for MPS (Apple Silicon).
+
+Includes additional features such as:
+- Transfer learning with frozen/unfrozen backbone control
+- Automatic batch handling
+- IncrementalMetricsCalculator for efficient metrics tracking
+- Advanced callbacks system
+- MPS optimizations. Uses IncrementalMetricsCalculator.
 """
 
 import inspect
@@ -48,8 +55,15 @@ logger = get_logger(__name__)
 
 class Trainer:
     """
-    Trainer class handling training loops, validation, callbacks, mixed precision,
-    MPS optimizations, and progressive resizing. Uses IncrementalMetricsCalculator.
+    Advanced PyTorch model training class with support for:
+
+    - Automatic device detection (CUDA, MPS, CPU)
+    - MPS (Apple Silicon) optimizations
+    - Mixed precision training
+    - Callbacks system
+    - Transfer learning with frozen/unfrozen stages
+
+    Handles checkpoint saving, metrics calculation, and logging.
 
     Args:
         model: PyTorch model to train.
@@ -95,7 +109,6 @@ class Trainer:
             callback_cfg = cfg.callbacks
             hardware_cfg = cfg.hardware
             transfer_cfg = cfg.transfer_learning
-            prog_resize_cfg = cfg.progressive_resizing
 
             self.epochs = int(train_cfg.epochs)  # Assuming epochs is required
             self.use_mixed_precision = bool(
@@ -167,78 +180,6 @@ class Trainer:
         ):
             logger.info("Converting model to channels_last format for MPS.")
             self.model = self.model.to(memory_format=torch.channels_last)
-
-        # --- Progressive Resizing Setup ---
-        self.use_progressive_resizing = OmegaConf.select(
-            cfg, "progressive_resizing.enabled", default=False
-        )
-        self.original_train_dataset = getattr(train_loader, "dataset", None)
-        self.original_val_dataset = getattr(val_loader, "dataset", None)
-        self.image_sizes = []
-        self.size_epoch_boundaries = []
-        # self.transform_params = {} # No longer needed if get_transforms reads cfg directly
-
-        if self.use_progressive_resizing:
-            if not self.original_train_dataset or not self.original_val_dataset:
-                logger.warning(
-                    "Progressive resizing enabled but cannot get Dataset from DataLoader. Disabling."
-                )
-                self.use_progressive_resizing = False
-            else:
-                # Use OmegaConf select for safe access
-                self.image_sizes = list(
-                    OmegaConf.select(
-                        cfg, "progressive_resizing.sizes", default=[[224, 224]]
-                    )
-                )
-                epochs_per_size_cfg = OmegaConf.select(
-                    cfg, "progressive_resizing.epochs_per_size", default=[]
-                )
-                legacy_epochs_cfg = OmegaConf.select(
-                    cfg, "progressive_resizing.epochs", default=[]
-                )  # Legacy
-
-                if epochs_per_size_cfg:
-                    epochs_per_size = list(epochs_per_size_cfg)
-                elif legacy_epochs_cfg:
-                    epochs_per_size = list(legacy_epochs_cfg)
-                else:  # Default logic
-                    num_stages = len(self.image_sizes)
-                    base_epochs = self.epochs // num_stages
-                    remainder = self.epochs % num_stages
-                    epochs_per_size = [base_epochs] * num_stages
-                    epochs_per_size[-1] += remainder
-
-                # Adjust length mismatch
-                if len(epochs_per_size) < len(self.image_sizes):
-                    epochs_per_size.extend(
-                        [epochs_per_size[-1]]
-                        * (len(self.image_sizes) - len(epochs_per_size))
-                    )
-                elif len(epochs_per_size) > len(self.image_sizes):
-                    epochs_per_size = epochs_per_size[: len(self.image_sizes)]
-
-                if sum(epochs_per_size) != self.epochs:
-                    logger.warning(
-                        f"Progressive resizing epoch sum {sum(epochs_per_size)} != total epochs {self.epochs}."
-                    )
-
-                self.size_epoch_boundaries = [0]
-                for num_ep in epochs_per_size:
-                    self.size_epoch_boundaries.append(
-                        self.size_epoch_boundaries[-1] + num_ep
-                    )
-
-                logger.info(
-                    f"Progressive resizing enabled: {len(self.image_sizes)} stages"
-                )
-                for i, (size, num_ep) in enumerate(
-                    zip(self.image_sizes, epochs_per_size)
-                ):
-                    logger.info(
-                        f"  Stage {i + 1}: size={size}, epochs={num_ep} (Ends after epoch {self.size_epoch_boundaries[i + 1]})"
-                    )
-                # No need to call _extract_transform_params if get_transforms reads cfg
 
         # --- Training Components ---
         # Convert OmegaConf DictConfig to a regular Python dictionary
@@ -594,134 +535,6 @@ class Trainer:
                 "No best epoch recorded (check validation metric and early stopping)."
             )
 
-    # --- Progressive Resizing Helpers ---
-    # Note: _extract_transform_params is removed as get_transforms should read cfg directly
-    def _update_transforms_for_size(self, img_size: Union[int, List[int]]) -> None:
-        """Updates dataset transforms for a new image size using get_transforms."""
-        if (
-            not self.use_progressive_resizing
-            or not self.original_train_dataset
-            or not self.original_val_dataset
-        ):
-            return
-        try:
-            # --- TODO: Ensure these imports point to your transforms.py ---
-            from core.data.transforms import AlbumentationsWrapper, get_transforms
-            # --- END TODO ---
-        except ImportError:
-            logger.error(
-                "Cannot update transforms: `get_transforms` or `AlbumentationsWrapper` not found."
-            )
-            return
-
-        size = (
-            img_size[0]
-            if isinstance(img_size, (list, tuple)) and img_size
-            else (img_size if isinstance(img_size, int) else 224)
-        )
-        new_size_tuple = [size, size]
-        logger.info(f"Progressive Resizing: Updating transforms to size {size}x{size}")
-
-        # --- Modify OmegaConf temporarily ---
-        # This requires careful handling of the config structure
-        # Assumes structure like: cfg.preprocessing.resize, cfg.preprocessing.center_crop
-        original_resize = None
-        original_crop = None
-        try:
-            # Use OmegaConf.select to safely get current values, allowing defaults if missing initially
-            original_resize = OmegaConf.select(
-                self.cfg, "preprocessing.resize", default=None
-            )
-            original_crop = OmegaConf.select(
-                self.cfg, "preprocessing.center_crop", default=None
-            )
-
-            # --- Use OmegaConf context manager for temporary modification ---
-            # This is safer than direct modification if cfg is used elsewhere concurrently
-            # It requires OmegaConf version supporting this context manager.
-            # If not available, direct assignment + try/finally is the alternative.
-
-            # Check if preprocessing node exists, create if not (might be needed)
-            if "preprocessing" not in self.cfg:
-                OmegaConf.update(self.cfg, "preprocessing", {}, merge=True)
-
-            with OmegaConf.set_struct(
-                self.cfg, False
-            ):  # Temporarily allow adding fields if needed
-                OmegaConf.update(
-                    self.cfg, "preprocessing.resize", new_size_tuple, merge=False
-                )
-                OmegaConf.update(
-                    self.cfg, "preprocessing.center_crop", new_size_tuple, merge=False
-                )
-
-            logger.debug(f"Temporarily updated config resize/crop to {new_size_tuple}")
-
-            # Create new transforms using the temporarily modified config
-            new_train_transform_alb = get_transforms(self.cfg, split="train")
-            new_val_transform_alb = get_transforms(self.cfg, split="val")
-
-            # Wrap transforms
-            new_train_transform = AlbumentationsWrapper(new_train_transform_alb)
-            new_val_transform = AlbumentationsWrapper(new_val_transform_alb)
-
-        except Exception as e:
-            logger.error(
-                f"Error creating new transforms for size {size}: {e}", exc_info=True
-            )
-            # Ensure config is restored even if transform creation fails
-            if original_resize is not None:
-                OmegaConf.update(
-                    self.cfg, "preprocessing.resize", original_resize, merge=False
-                )
-            if original_crop is not None:
-                OmegaConf.update(
-                    self.cfg, "preprocessing.center_crop", original_crop, merge=False
-                )
-            return  # Cannot proceed without transforms
-        finally:
-            # --- Restore original config values ---
-            # This block executes even if errors occurred during transform creation
-            with OmegaConf.set_struct(self.cfg, False):  # Allow modification back
-                if original_resize is not None:
-                    OmegaConf.update(
-                        self.cfg, "preprocessing.resize", original_resize, merge=False
-                    )
-                if original_crop is not None:
-                    OmegaConf.update(
-                        self.cfg,
-                        "preprocessing.center_crop",
-                        original_crop,
-                        merge=False,
-                    )
-            logger.debug("Restored original config resize/crop values.")
-        # Restore struct setting if it was originally True (optional)
-        # OmegaConf.set_struct(self.cfg, True)
-
-        # Function to apply the transform
-        def set_transform(loader, transform):
-            dataset = loader.dataset
-            original_dataset = (
-                dataset.dataset if hasattr(dataset, "dataset") else dataset
-            )  # Handle Subset
-            if hasattr(original_dataset, "transform"):
-                original_dataset.transform = transform
-                logger.debug(f"Updated transform on {type(original_dataset).__name__}")
-                return True
-            logger.warning(
-                f"Could not find 'transform' attribute on dataset {type(original_dataset).__name__}."
-            )
-            return False
-
-        # Apply the new wrapped transforms
-        updated_train = set_transform(self.train_loader, new_train_transform)
-        updated_val = set_transform(self.val_loader, new_val_transform)
-
-        if updated_train and updated_val:
-            logger.info(f"Successfully updated transforms for size {size}x{size}.")
-        else:
-            logger.error("Failed to update transforms on one or both datasets.")
-
     # --- Main Epoch Loops (Using IncrementalMetricsCalculator) ---
     def train_epoch(self) -> Dict[str, float]:
         self.model.train()
@@ -948,40 +761,11 @@ class Trainer:
             float("inf") if monitor_mode == "min" else float("-inf")
         )
 
-        current_size_idx = -1
-        if self.use_progressive_resizing and len(self.image_sizes) > 0:
-            logger.info("Progressive Resizing: Applying initial transforms...")
-            self._update_transforms_for_size(self.image_sizes[0])
-            current_size_idx = 0
-        elif self.use_progressive_resizing:
-            logger.error(
-                "Progressive resizing enabled but no sizes configured. Disabling."
-            )
-            self.use_progressive_resizing = False
-
         train_begin_logs = self._get_train_begin_logs()
         [cb.on_train_begin(train_begin_logs) for cb in self.callbacks]
 
         for epoch in range(self.epochs):
             self.epoch = epoch
-
-            if self.use_progressive_resizing:  # Trigger resize check
-                target_idx = -1
-                for i in range(len(self.size_epoch_boundaries) - 1):
-                    if (
-                        self.size_epoch_boundaries[i]
-                        <= epoch
-                        < self.size_epoch_boundaries[i + 1]
-                    ):
-                        target_idx = i
-                        break
-                if target_idx != -1 and target_idx != current_size_idx:
-                    current_size_idx = target_idx
-                    new_size = self.image_sizes[current_size_idx]
-                    logger.info(
-                        f"Progressive Resizing: Transitioning to size {new_size} for epoch {epoch + 1}"
-                    )
-                    self._update_transforms_for_size(new_size)  # Call update method
 
             self._handle_transfer_learning_transition(epoch)
             train_metrics = self.train_epoch()
