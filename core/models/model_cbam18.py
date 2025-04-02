@@ -275,11 +275,9 @@ class CBAMResNet18Model(BaseModel):
             # Get the last convolutional layer in layer4
             if hasattr(self.backbone, "backbone") and hasattr(
                 self.backbone.backbone, "layer4"
-            ):
-                # Try to get the last conv layer in the last block
-                if hasattr(self.backbone.backbone.layer4[-1], "conv2"):
-                    logger.info("Using layer4[-1].conv2 as GradCAM target layer")
-                    return self.backbone.backbone.layer4[-1].conv2
+            ) and hasattr(self.backbone.backbone.layer4[-1], "conv2"):
+                logger.info("Using layer4[-1].conv2 as GradCAM target layer")
+                return self.backbone.backbone.layer4[-1].conv2
 
             # Fallback to the entire layer4
             logger.info(

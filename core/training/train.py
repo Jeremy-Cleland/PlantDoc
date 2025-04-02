@@ -231,11 +231,10 @@ class Trainer:
             skip_gradcam=True,  # Skip GradCAM callback in Trainer init
         )
         self.callbacks.extend(standard_callbacks)
-        if scheduler_callback is not None:
-            if not any(
-                isinstance(cb, type(scheduler_callback)) for cb in self.callbacks
-            ):
-                self.callbacks.append(scheduler_callback)
+        if scheduler_callback is not None and not any(
+            isinstance(cb, type(scheduler_callback)) for cb in self.callbacks
+        ):
+            self.callbacks.append(scheduler_callback)
 
         self.callbacks.sort(key=lambda cb: getattr(cb, "priority", 100))
         self._pass_context_to_callbacks()

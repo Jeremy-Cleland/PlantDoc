@@ -3,7 +3,7 @@ Utility for saving visualization data from model evaluation.
 """
 
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import List, Optional
 
 import numpy as np
 import torch
@@ -77,7 +77,7 @@ def save_attention_maps(
 
             # Forward pass
             if hasattr(model, "return_attention") and callable(
-                getattr(model, "return_attention")
+                model.return_attention
             ):
                 # Use return_attention=True flag if available
                 outputs = model(inputs, return_attention=True)
@@ -103,7 +103,7 @@ def save_attention_maps(
             # If attention_maps not in outputs, try to get them from model attributes
             if attention_maps is None:
                 if hasattr(model, "get_attention_maps") and callable(
-                    getattr(model, "get_attention_maps")
+                    model.get_attention_maps
                 ):
                     attention_maps = model.get_attention_maps()
                 elif hasattr(model, "attention_maps"):

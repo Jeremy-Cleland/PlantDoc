@@ -305,7 +305,7 @@ class CombinedLoss(nn.Module):
         """
         total_loss = 0.0
 
-        for i, (loss_fn, weight) in enumerate(zip(self.loss_fns, self.loss_weights)):
+        for _i, (loss_fn, weight) in enumerate(zip(self.loss_fns, self.loss_weights)):
             if isinstance(loss_fn, CenterLoss):
                 if features is not None:
                     loss = loss_fn(features, targets)

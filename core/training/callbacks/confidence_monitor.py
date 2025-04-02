@@ -74,11 +74,10 @@ class ConfidenceMonitorCallback(Callback):
 
         # Check if we're in fine-tuning mode (backbone is unfrozen)
         is_fine_tuning = logs.get("is_fine_tuning", True)  # Default to True to compute metrics
-        if not is_fine_tuning:
-            if batch == 0 and logs.get("is_validation", False):
-                logger.debug(
-                    "ConfidenceMonitor: Processing batch during frozen backbone phase"
-                )
+        if not is_fine_tuning and batch == 0 and logs.get("is_validation", False):
+            logger.debug(
+                "ConfidenceMonitor: Processing batch during frozen backbone phase"
+            )
 
         is_validation = logs.get("val_phase", False) or logs.get("is_validation", False)
         if not is_validation:
@@ -229,5 +228,5 @@ class ConfidenceMonitorCallback(Callback):
 
         return {
             c: {"mean": np.mean(pc[c]) if pc[c] else 0.0, "count": len(pc[c])}
-            for c in sorted(list(targets_seen))
+            for c in sorted(targets_seen)
         }

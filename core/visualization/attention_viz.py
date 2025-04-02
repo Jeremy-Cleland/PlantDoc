@@ -795,7 +795,7 @@ def generate_attention_report(
             ax.tick_params(axis="y", colors=theme["text_color"])
 
             # Add value annotations for the top channels
-            for i, bar in enumerate(bars[:10]):  # Annotate just the top 10
+            for _i, bar in enumerate(bars[:10]):  # Annotate just the top 10
                 height = bar.get_height()
                 ax.text(
                     bar.get_x() + bar.get_width() / 2.0,
@@ -808,7 +808,7 @@ def generate_attention_report(
                 )
 
             # Highlight the most important channels
-            for i, bar in enumerate(bars[:5]):  # Highlight top 5 channels
+            for _i, bar in enumerate(bars[:5]):  # Highlight top 5 channels
                 bar.set_edgecolor(theme["main_color"])
                 bar.set_linewidth(1.5)
 
@@ -1093,16 +1093,15 @@ class CBAMVisualizer:
         if hasattr(self.model, "input_size"):
             try:
                 input_size = self.model.input_size
-                if isinstance(input_size, (list, tuple)) and len(input_size) == 2:
-                    if image.shape[2:] != tuple(input_size):
-                        logger.info(
-                            f"Resizing image from {image.shape[2:]} to {input_size}"
-                        )
-                        import torch.nn.functional as F
+                if isinstance(input_size, (list, tuple)) and len(input_size) == 2 and image.shape[2:] != tuple(input_size):
+                    logger.info(
+                        f"Resizing image from {image.shape[2:]} to {input_size}"
+                    )
+                    import torch.nn.functional as F
 
-                        image = F.interpolate(
-                            image, size=input_size, mode="bilinear", align_corners=False
-                        )
+                    image = F.interpolate(
+                        image, size=input_size, mode="bilinear", align_corners=False
+                    )
             except Exception as e:
                 logger.warning(f"Error resizing image: {e}")
 

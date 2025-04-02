@@ -136,7 +136,7 @@ def load_confusion_matrix(experiment_dir: Union[str, Path]) -> Optional[np.ndarr
     ]
 
     # Log all paths being checked
-    logger.info(f"Looking for confusion matrix in the following locations:")
+    logger.info("Looking for confusion matrix in the following locations:")
     for path in possible_paths:
         logger.info(f"  - {path}")
         if path.exists():
@@ -428,6 +428,82 @@ def plot_learning_rate_from_history(
     )
 
     logger.info(f"Saved learning rate plot to {output_path}")
+
+
+def normalize_image_for_display(image_array: np.ndarray) -> np.ndarray:
+    """
+    Convert various image formats to a consistent numpy array format for display.
+
+    Args:
+        image_array: Image data in various formats
+
+    Returns:
+        Image as a numpy array in HWC format with values in [0, 255] as uint8
+    """
+    # Check if the input is valid
+    if image_array is None or not isinstance(image_array, np.ndarray):
+        logger.error(f"Invalid image data type: {type(image_array)}")
+        return np.zeros((224, 224, 3), dtype=np.uint8)
+
+    # Check for empty arrays
+    if image_array.size == 0:
+        logger.error("Empty image array")
+        return np.zeros((224, 224, 3), dtype=np.uint8)
+
+    # Handle channel dimensions
+    if len(image_array.shape) == 4:
+        if image_array.shape[0] == 1:  # Batch dimension of 1
+            image_array = image_array[0]
+        else:
+            logger.warning(
+                f"Unexpected batch dimension: {image_array.shape}, taking first image"
+            )
+            image_array = image_array[0]
+
+    # Convert from CHW to HWC if needed
+    if len(image_array.shape) == 3 and image_array.shape[0] in [1, 3, 4]:
+        image_array = np.transpose(image_array, (1, 2, 0))
+
+    # Ensure three channels (convert grayscale to RGB)
+    if len(image_array.shape) == 2:
+        image_array = np.stack([image_array] * 3, axis=-1)
+    elif len(image_array.shape) == 3 and image_array.shape[2] == 1:
+        image_array = np.concatenate([image_array] * 3, axis=2)
+
+    # Handle 4 channels (RGBA) - discard alpha
+    if len(image_array.shape) == 3 and image_array.shape[2] == 4:
+        image_array = image_array[:, :, :3]
+
+    # Normalize values to 0-255 range
+    if image_array.dtype == np.float32 or image_array.dtype == np.float64:
+        # Check if normalized between 0 and 1
+        if np.max(image_array) <= 1.0:
+            image_array = (image_array * 255).astype(np.uint8)
+        # Check if normalized with ImageNet stats
+        elif np.min(image_array) < 0:
+            # Approximately reverse ImageNet normalization
+            mean = np.array([0.485, 0.456, 0.406])
+            std = np.array([0.229, 0.224, 0.225])
+
+            # Handle both HWC and CHW formats
+            if image_array.shape[2] == 3:  # HWC
+                for i in range(3):
+                    image_array[:, :, i] = image_array[:, :, i] * std[i] + mean[i]
+            else:  # Assume CHW
+                for i in range(3):
+                    image_array[i] = image_array[i] * std[i] + mean[i]
+
+            image_array = np.clip(image_array, 0, 1)
+            image_array = (image_array * 255).astype(np.uint8)
+        else:
+            # Just clip and convert to uint8
+            image_array = np.clip(image_array, 0, 255).astype(np.uint8)
+
+    # Ensure uint8 type for cv2/PIL compatibility
+    if image_array.dtype != np.uint8:
+        image_array = image_array.astype(np.uint8)
+
+    return image_array
 
 
 def plot_top_misclassifications(
@@ -771,7 +847,6 @@ def plot_embeddings(
         theme: Visualization theme configuration
     """
     import matplotlib.pyplot as plt
-    from matplotlib.colors import to_rgba
 
     # Set plot style
     apply_theme(theme)
@@ -920,7 +995,6 @@ def plot_attention_maps(
         max_samples: Maximum number of samples to visualize
         theme: Visualization theme configuration
     """
-    import matplotlib.cm as cm
     import matplotlib.pyplot as plt
     from matplotlib.colors import Normalize
 
@@ -946,7 +1020,7 @@ def plot_attention_maps(
     confidences = attention_data.get("confidences", np.ones_like(true_labels))
 
     # Get original images if available
-    original_images = attention_data.get("original_images", None)
+    original_images = attention_data.get("original_images")
 
     # Determine number of samples to visualize
     num_samples = min(max_samples, len(attention_maps))
@@ -994,7 +1068,6 @@ def plot_attention_maps(
             fig.colorbar(im, ax=ax1, fraction=0.046, pad=0.04)
 
             # Plot 3D surface
-            from mpl_toolkits.mplot3d import Axes3D
 
             ax2 = fig.add_subplot(1, 2, 2, projection="3d")
 
@@ -1150,7 +1223,7 @@ def generate_plots(
         not direct_evaluation_artifacts_dir.exists()
         and metrics_evaluation_artifacts_dir.exists()
     ):
-        logger.info(f"Using evaluation artifacts from metrics subdirectory")
+        logger.info("Using evaluation artifacts from metrics subdirectory")
         evaluation_artifacts_dir = metrics_evaluation_artifacts_dir
 
     logger.info(f"Using evaluation artifacts directory: {evaluation_artifacts_dir}")

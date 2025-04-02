@@ -338,7 +338,7 @@ def plot_class_metrics(
     # Extract class metrics
     class_metrics = {}
 
-    for class_idx, class_name in enumerate(class_names):
+    for _class_idx, class_name in enumerate(class_names):
         class_metrics[class_name] = {}
         for metric in metrics_to_plot:
             metric_key = f"class_{class_name.replace(' ', '_')}_{metric}"

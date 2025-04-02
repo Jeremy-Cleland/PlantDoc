@@ -270,7 +270,7 @@ def configure_logging(cfg) -> logging.Logger:
 
     # Set a higher flush frequency for all handlers
     def flush_all_loggers():
-        for name, logger_instance in _LOGGERS.items():
+        for _name, logger_instance in _LOGGERS.items():
             for handler in logger_instance.handlers:
                 handler.flush()
 

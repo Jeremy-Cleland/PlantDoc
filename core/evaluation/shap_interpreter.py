@@ -150,9 +150,10 @@ class SHAPInterpreter:
                     # Forward pass
                     return self.model(x)
 
-                # Create explainer with the wrapped model
+                # Create explainer with the model itself, not the wrapper function
+                # This is the key fix - SHAP expects a model object, not a function
                 self.explainer = shap.DeepExplainer(
-                    model=model_wrapper, data=background_data
+                    model=self.model, data=background_data
                 )
             else:
                 logger.info("Using KernelExplainer as fallback")

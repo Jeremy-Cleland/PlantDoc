@@ -553,16 +553,6 @@ class MetricsLogger(Callback):
                 np.save(cm_path, np.array(confusion_matrix))
                 logger.info(f"Saved confusion matrix to {cm_path}")
 
-                # Also save a copy in the legacy location for backward compatibility
-                legacy_cm_path = (
-                    metrics_dir / "evaluation_artifacts" / "confusion_matrix.npy"
-                )
-                ensure_dir(metrics_dir / "evaluation_artifacts")
-                np.save(legacy_cm_path, np.array(confusion_matrix))
-                logger.info(
-                    f"Also saved confusion matrix to legacy location {legacy_cm_path} for backward compatibility"
-                )
-
         except Exception as e:
             import traceback
 

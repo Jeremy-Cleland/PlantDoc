@@ -200,7 +200,7 @@ def plot_precision_recall_curve(
     all_ap_scores = []
 
     # Calculate PR curve for each class
-    for i, class_idx in enumerate(unique_classes):
+    for _i, class_idx in enumerate(unique_classes):
         # Convert to binary classification problem (one-vs-rest)
         binary_y_true = (y_true_indices == class_idx).astype(int)
 
@@ -415,7 +415,7 @@ def plot_roc_curve(
     all_auc_scores = []
 
     # Calculate ROC curve for each class
-    for i, class_idx in enumerate(unique_classes):
+    for _i, class_idx in enumerate(unique_classes):
         # Convert to binary classification problem (one-vs-rest)
         binary_y_true = (y_true_indices == class_idx).astype(int)
 
@@ -2131,7 +2131,7 @@ def create_analysis_dashboard(
     )
 
     # Add value labels
-    for i, bar in enumerate(bars):
+    for _i, bar in enumerate(bars):
         width = bar.get_width()
         ax1.text(
             width + 0.5,
@@ -2397,7 +2397,7 @@ def plot_hierarchical_clustering(
     )
 
     # Adjust leaf colors
-    for i, leaf_color in enumerate(leaf_colors):
+    for _i, leaf_color in enumerate(leaf_colors):
         ax.tick_params(axis="x", colors=leaf_color, which="major")
 
     # Set title and labels
@@ -2709,22 +2709,6 @@ def plot_categorical(
 
     return fig
 
-
-"""
-Augmentation grid visualization for data augmentation examples.
-"""
-
-from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
-
-import numpy as np
-from matplotlib.figure import Figure
-
-# Import from visualization module
-from core.visualization.base_visualization import DEFAULT_THEME, apply_dark_theme
-from utils.logger import get_logger
-
-logger = get_logger(__name__)
 
 
 def create_augmentation_grid(

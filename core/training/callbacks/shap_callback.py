@@ -5,7 +5,6 @@ SHAP callback for model interpretability after training.
 """
 
 import os
-from pathlib import Path
 from typing import Any, Dict, Optional
 
 import torch
@@ -191,7 +190,7 @@ class SHAPCallback(Callback):
                                     dataset, batch_size=16, shuffle=False
                                 )
                                 logger.info(
-                                    f"Created dataloader from sample batch for SHAP analysis"
+                                    "Created dataloader from sample batch for SHAP analysis"
                                 )
                 except Exception as e:
                     logger.warning(f"Could not create dataloader from sample: {e}")

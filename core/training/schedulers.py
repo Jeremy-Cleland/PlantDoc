@@ -113,8 +113,8 @@ def get_scheduler_with_callback(
         return None, None
 
     # Determine the correct step_mode for the callback
-    scheduler_name = cfg.get("name", "").lower()
-    if scheduler_name == "reduce_on_plateau":
+    scheduler_name = cfg.get("name", "").lower().replace("_", "").replace("-", "")
+    if scheduler_name in ["reduceonplateau", "reducelronplateau"]:
         step_mode = "epoch"  # Plateau MUST step per epoch
     else:
         step_mode = cfg.get("step_mode", "epoch")  # Default to epoch otherwise
