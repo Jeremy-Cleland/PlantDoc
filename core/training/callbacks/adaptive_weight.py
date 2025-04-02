@@ -122,8 +122,8 @@ class AdaptiveWeightAdjustmentCallback(Callback):
         # --- Find Loss Components ---
         criterion = logs.get("criterion")
         if criterion is None:
-            logger.warning(
-                "AdaptiveWeightAdjustment: 'criterion' not found in logs. Cannot find loss components."
+            logger.info(
+                "AdaptiveWeightAdjustment: 'criterion' not found in logs. This is normal during the initial phase."
             )
             self._found_components = True
             return
@@ -179,11 +179,13 @@ class AdaptiveWeightAdjustmentCallback(Callback):
                     )
 
         if self._focal_loss_criterion is None:
-            logger.info(
-                "AdaptiveWeightAdjustment: No Focal Loss component with 'gamma' found."
+            logger.debug(
+                "AdaptiveWeightAdjustment: No Focal Loss component found (using standard loss functions)."
             )
         if self._center_loss_criterion is None:
-            logger.info("AdaptiveWeightAdjustment: No CenterLoss component found.")
+            logger.debug(
+                "AdaptiveWeightAdjustment: No CenterLoss component found (using standard loss functions)."
+            )
 
         self._found_components = True  # Mark search complete
 
@@ -196,9 +198,18 @@ class AdaptiveWeightAdjustmentCallback(Callback):
     def on_epoch_end(self, epoch: int, logs: Optional[Dict[str, Any]] = None) -> None:
         """Perform weight adjustments based on confidence."""
         epoch_1based = epoch + 1
+        logs = logs or {}
+
+        # Skip during frozen backbone phase
+        is_fine_tuning = logs.get("is_fine_tuning", False)
+        if not is_fine_tuning:
+            logger.info(
+                f"AdaptiveWeightAdjustment (Epoch {epoch_1based}): Skipping weight adjustments during frozen backbone phase."
+            )
+            return
 
         # Ensure components are found (might happen on first epoch_end if not in train_begin logs)
-        if not self._found_components and logs:
+        if not self._found_components:
             self._find_components(logs)
 
         # Check frequency and required components
@@ -207,6 +218,10 @@ class AdaptiveWeightAdjustmentCallback(Callback):
         if self.confidence_callback is None:
             return  # Already warned if missing
         if self._focal_loss_criterion is None and self._center_loss_criterion is None:
+            logger.info(
+                f"AdaptiveWeightAdjustment (Epoch {epoch_1based}): No adjustable loss components found. "
+                "This is normal when using standard CrossEntropyLoss without Focal or Center loss."
+            )
             return
 
         # Check confidence history

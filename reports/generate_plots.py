@@ -25,6 +25,7 @@ from utils.paths import ensure_dir
 try:
     from core.visualization.visualization import (
         create_classification_examples_grid,
+        plot_categorical,
         plot_class_performance,
         plot_confidence_distribution,
         plot_distribution,
@@ -655,9 +656,9 @@ def generate_plots_for_report(
 
             # Plot distribution of class predictions
             class_counts = np.bincount(pred_classes, minlength=len(class_names))
-            plot_distribution(
+            plot_categorical(
                 data=class_counts,
-                labels=class_names,
+                categories=class_names,
                 output_path=output_dir / "prediction_distribution.png",
                 theme=theme,
                 title="Prediction Distribution",

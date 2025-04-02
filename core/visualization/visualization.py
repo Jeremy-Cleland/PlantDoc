@@ -2297,3 +2297,122 @@ def plot_similarity_matrix(
         logger.info(f"Saved similarity matrix plot to {output_path}")
 
     return fig
+
+
+def plot_categorical(
+    data: np.ndarray,
+    categories: List[str],
+    output_path: Optional[Union[str, Path]] = None,
+    figsize: Tuple[int, int] = (12, 8),
+    title: str = "Category Counts",
+    xlabel: str = "Category",
+    ylabel: str = "Count",
+    kind: str = "bar",
+    theme: Optional[Dict] = None,
+) -> Figure:
+    """
+    Create a plot for categorical data showing counts per category.
+
+    Args:
+        data: Array of counts per category
+        categories: List of category names
+        output_path: Path to save the figure
+        figsize: Figure size
+        title: Plot title
+        xlabel: X-axis label
+        ylabel: Y-axis label
+        kind: Plot type ('bar' or 'pie')
+        theme: Theme settings to apply (uses DEFAULT_THEME if None)
+
+    Returns:
+        Matplotlib figure
+    """
+    # Apply theme
+    theme = theme or DEFAULT_THEME
+    apply_dark_theme(theme)
+
+    # Create figure
+    fig, ax = plt.subplots(figsize=figsize, facecolor=theme["background_color"])
+    ax.set_facecolor(theme["background_color"])
+
+    # Create DataFrame for easier plotting
+    df = pd.DataFrame(
+        {"Category": categories[: len(data)], "Count": data[: len(categories)]}
+    )
+
+    # Sort by count in descending order
+    df = df.sort_values("Count", ascending=False)
+
+    # Plot based on kind
+    if kind.lower() == "pie":
+        # Create pie chart
+        ax.pie(
+            df["Count"],
+            labels=df["Category"],
+            autopct="%1.1f%%",
+            colors=[
+                theme["bar_colors"][i % len(theme["bar_colors"])]
+                for i in range(len(df))
+            ],
+            textprops={"color": theme["text_color"]},
+            wedgeprops={"linewidth": 1, "edgecolor": theme["background_color"]},
+        )
+        ax.set_title(title, color=theme["text_color"])
+
+    else:  # Default to bar
+        # Create bar chart
+        bars = ax.bar(
+            df["Category"],
+            df["Count"],
+            color=[
+                theme["bar_colors"][i % len(theme["bar_colors"])]
+                for i in range(len(df))
+            ],
+            width=0.7,
+            alpha=0.8,
+            edgecolor=theme["grid_color"],
+        )
+
+        # Add value labels on top of bars
+        for bar in bars:
+            height = bar.get_height()
+            ax.annotate(
+                f"{height}",
+                xy=(bar.get_x() + bar.get_width() / 2, height),
+                xytext=(0, 3),  # 3 points vertical offset
+                textcoords="offset points",
+                ha="center",
+                va="bottom",
+                color=theme["text_color"],
+            )
+
+        # Set title and labels
+        ax.set_title(title, color=theme["text_color"])
+        ax.set_xlabel(xlabel, color=theme["text_color"])
+        ax.set_ylabel(ylabel, color=theme["text_color"])
+
+        # Add grid
+        ax.grid(True, linestyle="--", alpha=0.3, color=theme["grid_color"], axis="y")
+
+        # Customize tick colors
+        ax.tick_params(colors=theme["text_color"])
+
+        # Rotate x-axis labels if we have many categories
+        if len(categories) > 5:
+            plt.xticks(rotation=45, ha="right")
+
+    plt.tight_layout()
+
+    # Save figure if output path provided
+    if output_path:
+        output_path = Path(output_path)
+        ensure_dir(output_path.parent)
+        plt.savefig(
+            output_path,
+            dpi=300,
+            bbox_inches="tight",
+            facecolor=theme["background_color"],
+        )
+        logger.info(f"Saved categorical plot to {output_path}")
+
+    return fig

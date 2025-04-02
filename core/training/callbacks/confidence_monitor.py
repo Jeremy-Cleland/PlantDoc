@@ -71,6 +71,16 @@ class ConfidenceMonitorCallback(Callback):
     def on_batch_end(self, batch: int, logs: Optional[Dict[str, Any]] = None) -> None:
         """Collect confidence scores during validation."""
         logs = logs or {}
+
+        # Skip if we're not in fine-tuning mode (backbone is still frozen)
+        is_fine_tuning = logs.get("is_fine_tuning", False)
+        if not is_fine_tuning:
+            if batch == 0 and logs.get("is_validation", False):
+                logger.debug(
+                    "ConfidenceMonitor: Skipping batch during frozen backbone phase"
+                )
+            return
+
         is_validation = logs.get("val_phase", False) or logs.get("is_validation", False)
         if not is_validation:
             return
@@ -103,6 +113,15 @@ class ConfidenceMonitorCallback(Callback):
         """Calculate confidence metrics at the end of validation epochs."""
         logs = logs or {}
         epoch_1based = epoch + 1
+
+        # Skip during frozen backbone phase with appropriate message
+        is_fine_tuning = logs.get("is_fine_tuning", False)
+        if not is_fine_tuning:
+            logger.info(
+                f"ConfidenceMonitor (Epoch {epoch_1based}): Skipping metrics calculation during frozen backbone phase."
+            )
+            return
+
         if epoch_1based % self.monitor_frequency != 0:
             return
         if not self._epoch_scores:

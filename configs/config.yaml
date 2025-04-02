@@ -75,8 +75,8 @@ data:
 
 # DataLoader configuration
 loader:
-  batch_size: 128  # Reduced from 128 for better stability and memory usage
-  num_workers: 6  # Adjusted based on typical hardware constraints
+  batch_size: 256  # Reduced from 128 for better stability and memory usage
+  num_workers: 4 # Adjusted based on typical hardware constraints
   pin_memory: false
   drop_last: false
   prefetch_factor: 6
@@ -227,15 +227,18 @@ optimizer:
 
 # Loss function settings
 loss:
-  name: weighted_cross_entropy  # Options: CrossEntropyLoss, WeightedCrossEntropyLoss
-  reduction: mean  # Options: mean, sum, none
-  label_smoothing: 0.1  # Rounded to 0.1 for better regularization
-  weights: null  # Class weights (null means auto-calculate or none)
-  class_weighted: true  # Whether to use class weights
-  weight_mode: sqrt_inv  # Options: inv, sqrt_inv, effective
-  gamma: 2.0  # Rounded to 2.0 (common value for focal loss)
-  alpha: 0.5  # Rounded to 0.5 for balance
-  lambda_c: 0.001  # Simplified value
+  name: combined  # Using combined loss to include focal loss
+  components:
+    - name: weighted_cross_entropy
+      weight: 1.0
+      reduction: mean
+      label_smoothing: 0.1
+    - name: focal  # Adding focal loss component for AdaptiveWeightAdjustmentCallback
+      weight: 0.5
+      gamma: 2.0  # This will be adaptively adjusted
+      alpha: 0.25
+      reduction: mean
+      label_smoothing: 0.0
 
 # Learning rate scheduler
 scheduler:
@@ -256,10 +259,10 @@ scheduler:
 # Training configuration
 training:
   epochs: 10
-  batch_size: 128 
+  batch_size: 256 
   learning_rate: 0.001  # Simplified from scientific notation
   weight_decay: 2e-5  # Simplified from scientific notation
-  deterministic: false
+  deterministic: true
   use_mixed_precision: true  # Enable mixed precision training
   gradient_clip_val: 1.0
   precision: "float16"  # Match hardware precision setting

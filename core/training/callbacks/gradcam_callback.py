@@ -131,8 +131,9 @@ class GradCAMCallback(Callback):
         """Generate GradCAM visualizations at the end of specified epochs."""
         logs = logs or {}
 
-        # Skip GradCAM generation during initial frozen epochs
-        if epoch < self.initial_frozen_epochs:
+        # Skip GradCAM generation if not in fine-tuning mode
+        is_fine_tuning = logs.get("is_fine_tuning", False)
+        if not is_fine_tuning:
             logger.info(f"Skipping GradCAM for epoch {epoch + 1} (backbone frozen).")
             return
 
