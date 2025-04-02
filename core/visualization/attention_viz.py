@@ -31,7 +31,10 @@ def _to_numpy(tensor: torch.Tensor) -> np.ndarray:
     Returns:
         Numpy array
     """
-    if tensor.is_cuda:
+    # Check for MPS device and move to CPU first
+    if tensor.device.type == "mps":
+        tensor = tensor.cpu()
+    elif tensor.is_cuda:
         tensor = tensor.cpu()
     if tensor.requires_grad:
         tensor = tensor.detach()
@@ -227,10 +230,27 @@ def visualize_attention_overlay(
 
     # Resize attention map to match image size
     if attention_map.shape != image.shape[:2]:
-        # Create temporary PIL image
-        attn_pil = Image.fromarray((attention_map * 255).astype(np.uint8))
-        attn_pil = attn_pil.resize((image.shape[1], image.shape[0]), Image.BICUBIC)
-        attention_map = np.array(attn_pil) / 255.0
+        try:
+            # Convert to PIL for proper resizing
+            attn_pil = Image.fromarray(
+                (attention_map * 255).astype(np.uint8)
+                if attention_map.max() <= 1.0
+                else attention_map.astype(np.uint8)
+            )
+            attn_pil = attn_pil.resize((image.shape[1], image.shape[0]), Image.BICUBIC)
+            attention_map = np.array(attn_pil)
+            if attention_map.max() > 1.0:
+                attention_map = attention_map / 255.0
+        except Exception as e:
+            # Fallback to simple interpolation
+            logger.warning(f"Error during attention map resizing with PIL: {e}")
+            import cv2
+
+            attention_map = cv2.resize(
+                attention_map,
+                (image.shape[1], image.shape[0]),
+                interpolation=cv2.INTER_CUBIC,
+            )
 
     # Create figure
     fig, axes = plt.subplots(1, 3, figsize=figsize)
@@ -476,6 +496,12 @@ def generate_attention_report(
     # Ensure output directory exists
     output_dir = Path(output_dir)
     ensure_dir(output_dir)
+
+    # Move the model to CPU if it was on MPS to avoid device issues
+    device = next(model.parameters()).device
+    if device.type == "mps":
+        model = model.cpu()
+        image = image.cpu()
 
     # Extract model name from the model instance
     model_name = model.__class__.__name__
@@ -1084,4 +1110,12 @@ class CBAMVisualizer:
                 logger.error("Model does not support attention map extraction")
                 return {}
 
-        return attention_maps
+        # Move attention maps to CPU to avoid device issues
+        cpu_attention_maps = {}
+        for name, attn_map in attention_maps.items():
+            if isinstance(attn_map, torch.Tensor):
+                cpu_attention_maps[name] = attn_map.cpu()
+            else:
+                cpu_attention_maps[name] = attn_map
+
+        return cpu_attention_maps

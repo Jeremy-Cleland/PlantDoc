@@ -406,11 +406,11 @@ def generate_report(
         logger.info(f"Found {len(augmentation_plots)} augmentation examples")
 
     # Load data
-    metrics_path = experiment_dir / "metrics.json"
+    metrics_path = experiment_dir / "metrics" / "metrics.json"
     training_metrics_path = experiment_dir / "metrics" / "training_metrics.json"
     training_params_path = experiment_dir / "metrics" / "training_params.json"
     config_path = experiment_dir / "config.yaml"
-    history_path = experiment_dir / "history.json"
+    history_path = experiment_dir / "metrics" / "history.json"
     class_names_path = experiment_dir / "class_names.txt"
     model_path = experiment_dir / "checkpoints" / "best_model.pth"
 

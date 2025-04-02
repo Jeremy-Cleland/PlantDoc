@@ -127,17 +127,24 @@ def load_confusion_matrix(experiment_dir: Union[str, Path]) -> Optional[np.ndarr
     Returns:
         Confusion matrix as numpy array, or None if not found
     """
-    cm_path = Path(experiment_dir) / "confusion_matrix.npy"
+    experiment_dir = Path(experiment_dir)
 
-    if not cm_path.exists():
-        logger.warning(f"No confusion matrix file found in {experiment_dir}")
-        return None
+    # Try different possible locations for the confusion matrix
+    possible_paths = [
+        experiment_dir / "confusion_matrix.npy",
+        experiment_dir / "metrics" / "confusion_matrix.npy",
+    ]
 
-    try:
-        return np.load(cm_path)
-    except Exception as e:
-        logger.error(f"Failed to load confusion matrix from {cm_path}: {e}")
-        return None
+    for cm_path in possible_paths:
+        if cm_path.exists():
+            try:
+                return np.load(cm_path)
+            except Exception as e:
+                logger.error(f"Failed to load confusion matrix from {cm_path}: {e}")
+
+    # If we get here, no valid confusion matrix was found
+    logger.warning(f"No confusion matrix file found in {experiment_dir}")
+    return None
 
 
 def load_class_names(experiment_dir: Union[str, Path]) -> List[str]:
@@ -461,6 +468,25 @@ def generate_plots_for_report(
     attention_visualizations_path = experiment_dir / "attention_visualizations"
     shap_visualizations_path = experiment_dir / "shap_visualizations"
 
+    # Check for alternative file locations in metrics directory
+    metrics_dir = experiment_dir / "metrics"
+    if metrics_dir.exists():
+        if not features_path.exists() and (metrics_dir / "features.npy").exists():
+            features_path = metrics_dir / "features.npy"
+            logger.info(f"Using features from metrics directory: {features_path}")
+
+        if not true_labels_path.exists() and (metrics_dir / "true_labels.npy").exists():
+            true_labels_path = metrics_dir / "true_labels.npy"
+            logger.info(f"Using true labels from metrics directory: {true_labels_path}")
+
+        if not predictions_path.exists() and (metrics_dir / "predictions.npy").exists():
+            predictions_path = metrics_dir / "predictions.npy"
+            logger.info(f"Using predictions from metrics directory: {predictions_path}")
+
+        if not scores_path.exists() and (metrics_dir / "scores.npy").exists():
+            scores_path = metrics_dir / "scores.npy"
+            logger.info(f"Using scores from metrics directory: {scores_path}")
+
     has_predictions = predictions_path.exists()
     has_features = features_path.exists()
     has_true_labels = true_labels_path.exists()
@@ -654,35 +680,55 @@ def generate_plots_for_report(
             and len(class_names) > 0
         ):
             try:
-                # Convert predictions to class indices if needed
-                if predictions.ndim > 1 and predictions.shape[1] > 1:
-                    pred_indices = np.argmax(predictions, axis=1)
+                # Check for size mismatch between images and labels
+                if len(test_images) != len(true_labels):
+                    logger.warning(
+                        f"Size mismatch: test_images ({len(test_images)}) vs true_labels ({len(true_labels)}). "
+                        f"Using only the available images."
+                    )
+                    # Limit the number of labels to match the number of images
+                    limited_true_labels = true_labels[: len(test_images)]
+                    limited_predictions = predictions[: len(test_images)]
                 else:
-                    pred_indices = predictions.astype(int)
+                    limited_true_labels = true_labels
+                    limited_predictions = predictions
+
+                # Convert predictions to class indices if needed
+                if limited_predictions.ndim > 1 and limited_predictions.shape[1] > 1:
+                    pred_indices = np.argmax(limited_predictions, axis=1)
+                else:
+                    pred_indices = limited_predictions.astype(int)
 
                 # Create classification examples grid
                 create_classification_examples_grid(
                     images=test_images,
-                    true_labels=true_labels,
-                    pred_labels=predictions,
+                    true_labels=limited_true_labels,
+                    pred_labels=limited_predictions,
                     class_names=class_names,
                     output_path=output_dir / "classification_examples.png",
                     theme=theme,
-                    max_examples=20,
+                    max_examples=min(
+                        20, len(test_images)
+                    ),  # Ensure max_examples doesn't exceed actual images
                     separate_correct_incorrect=True,
                 )
                 logger.info("Generated classification examples grid")
             except Exception as e:
                 logger.error(f"Failed to generate classification examples grid: {e}")
+                logger.exception("Detailed traceback:")
 
         # Augmentation visualization using the new function
         if has_test_images:
             try:
+                # Import PIL libraries for image manipulation
+                import PIL.Image
+                from PIL import ImageEnhance, ImageFilter
+
                 # Select a sample image from the test set
                 sample_idx = np.random.randint(0, len(test_images))
                 original_img = test_images[sample_idx]
 
-                # Create augmentation examples
+                # Create augmented versions
                 augmented_images = []
                 augmentation_names = [
                     "Horizontal Flip",
@@ -695,16 +741,21 @@ def generate_plots_for_report(
                     "Color Jitter",
                 ]
 
-                # Apply some basic augmentations using PIL
-                import PIL.Image
-                from PIL import ImageEnhance, ImageFilter
-
                 # Convert to PIL image for easier manipulation
                 if original_img.dtype == np.float32 or original_img.max() <= 1.0:
+                    # Convert from PyTorch format (C,H,W) to PIL format if needed
+                    if original_img.shape[0] == 3 and len(original_img.shape) == 3:
+                        # Handle PyTorch format (C,H,W) -> (H,W,C)
+                        original_img = np.transpose(original_img, (1, 2, 0))
+
                     original_img_pil = PIL.Image.fromarray(
                         (original_img * 255).astype(np.uint8)
                     )
                 else:
+                    # Handle PyTorch format (C,H,W) -> (H,W,C) if needed
+                    if original_img.shape[0] == 3 and len(original_img.shape) == 3:
+                        original_img = np.transpose(original_img, (1, 2, 0))
+
                     original_img_pil = PIL.Image.fromarray(
                         original_img.astype(np.uint8)
                     )
@@ -766,6 +817,87 @@ def generate_plots_for_report(
                 logger.info("Generated augmentation visualization grid")
             except Exception as e:
                 logger.error(f"Failed to generate augmentation visualization: {e}")
+
+        # Feature space visualization if features are available
+        if has_features and has_true_labels and len(class_names) > 0:
+            try:
+                # Create feature space visualizations directory
+                feature_space_dir = output_dir / "feature_space"
+                ensure_dir(feature_space_dir)
+
+                # Check shapes and prepare data
+                logger.info(f"Features shape: {features.shape}")
+                if true_labels.ndim > 1:  # One-hot encoded
+                    true_indices = np.argmax(true_labels, axis=1)
+                else:
+                    true_indices = true_labels.flatten()
+
+                # Check if features and labels have the same number of samples
+                if len(features) != len(true_indices):
+                    logger.warning(
+                        f"Size mismatch: features ({len(features)}) vs labels ({len(true_indices)}). "
+                        f"Unable to generate feature space visualizations."
+                    )
+                else:
+                    # Limit number of samples for visualization if needed
+                    max_samples = 5000  # Limit for t-SNE and UMAP processing
+                    if len(features) > max_samples:
+                        logger.info(
+                            f"Limiting feature visualization to {max_samples} samples"
+                        )
+                        # Random sample to avoid class imbalance
+                        indices = np.random.choice(
+                            len(features), max_samples, replace=False
+                        )
+                        vis_features = features[indices]
+                        vis_labels = true_indices[indices]
+                    else:
+                        vis_features = features
+                        vis_labels = true_indices
+
+                    # Generate feature space visualization with PCA
+                    plot_feature_space(
+                        features=vis_features,
+                        labels=vis_labels,
+                        class_names=class_names,
+                        output_path=feature_space_dir / "feature_space_pca.png",
+                        theme=theme,
+                        reduction_method="pca",  # Use PCA for the general feature space visualization
+                    )
+                    logger.info("Generated PCA feature space visualization")
+
+                    # Generate t-SNE visualization
+                    plot_tsne_visualization(
+                        features=vis_features,
+                        labels=vis_labels,
+                        class_names=class_names,
+                        output_path=feature_space_dir / "tsne_visualization.png",
+                        theme=theme,
+                        perplexity=30,
+                        n_iter=1000,
+                    )
+                    logger.info("Generated t-SNE visualization")
+
+                    # Try to generate UMAP visualization, but it requires additional dependencies
+                    try:
+                        plot_umap_visualization(
+                            features=vis_features,
+                            labels=vis_labels,
+                            class_names=class_names,
+                            output_path=feature_space_dir / "umap_visualization.png",
+                            theme=theme,
+                            n_neighbors=15,
+                            min_dist=0.1,
+                        )
+                        logger.info("Generated UMAP visualization")
+                    except ImportError:
+                        logger.warning(
+                            "UMAP is not installed. Skipping UMAP visualization."
+                        )
+
+            except Exception as e:
+                logger.error(f"Failed to generate feature space visualizations: {e}")
+                logger.exception("Detailed traceback:")
 
     logger.info("Finished generating plots for report")
 
