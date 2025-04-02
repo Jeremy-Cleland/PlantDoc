@@ -2,7 +2,6 @@
 Building blocks for ResNet architectures with CBAM attention.
 """
 
-
 import torch.nn as nn
 
 # Import the attention modules from the centralized implementation
@@ -35,7 +34,7 @@ class BasicBlock(nn.Module):
         drop_path_prob=0.0,
         spatial_kernel_size=7,
     ):
-        super(BasicBlock, self).__init__()
+        super().__init__()
 
         # Conv blocks
         self.conv1 = nn.Conv2d(
@@ -85,7 +84,14 @@ class BasicBlock(nn.Module):
 
 
 def make_layer(
-    block, inplanes, planes, blocks, stride=1, cbam_reduction=16, drop_path_prob=0.0, spatial_kernel_size=7
+    block,
+    inplanes,
+    planes,
+    blocks,
+    stride=1,
+    cbam_reduction=16,
+    drop_path_prob=0.0,
+    spatial_kernel_size=7,
 ):
     """
     Create a layer of consecutive blocks.
@@ -122,14 +128,30 @@ def make_layer(
 
     # Add first block with potential downsampling
     layers.append(
-        block(inplanes, planes, stride, downsample, cbam_reduction, drop_path_prob, spatial_kernel_size)
+        block(
+            inplanes,
+            planes,
+            stride,
+            downsample,
+            cbam_reduction,
+            drop_path_prob,
+            spatial_kernel_size,
+        )
     )
 
     # Add remaining blocks
     new_inplanes = planes * block.expansion
     for _ in range(1, blocks):
         layers.append(
-            block(new_inplanes, planes, 1, None, cbam_reduction, drop_path_prob, spatial_kernel_size)
+            block(
+                new_inplanes,
+                planes,
+                1,
+                None,
+                cbam_reduction,
+                drop_path_prob,
+                spatial_kernel_size,
+            )
         )
 
     return nn.Sequential(*layers)

@@ -37,8 +37,8 @@ class CBAMResNet(nn.Module):
         in_channels=3,
         spatial_kernel_size=7,
     ):
-        super(CBAMResNet, self).__init__()
-
+        super().__init__()
+        super().__init__()
         self.inplanes = 64
         self.spatial_kernel_size = spatial_kernel_size
 
@@ -144,7 +144,7 @@ class CBAMResNet(nn.Module):
     def get_attention_maps(self):
         """
         Get the collected attention maps.
-        
+
         Returns:
             Dictionary of attention maps
         """
@@ -153,7 +153,7 @@ class CBAMResNet(nn.Module):
     def get_gradcam_target_layer(self):
         """
         Return the target layer for GradCAM visualization.
-        
+
         Returns:
             The appropriate convolutional layer for GradCAM
         """
@@ -211,7 +211,7 @@ class CBAMResNet18Backbone(nn.Module):
         in_channels=3,
         spatial_kernel_size=7,
     ):
-        super(CBAMResNet18Backbone, self).__init__()
+        super().__init__()
 
         # Process regularization parameters
         if regularization is None:
@@ -288,12 +288,14 @@ class CBAMResNet18Backbone(nn.Module):
         def get_channel_attention_hook(name):
             def hook(module, input, output):
                 self._attention_maps[f"{name}_channel"] = output.detach()
+
             return hook
 
         # Function to capture spatial attention maps
         def get_spatial_attention_hook(name):
             def hook(module, input, output):
                 self._attention_maps[f"{name}_spatial"] = output.detach()
+
             return hook
 
         # Register hooks for BasicBlock attention modules
@@ -391,10 +393,10 @@ class CBAMResNet18Backbone(nn.Module):
     def get_attention_maps(self, x=None):
         """
         Get attention maps from the model.
-        
+
         Args:
             x: Optional input tensor to forward through the model first
-            
+
         Returns:
             Dictionary of attention maps from different layers
         """
@@ -408,7 +410,7 @@ class CBAMResNet18Backbone(nn.Module):
     def get_gradcam_target_layer(self):
         """
         Return the target layer for GradCAM visualization.
-        
+
         Returns:
             The appropriate convolutional layer for GradCAM
         """

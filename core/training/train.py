@@ -17,6 +17,7 @@ import random
 import time
 from collections import defaultdict
 from contextlib import nullcontext
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -47,8 +48,6 @@ from .callbacks.utils import get_callbacks
 from .loss import get_loss_fn
 from .optimizers import get_optimizer
 from .schedulers import get_scheduler_with_callback
-
-# --- END TODO ---
 
 logger = get_logger(__name__)
 
@@ -510,9 +509,9 @@ class Trainer:
             "history": dict(self.history),
             "config": self.cfg,
             "class_metrics": class_metrics,
-            "confusion_matrix": confusion_matrix.tolist()
-            if confusion_matrix is not None
-            else None,
+            "confusion_matrix": (
+                confusion_matrix.tolist() if confusion_matrix is not None else None
+            ),
         }
         for callback in self.callbacks:
             callback.on_train_end(final_logs)  # Callbacks might restore weights here
@@ -562,7 +561,11 @@ class Trainer:
                 if inputs is None:
                     continue
                 batch_size = inputs.size(0)
-                batch_logs = {"batch": batch_idx, "size": batch_size}
+                batch_logs = {
+                    "batch": batch_idx,
+                    "size": batch_size,
+                    "is_validation": False,
+                }
                 [cb.on_batch_begin(batch_idx, batch_logs) for cb in self.callbacks]
                 inputs, targets = (
                     inputs.to(self.device, non_blocking=True),
@@ -865,9 +868,9 @@ class Trainer:
             "total_time": time.time() - start_time,
             "history": dict(self.history),
             "class_metrics": class_metrics if class_metrics else None,
-            "confusion_matrix": confusion_matrix.tolist()
-            if confusion_matrix is not None
-            else None,
+            "confusion_matrix": (
+                confusion_matrix.tolist() if confusion_matrix is not None else None
+            ),
         }
 
 
@@ -936,16 +939,18 @@ def train_model(
     Path(cfg.paths.log_dir).mkdir(parents=True, exist_ok=True)
 
     # Create a log file in experiment_dir/logs to ensure it exists
-    log_file = Path(cfg.paths.log_dir) / "train.log"
-    try:
-        # Touch the file to ensure it exists
-        log_file.touch(exist_ok=True)
-        logger.info(f"Initialized log file: {log_file}")
-    except Exception as e:
-        logger.error(f"Error initializing log file: {e}")
+    log_file_name = f"train_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+    cfg.logging.log_file = log_file_name
+    cfg.logging.log_to_file = True
 
-    # Configure logging to use the experiment-specific log file
+    # Ensure experiment dir is used for logging
+    cfg.paths.log_dir = str(experiment_dir / "logs")
+    Path(cfg.paths.log_dir).mkdir(parents=True, exist_ok=True)
+
+    # Configure logging with updated settings
     configure_logging(cfg)
+    logger.info(f"Logging configured to save in: {cfg.paths.log_dir}/{log_file_name}")
+    logger.info(f"Experiment directory: {experiment_dir}")
 
     # Create callbacks if none provided
     if callbacks is None:

@@ -18,6 +18,7 @@ from core.training.callbacks import (
     MetricsLogger,
     ModelCheckpoint,
     SWACallback,
+    VisualizationDataSaver,
 )
 from utils.logger import get_logger
 from utils.paths import ensure_dir
@@ -284,5 +285,40 @@ def get_callbacks(
             adjust_frequency=adapt_config.get("adjust_frequency", 5),
         )
         callbacks.append(adaptive_callback)
+
+    # Add Visualization Data Saver callback
+    if (
+        hasattr(callback_config, "visualization_data_saver")
+        and callback_config.visualization_data_saver.enabled
+    ):
+        logger.info("Adding VisualizationDataSaver callback")
+        vis_config = callback_config.visualization_data_saver
+
+        # Create the callback with settings from config
+        visualization_data_saver = VisualizationDataSaver(
+            experiment_dir=experiment_dir,
+            num_test_images=vis_config.get("num_test_images", 20),
+            model_type=vis_config.get("model_type", "resnet"),
+            save_augmentation_examples=vis_config.get(
+                "save_augmentation_examples", True
+            ),
+        )
+        callbacks.append(visualization_data_saver)
+    else:
+        # Always add the visualization data saver by default, if not explicitly disabled
+        # This ensures we always generate the data files needed for enhanced visualizations
+        if experiment_dir:
+            logger.info("Adding default VisualizationDataSaver callback")
+            visualization_data_saver = VisualizationDataSaver(
+                experiment_dir=experiment_dir,
+                num_test_images=20,
+                model_type=(
+                    getattr(config.model, "name", "resnet").lower()
+                    if hasattr(config, "model")
+                    else "resnet"
+                ),
+                save_augmentation_examples=True,
+            )
+            callbacks.append(visualization_data_saver)
 
     return callbacks

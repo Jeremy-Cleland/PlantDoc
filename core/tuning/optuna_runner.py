@@ -13,9 +13,8 @@ from utils.logger import get_logger
 from utils.seed import set_seed
 
 # Import suggestion functions
-from .search_space import (
+from .search_space import (  # import others...
     suggest_augmentation_params,
-    # import others...
     suggest_model_params,
     suggest_optimizer_params,
 )

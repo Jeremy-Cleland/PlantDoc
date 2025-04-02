@@ -307,7 +307,7 @@ def generate_report(
     Generate a training report for an experiment.
 
     Args:
-        experiment_dir: Directory containing experiment data
+        experiment_dir: Path to experiment directory
         output_dir: Directory to save the report (default: experiment_dir/reports)
         template_name: Name of the template file
         generate_plots: Whether to generate plots for the report
@@ -333,14 +333,37 @@ def generate_report(
         logger.info("Generating plots for report")
         generate_plots_for_report(experiment_dir, plots_dir)
 
+    # Get the list of available plot files for conditional rendering
+    available_plots = []
+    if plots_dir.exists():
+        for plot_file in plots_dir.glob("*.png"):
+            available_plots.append(str(plot_file.relative_to(output_dir)))
+
     # Load data
     metrics_path = experiment_dir / "metrics.json"
+    training_metrics_path = experiment_dir / "metrics" / "training_metrics.json"
     config_path = experiment_dir / "config.yaml"
     history_path = experiment_dir / "history.json"
     class_names_path = experiment_dir / "class_names.txt"
     model_path = experiment_dir / "checkpoints" / "best_model.pth"
 
     metrics = load_metrics(metrics_path)
+
+    # Check for training_metrics.json and merge with existing metrics if found
+    if training_metrics_path.exists():
+        logger.info(f"Found training metrics at {training_metrics_path}")
+        training_metrics = load_metrics(training_metrics_path)
+
+        # Merge detailed training metrics with main metrics
+        # Training metrics may have more detailed information or per-epoch data
+        metrics.update(
+            {
+                k: v
+                for k, v in training_metrics.items()
+                if k not in metrics or k.startswith("class_") or "detailed_" in k
+            }
+        )
+
     config = load_config(config_path)
     history = load_history(history_path)
     class_names = load_class_names(class_names_path)
@@ -356,6 +379,7 @@ def generate_report(
         "class_names": class_names,
         "class_performance": get_class_performance(metrics, class_names),
         "plots_dir": "plots",  # Relative path from output_dir
+        "available_plots": available_plots,  # List of available plot files
     }
 
     # Add history data if available
@@ -428,7 +452,9 @@ def main():
     experiment_dir = Path(args.experiment)
     if not experiment_dir.is_absolute():
         # Try to find in outputs directory
-        outputs_dir = Path(__file__).parents[2] / "outputs"
+        outputs_dir = Path(__file__).parents[1] / "outputs"
+        if not outputs_dir.exists():
+            outputs_dir = Path.cwd() / "outputs"
         experiment_dir = outputs_dir / experiment_dir
 
     # Generate report

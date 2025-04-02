@@ -5,7 +5,6 @@ SWA maintains a running average of model weights during training,
 which can improve generalization and model performance.
 """
 
-import os
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -57,11 +56,9 @@ class SWACallback(Callback):
 
         # External objects (passed by caller or found in logs)
         self.device = kwargs.get(
-            "device", None
+            "device"
         )  # Allow passing device via config as fallback
-        self._swa_model_external = kwargs.get(
-            "swa_model", None
-        )  # Allow passing SWA model
+        self._swa_model_external = kwargs.get("swa_model")  # Allow passing SWA model
 
         # Internal state
         self._swa_model_internal: Optional[AveragedModel] = None

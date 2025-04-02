@@ -56,6 +56,9 @@ def train(
 
     This command trains a model using the specified configuration.
     """
+    # Initialize logger
+    logger = get_logger(__name__)
+
     # Load configuration
     cfg = load_config(config_path, cli_args)
 
@@ -130,8 +133,14 @@ def train(
     # Set absolute path
     cfg.callbacks.model_checkpoint.dirpath = "checkpoints"
 
+    # Initial logger setup for pre-training log messages
+    # (Main logging configuration will happen in train_model)
+    logger = get_logger(__name__)
+
     # Configure logging using experiment-specific log directory
-    configure_logging(cfg)
+    # Note: We don't configure the logging system here because train_model will do that
+    # configure_logging(cfg)
+
     logger.info(f"Starting training with model: {cfg.model.name}")
     logger.info(f"Experiment name: {versioned_experiment_name}")
     logger.info(f"Experiment version: {version}")
@@ -232,12 +241,9 @@ def generate_attention_visualizations(
         checkpoint_path: Path to the best model checkpoint
         n_samples: Number of sample images to visualize
     """
-    import random
     from pathlib import Path
 
     import torch
-    from PIL import Image
-    from torchvision import transforms
 
     from core.visualization.attention_viz import generate_attention_report
 
@@ -254,7 +260,13 @@ def generate_attention_visualizations(
     images_by_class = {}
 
     # Try to get at least one image per class, up to n_samples
-    for images, labels in test_loader:
+    for batch in test_loader:
+        # Handle both dictionary and tuple return types
+        if isinstance(batch, dict):
+            images, labels = batch["image"], batch["label"]
+        else:
+            images, labels = batch
+
         for img, label in zip(images, labels):
             label_idx = label.item()
             label_name = class_names[label_idx]
@@ -270,7 +282,13 @@ def generate_attention_visualizations(
 
     # If we couldn't get samples for all classes, add some random ones to reach n_samples
     if len(images_by_class) < n_samples:
-        for images, labels in test_loader:
+        for batch in test_loader:
+            # Handle both dictionary and tuple return types
+            if isinstance(batch, dict):
+                images, labels = batch["image"], batch["label"]
+            else:
+                images, labels = batch
+
             for img, label in zip(images, labels):
                 label_idx = label.item()
                 label_name = class_names[label_idx]
@@ -549,7 +567,7 @@ def report(
     # Check if experiment directory exists
     if not experiment_dir.exists():
         typer.echo(f"Error: Experiment directory not found: {experiment_dir}")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from None
 
     # Generate report
     generate_report(
@@ -588,7 +606,7 @@ def plots(
     # Check if experiment directory exists
     if not experiment_dir.exists():
         typer.echo(f"Error: Experiment directory not found: {experiment_dir}")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from None
 
     # Generate plots
     generate_plots_for_report(
@@ -907,7 +925,7 @@ def analyze_confidence(
         input_tensor = transform(img).unsqueeze(0)
     except Exception as e:
         logger.error(f"Error loading image: {e}")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from None
 
     # Create data module to get class names
     data_module = PlantDiseaseDataModule(cfg)

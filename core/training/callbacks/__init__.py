@@ -14,6 +14,7 @@ from .lr_scheduler import LearningRateSchedulerCallback
 from .metrics_logger import MetricsLogger
 from .model_checkpoint import ModelCheckpoint
 from .swa import SWACallback
+from .visualization_data_saver import VisualizationDataSaver
 
 __all__ = [
     "Callback",
@@ -25,4 +26,5 @@ __all__ = [
     "ConfidenceMonitorCallback",
     "SWACallback",
     "AdaptiveWeightAdjustmentCallback",
+    "VisualizationDataSaver",
 ]

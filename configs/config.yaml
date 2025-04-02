@@ -9,7 +9,7 @@ logging:
   level: INFO
   use_colors: true
   log_to_file: true
-  log_file: "command.log"  # Changed to fix path duplication
+  log_file: "command.log"
 
 # Path configuration with improved structure
 paths:
@@ -75,9 +75,9 @@ data:
 
 # DataLoader configuration
 loader:
-  batch_size: 64  # Reduced from 128 for better stability and memory usage
-  num_workers: 4  # Adjusted based on typical hardware constraints
-  pin_memory: true  # Changed to true for better performance
+  batch_size: 128  # Reduced from 128 for better stability and memory usage
+  num_workers: 6  # Adjusted based on typical hardware constraints
+  pin_memory: false
   drop_last: false
   prefetch_factor: 6
   persistent_workers: true
@@ -130,7 +130,8 @@ preprocessing:
 # Augmentation settings
 augmentation:
   train:
-    horizontal_flip: true
+    # Basic augmentations - disabled when using RandAugment
+    horizontal_flip: false
     vertical_flip: false
     random_rotate: 45
     random_resized_crop:
@@ -152,10 +153,37 @@ augmentation:
       rotate_limit: 15
       p: 0.5
     cutout:
+      enabled: false  # Disabled in favor of CutMix
       num_holes: 4
       max_h_size: 16
       max_w_size: 16
       p: 0.5
+      
+    # Advanced augmentation strategies (enable only one at a time)
+    rand_augment:
+      enabled: true   # RandAugment is highly effective for plant diseases
+      num_ops: 2      # Number of operations to apply
+      magnitude: 7    # Integer value (severity of augmentations)
+      p: 0.9          # High probability to ensure consistent augmentation
+      
+    augmix:
+      enabled: false  # Disabled to avoid conflicts with RandAugment
+      severity: 3
+      width: 3
+      depth: -1
+      alpha: 1.0
+      p: 0.5
+      
+    # Batch-level augmentations
+    mixup:
+      enabled: false  # Disabled in favor of CutMix which works better for localized disease features
+      alpha: 1.0
+      p: 0.5
+      
+    cutmix:
+      enabled: true   # SECONDARY AUGMENTATION - great for plant disease classification
+      alpha: 1.0
+      p: 0.3          # Lower probability to avoid overaugmentation
 
 # Model configuration
 model:
@@ -227,8 +255,8 @@ scheduler:
 
 # Training configuration
 training:
-  epochs: 120  # Increased from 1 to 50 for proper training
-  batch_size: 64  # Reduced from 128 for consistency with loader.batch_size
+  epochs: 10
+  batch_size: 128 
   learning_rate: 0.001  # Simplified from scientific notation
   weight_decay: 2e-5  # Simplified from scientific notation
   deterministic: false
@@ -340,19 +368,19 @@ callbacks:
 
   # Stochastic Weight Averaging
   swa:
-    enabled: true  # Disabled by default
-    swa_start_frac: 0.75  # Start SWA at 75% of training
-    swa_lr: 0.001  # SWA learning rate
-    anneal_epochs: 5  # Epochs for LR annealing
-    anneal_strategy: "cos"  # "cos" or "linear"
-    update_bn_epochs: 5  # Update batch norm stats every N epochs
+    enabled: true   # Excellent for improving generalization
+    swa_start_frac: 0.6  # Start earlier (60% through training) to allow more averaging time
+    swa_lr: 0.0005  # Lower LR for more stable averaging (half the base LR)
+    anneal_epochs: 5
+    anneal_strategy: "cos"
+    update_bn_epochs: 5
   
   # Adaptive weight adjustment
   adaptive_weight:
-    enabled: true  # Disabled by default
-    focal_loss_gamma_range: [2.0, 5.0]  # Min/max for Focal Loss gamma
-    center_loss_weight_range: [0.5, 2.0]  # Min/max for Center Loss weight
-    adjust_frequency: 5  # Adjust weights every N epochs
+    enabled: true  # Helps with class imbalance in plant disease datasets
+    focal_loss_gamma_range: [2.0, 4.0]  # Narrower range to avoid extreme values
+    center_loss_weight_range: [0.5, 1.5]  # More conservative range for stability
+    adjust_frequency: 10  # Less frequent adjustments (every 10 epochs) for more stability
 
 # Evaluation configuration
 evaluation:

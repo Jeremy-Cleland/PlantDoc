@@ -1,5 +1,5 @@
 """
-Visualization utilities for model analysis and reporting.
+Base visualization utilities for model analysis and reporting.
 """
 
 from pathlib import Path
@@ -398,7 +398,12 @@ def plot_class_metrics(
     ax.set_title("Performance Metrics by Class", color=theme["text_color"])
     ax.set_ylabel("Class", color=theme["text_color"])
     ax.set_xlabel("Metric", color=theme["text_color"])
-    ax.tick_params(colors=theme["text_color"])
+
+    # Adjust tick colors
+    ax.tick_params(axis="both", colors=theme["text_color"])
+    cbar = ax.collections[0].colorbar
+    cbar.ax.tick_params(colors=theme["text_color"])
+    cbar.ax.set_ylabel("Value", color=theme["text_color"])
 
     plt.tight_layout()
 
@@ -427,7 +432,7 @@ def plot_training_time(
     Plot training time per epoch.
 
     Args:
-        epoch_times: List of times per epoch in seconds
+        epoch_times: List of training times per epoch (in seconds)
         output_path: Path to save the figure
         figsize: Figure size
         theme: Theme settings to apply (uses DEFAULT_THEME if None)
@@ -439,44 +444,38 @@ def plot_training_time(
     theme = theme or DEFAULT_THEME
     apply_dark_theme(theme)
 
-    # Create figure with two subplots - with theme background
-    fig, (ax1, ax2) = plt.subplots(
-        2, 1, figsize=figsize, sharex=True, facecolor=theme["background_color"]
-    )
-    ax1.set_facecolor(theme["background_color"])
-    ax2.set_facecolor(theme["background_color"])
+    # Create figure
+    fig, ax = plt.subplots(figsize=figsize, facecolor=theme["background_color"])
+    ax.set_facecolor(theme["background_color"])
 
-    # Plot epoch times
-    epochs = np.arange(1, len(epoch_times) + 1)
-    ax1.plot(
-        epochs,
+    # Plot training time
+    ax.plot(
+        range(1, len(epoch_times) + 1),
         epoch_times,
         marker="o",
         linestyle="-",
-        markersize=4,
-        color=theme["bar_colors"][0],
+        color=theme["main_color"],
+        label="Training Time per Epoch",
     )
-    ax1.set_ylabel("Time (seconds)", color=theme["text_color"])
-    ax1.set_title("Training Time per Epoch", color=theme["text_color"])
-    ax1.grid(True, alpha=0.3, color=theme["grid_color"])
-    ax1.tick_params(colors=theme["text_color"])
 
-    # Plot cumulative time
-    cum_times = np.cumsum(epoch_times)
-    hours = cum_times / 3600
-    ax2.plot(
-        epochs,
-        hours,
-        marker="s",
-        linestyle="-",
-        markersize=4,
-        color=theme["bar_colors"][1],
+    # Add mean line
+    mean_time = np.mean(epoch_times)
+    ax.axhline(
+        mean_time,
+        color=theme["bar_colors"][0],
+        linestyle="--",
+        label=f"Mean: {mean_time:.2f}s",
     )
-    ax2.set_ylabel("Cumulative Time (hours)", color=theme["text_color"])
-    ax2.set_xlabel("Epoch", color=theme["text_color"])
-    ax2.set_title("Cumulative Training Time", color=theme["text_color"])
-    ax2.grid(True, alpha=0.3, color=theme["grid_color"])
-    ax2.tick_params(colors=theme["text_color"])
+
+    # Set title and labels
+    ax.set_title("Training Time per Epoch", color=theme["text_color"])
+    ax.set_xlabel("Epoch", color=theme["text_color"])
+    ax.set_ylabel("Time (seconds)", color=theme["text_color"])
+    ax.grid(True, alpha=0.3, color=theme["grid_color"])
+    ax.legend(loc="best")
+
+    # Customize tick colors
+    ax.tick_params(colors=theme["text_color"])
 
     plt.tight_layout()
 
@@ -504,7 +503,7 @@ def plot_model_comparison(
     theme: Optional[Dict] = None,
 ) -> Figure:
     """
-    Plot comparison of multiple models.
+    Plot comparison of metrics across different models.
 
     Args:
         metrics_list: List of metrics dictionaries for each model
@@ -521,47 +520,56 @@ def plot_model_comparison(
     theme = theme or DEFAULT_THEME
     apply_dark_theme(theme)
 
+    # Check input lengths
     if len(metrics_list) != len(model_names):
-        logger.error("Number of metrics dictionaries must match number of model names")
+        logger.error(
+            f"Length mismatch: metrics_list ({len(metrics_list)}) "
+            f"vs model_names ({len(model_names)})"
+        )
         return None
 
     # Extract metrics for each model
     comparison_data = []
-    for model_idx, metrics in enumerate(metrics_list):
-        model_data = {"Model": model_names[model_idx]}
+    for i, metrics in enumerate(metrics_list):
+        model_metrics = {"Model": model_names[i]}
         for metric in metrics_to_compare:
             if metric in metrics:
-                model_data[metric] = metrics[metric]
+                model_metrics[metric] = metrics[metric]
             else:
-                model_data[metric] = None
-        comparison_data.append(model_data)
+                model_metrics[metric] = 0
+        comparison_data.append(model_metrics)
 
     # Convert to DataFrame
     df = pd.DataFrame(comparison_data)
+    df = df.set_index("Model")
 
-    # Set Model as index
-    df.set_index("Model", inplace=True)
-
-    # Create figure with theme background
+    # Create figure
     fig, ax = plt.subplots(figsize=figsize, facecolor=theme["background_color"])
     ax.set_facecolor(theme["background_color"])
 
-    # Plot bar chart with theme colors
-    df.plot(kind="bar", ax=ax, color=theme["bar_colors"])
+    # Plot grouped bar chart
+    df.plot(
+        kind="bar",
+        ax=ax,
+        color=theme["bar_colors"][: len(metrics_to_compare)],
+        width=0.8,
+        alpha=0.7,
+        edgecolor=theme["background_color"],
+    )
 
-    # Set title and labels with theme colors
-    ax.set_title("Model Comparison", color=theme["text_color"])
+    # Set title and labels
+    ax.set_title("Model Performance Comparison", color=theme["text_color"])
+    ax.set_xlabel("Model", color=theme["text_color"])
     ax.set_ylabel("Score", color=theme["text_color"])
-    ax.set_ylim([0, 1])
-    ax.tick_params(colors=theme["text_color"])
+    ax.grid(True, axis="y", alpha=0.3, color=theme["grid_color"])
+    ax.set_ylim([0, 1.05])  # Most metrics are in [0, 1] range
 
-    # Add value annotations with color that stands out on dark background
-    for container in ax.containers:
-        ax.bar_label(container, fmt="%.3f", padding=3, color=theme["text_color"])
+    # Customize tick colors
+    ax.tick_params(axis="both", colors=theme["text_color"])
 
-    # Add legend with theme colors
-    legend = ax.legend(title="Metric")
-    legend.get_title().set_color(theme["text_color"])
+    # Customize legend
+    ax.legend(frameon=True, facecolor=theme["background_color"])
+    legend = ax.get_legend()
     for text in legend.get_texts():
         text.set_color(theme["text_color"])
 
@@ -593,7 +601,7 @@ def plot_learning_rate(
     Plot learning rate schedule.
 
     Args:
-        lr_history: List of learning rates
+        lr_history: List of learning rates per epoch
         output_path: Path to save the figure
         figsize: Figure size
         title: Plot title
@@ -606,29 +614,31 @@ def plot_learning_rate(
     theme = theme or DEFAULT_THEME
     apply_dark_theme(theme)
 
-    # Create figure with theme background
+    # Create figure
     fig, ax = plt.subplots(figsize=figsize, facecolor=theme["background_color"])
     ax.set_facecolor(theme["background_color"])
 
-    # Plot learning rate with theme color
-    epochs = np.arange(1, len(lr_history) + 1)
+    # Plot learning rate
     ax.plot(
-        epochs,
+        range(1, len(lr_history) + 1),
         lr_history,
         marker="o",
         linestyle="-",
-        markersize=4,
         color=theme["main_color"],
+        label="Learning Rate",
     )
 
-    # Set log scale for y-axis
-    ax.set_yscale("log")
-
-    # Set title and labels with theme colors
+    # Set title and labels
     ax.set_title(title, color=theme["text_color"])
     ax.set_xlabel("Epoch", color=theme["text_color"])
     ax.set_ylabel("Learning Rate", color=theme["text_color"])
     ax.grid(True, alpha=0.3, color=theme["grid_color"])
+
+    # Use log scale for y-axis if values span multiple orders of magnitude
+    if max(lr_history) / min(lr_history) > 10:
+        ax.set_yscale("log")
+
+    # Customize tick colors
     ax.tick_params(colors=theme["text_color"])
 
     plt.tight_layout()
@@ -650,7 +660,7 @@ def plot_learning_rate(
 
 def get_model_size(model: torch.nn.Module) -> float:
     """
-    Calculate model size in MB.
+    Calculate model size in megabytes.
 
     Args:
         model: PyTorch model
@@ -666,9 +676,8 @@ def get_model_size(model: torch.nn.Module) -> float:
     for buffer in model.buffers():
         buffer_size += buffer.nelement() * buffer.element_size()
 
-    # Convert to MB
-    size_mb = (param_size + buffer_size) / (1024**2)
-    return size_mb
+    size_in_mb = (param_size + buffer_size) / 1024**2
+    return size_in_mb
 
 
 def count_model_parameters(model: torch.nn.Module) -> int:

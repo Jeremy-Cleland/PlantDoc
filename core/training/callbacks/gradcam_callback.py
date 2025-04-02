@@ -397,7 +397,8 @@ class GradCAMCallback(Callback):
             html_path = epoch_dir / "gradcam_summary.html"
 
             with open(html_path, "w") as f:
-                f.write(f"""<!DOCTYPE html>
+                f.write(
+                    f"""<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
@@ -637,7 +638,8 @@ class GradCAMCallback(Callback):
             <div class="nav-section">
                 <div class="nav-heading">Samples</div>
                 <ul class="nav-items">
-""")
+"""
+                )
 
                 # Add each sample to the sidebar
                 sample_dirs = sorted(
@@ -650,13 +652,16 @@ class GradCAMCallback(Callback):
 
                 for i, sample_dir in enumerate(sample_dirs):
                     active = "active" if i == 0 else ""
-                    f.write(f"""                    <li class="nav-item {active}">
+                    f.write(
+                        f"""                    <li class="nav-item {active}">
                         <i class="fas fa-image"></i>
                         <a href="#{sample_dir.name}" class="nav-link">{sample_dir.name}</a>
                     </li>
-""")
+"""
+                    )
 
-                f.write("""                </ul>
+                f.write(
+                    """                </ul>
             </div>
         </aside>
 
@@ -669,15 +674,18 @@ class GradCAMCallback(Callback):
                         Epoch visualization of model attention areas for classification predictions.
                     </p>
                 </header>
-""")
+"""
+                )
 
                 # Add each sample
                 for sample_dir in sample_dirs:
-                    f.write(f"""
+                    f.write(
+                        f"""
                 <div class="sample-container" id="{sample_dir.name}">
                     <h2>{sample_dir.name}</h2>
                     <div class="visualizations-grid">
-""")
+"""
+                    )
 
                     # Add each visualization
                     viz_files = sorted(
@@ -686,21 +694,26 @@ class GradCAMCallback(Callback):
 
                     for viz_file in viz_files:
                         rel_path = viz_file.relative_to(epoch_dir)
-                        f.write(f"""
+                        f.write(
+                            f"""
                         <div class="visualization">
                             <img src="{rel_path}" alt="{viz_file.stem}">
                             <div class="viz-info">
                                 <div class="filename">{viz_file.name}</div>
                             </div>
                         </div>
-""")
+"""
+                        )
 
-                    f.write("""
+                    f.write(
+                        """
                     </div>
                 </div>
-""")
+"""
+                    )
 
-                f.write("""
+                f.write(
+                    """
             </div>
         </main>
     </div>
@@ -715,7 +728,8 @@ class GradCAMCallback(Callback):
     </script>
 </body>
 </html>
-""")
+"""
+                )
 
             logger.info(f"Generated summary HTML: {html_path}")
 

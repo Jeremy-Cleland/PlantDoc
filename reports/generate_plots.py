@@ -8,19 +8,42 @@ from pathlib import Path
 from typing import Dict, List, Optional, Union
 
 import numpy as np
+import PIL.Image
 from omegaconf import OmegaConf
 
-from utils.logger import get_logger
-from utils.metrics import plot_confusion_matrix
-from utils.paths import ensure_dir
-from utils.visualization import (
+from core.visualization.base_visualization import (
     DEFAULT_THEME,
     plot_class_metrics,
-    plot_confusion_matrix,
     plot_learning_rate,
     plot_training_history,
     plot_training_time,
 )
+from utils.logger import get_logger
+from utils.paths import ensure_dir
+
+# Import enhanced visualization functions
+try:
+    from core.visualization.visualization import (
+        create_classification_examples_grid,
+        plot_class_performance,
+        plot_confidence_distribution,
+        plot_distribution,
+        plot_enhanced_confusion_matrix,
+        plot_feature_space,
+        plot_histogram,
+        plot_precision_recall_curve,
+        plot_roc_curve,
+        plot_tsne_visualization,
+        plot_umap_visualization,
+        visualize_augmentations,
+    )
+
+    ENHANCED_VISUALIZATION_AVAILABLE = True
+except ImportError:
+    ENHANCED_VISUALIZATION_AVAILABLE = False
+    from core.visualization.base_visualization import (
+        plot_confusion_matrix as plot_enhanced_confusion_matrix,
+    )
 
 logger = get_logger(__name__)
 
@@ -270,14 +293,29 @@ def plot_confusion_matrix_from_file(
     output_path = Path(output_path)
     ensure_dir(output_path.parent)
 
-    # Plot confusion matrix with theme
-    plot_confusion_matrix(
-        cm=cm,
-        class_names=class_names,
-        output_path=output_path,
-        normalize=True,
-        theme=theme,
-    )
+    # Use enhanced confusion matrix if available
+    if ENHANCED_VISUALIZATION_AVAILABLE:
+        logger.info("Using enhanced confusion matrix visualization")
+
+        # Plot confusion matrix with theme
+        plot_enhanced_confusion_matrix(
+            cm=cm,
+            class_names=class_names,
+            output_path=output_path,
+            normalize=True,
+            theme=theme,
+            cmap="viridis",
+            title="Confusion Matrix",
+        )
+    else:
+        # Fall back to standard visualization
+        plot_enhanced_confusion_matrix(
+            cm=cm,
+            class_names=class_names,
+            output_path=output_path,
+            normalize=True,
+            theme=theme,
+        )
 
     logger.info(f"Saved confusion matrix plot to {output_path}")
 
@@ -425,6 +463,30 @@ def generate_plots_for_report(
     cm = load_confusion_matrix(experiment_dir)
     class_names = load_class_names(experiment_dir)
 
+    # Check if we have additional data for enhanced visualizations
+    predictions_path = experiment_dir / "predictions.npy"
+    features_path = experiment_dir / "features.npy"
+    true_labels_path = experiment_dir / "true_labels.npy"
+    scores_path = experiment_dir / "scores.npy"
+    test_images_path = experiment_dir / "test_images.npy"
+    augmentation_examples_path = experiment_dir / "augmentation_examples"
+
+    has_predictions = predictions_path.exists()
+    has_features = features_path.exists()
+    has_true_labels = true_labels_path.exists()
+    has_scores = scores_path.exists()
+    has_test_images = test_images_path.exists()
+    has_augmentation_examples = (
+        augmentation_examples_path.exists() and augmentation_examples_path.is_dir()
+    )
+
+    # Load these files if they exist
+    predictions = np.load(predictions_path) if has_predictions else None
+    features = np.load(features_path) if has_features else None
+    true_labels = np.load(true_labels_path) if has_true_labels else None
+    scores = np.load(scores_path) if has_scores else None
+    test_images = np.load(test_images_path) if has_test_images else None
+
     # Load visualization theme
     theme = load_visualization_theme(experiment_dir)
 
@@ -469,6 +531,237 @@ def generate_plots_for_report(
             output_path=output_dir / "learning_rate.png",
             theme=theme,
         )
+
+    # Enhanced visualizations if data is available
+    if ENHANCED_VISUALIZATION_AVAILABLE:
+        # Class performance bar chart
+        if metrics and class_names:
+            # Prepare class metrics dictionary
+            class_metrics = {}
+            for class_name in class_names:
+                class_key = class_name.replace(" ", "_")
+                class_metrics[class_name] = {}
+                for metric in ["precision", "recall", "f1"]:
+                    metric_key = f"class_{class_key}_{metric}"
+                    if metric_key in metrics:
+                        class_metrics[class_name][metric] = metrics[metric_key]
+
+            # Plot horizontal bar chart
+            plot_class_performance(
+                metrics=class_metrics,
+                class_names=class_names,
+                output_path=output_dir / "class_performance_bars.png",
+                theme=theme,
+            )
+
+        # ROC and PR curves
+        if has_scores and has_true_labels and len(class_names) > 0:
+            # Plot ROC curves
+            plot_roc_curve(
+                y_true=true_labels,
+                y_scores=scores,
+                class_names=class_names,
+                output_path=output_dir / "roc_curves.png",
+                theme=theme,
+            )
+
+            # Plot precision-recall curves
+            plot_precision_recall_curve(
+                y_true=true_labels,
+                y_scores=scores,
+                class_names=class_names,
+                output_path=output_dir / "precision_recall_curves.png",
+                theme=theme,
+            )
+
+        # Feature space visualization if features are available
+        if has_features and has_true_labels and len(class_names) > 0:
+            # Generate t-SNE visualization
+            plot_tsne_visualization(
+                features=features,
+                labels=(
+                    np.argmax(true_labels, axis=1)
+                    if true_labels.ndim > 1
+                    else true_labels
+                ),
+                class_names=class_names,
+                output_path=output_dir / "tsne_visualization.png",
+                theme=theme,
+            )
+
+            # Generate UMAP visualization
+            plot_umap_visualization(
+                features=features,
+                labels=(
+                    np.argmax(true_labels, axis=1)
+                    if true_labels.ndim > 1
+                    else true_labels
+                ),
+                class_names=class_names,
+                output_path=output_dir / "umap_visualization.png",
+                theme=theme,
+            )
+
+            # Generate 2D feature space visualization using PCA
+            plot_feature_space(
+                features=features,
+                labels=(
+                    np.argmax(true_labels, axis=1)
+                    if true_labels.ndim > 1
+                    else true_labels
+                ),
+                class_names=class_names,
+                output_path=output_dir / "feature_space_visualization.png",
+                theme=theme,
+                reduction_method="pca",  # Use PCA for dimensionality reduction
+            )
+
+        # Prediction confidence analysis if predictions are available
+        if has_scores and has_true_labels:
+            # Extract max confidence for each prediction
+            confidences = np.max(scores, axis=1) if scores.ndim > 1 else scores
+
+            # Determine which predictions were correct
+            if true_labels.ndim > 1:  # One-hot encoded
+                pred_classes = np.argmax(scores, axis=1)
+                true_classes = np.argmax(true_labels, axis=1)
+                correctness = pred_classes == true_classes
+            else:
+                pred_classes = (
+                    np.argmax(scores, axis=1)
+                    if scores.ndim > 1
+                    else np.round(scores).astype(int)
+                )
+                correctness = pred_classes == true_labels
+
+            # Plot confidence distribution
+            plot_confidence_distribution(
+                confidences=confidences,
+                correctness=correctness,
+                output_path=output_dir / "confidence_distribution.png",
+                theme=theme,
+            )
+
+            # Plot histogram of prediction confidences
+            plot_histogram(
+                data=confidences,
+                output_path=output_dir / "confidence_histogram.png",
+                theme=theme,
+                bins=20,
+                title="Prediction Confidence Histogram",
+                xlabel="Confidence",
+                ylabel="Count",
+            )
+
+            # Plot distribution of class predictions
+            class_counts = np.bincount(pred_classes, minlength=len(class_names))
+            plot_distribution(
+                data=class_counts,
+                labels=class_names,
+                output_path=output_dir / "prediction_distribution.png",
+                theme=theme,
+                title="Prediction Distribution",
+                xlabel="Class",
+                ylabel="Count",
+                kind="bar",  # Use bar chart for discrete classes
+            )
+
+        # Classification examples grid if test images are available
+        if (
+            has_test_images
+            and has_predictions
+            and has_true_labels
+            and len(class_names) > 0
+        ):
+            try:
+                # Convert predictions to class indices if needed
+                if predictions.ndim > 1 and predictions.shape[1] > 1:
+                    pred_indices = np.argmax(predictions, axis=1)
+                else:
+                    pred_indices = predictions.astype(int)
+
+                # Create classification examples grid
+                create_classification_examples_grid(
+                    images=test_images,
+                    true_labels=true_labels,
+                    pred_labels=predictions,
+                    class_names=class_names,
+                    output_path=output_dir / "classification_examples.png",
+                    theme=theme,
+                    max_examples=20,
+                    separate_correct_incorrect=True,
+                )
+                logger.info("Generated classification examples grid")
+            except Exception as e:
+                logger.error(f"Failed to generate classification examples grid: {e}")
+
+        # Augmentation visualization if augmentation examples are available
+        if has_augmentation_examples:
+            try:
+                # Find all image files in the augmentation examples directory
+                image_files = list(augmentation_examples_path.glob("*.png")) + list(
+                    augmentation_examples_path.glob("*.jpg")
+                )
+
+                if image_files:
+                    # Choose a random image to use as the original
+                    original_img_path = image_files[0]
+
+                    # Load original image
+                    original_img = np.array(PIL.Image.open(original_img_path))
+
+                    # Create a simple augmentation function for demonstration
+                    # In a real scenario, this would use the actual augmentation pipeline
+                    def demo_augmentation(img):
+                        # Simple augmentations for demonstration
+                        aug_type = np.random.choice(
+                            ["rotate", "flip", "brightness", "crop", "shift"]
+                        )
+
+                        if aug_type == "rotate":
+                            # Rotate by a random angle
+                            angle = np.random.randint(-30, 30)
+                            return np.array(PIL.Image.fromarray(img).rotate(angle))
+                        elif aug_type == "flip":
+                            # Horizontal flip
+                            return np.flip(img, axis=1)
+                        elif aug_type == "brightness":
+                            # Adjust brightness
+                            factor = np.random.uniform(0.7, 1.3)
+                            return np.clip(img * factor, 0, 255).astype(np.uint8)
+                        elif aug_type == "crop":
+                            # Random crop and resize
+                            h, w = img.shape[:2]
+                            crop_h = int(h * np.random.uniform(0.8, 0.9))
+                            crop_w = int(w * np.random.uniform(0.8, 0.9))
+                            top = np.random.randint(0, h - crop_h)
+                            left = np.random.randint(0, w - crop_w)
+                            cropped = img[top : top + crop_h, left : left + crop_w]
+                            return np.array(PIL.Image.fromarray(cropped).resize((w, h)))
+                        else:  # shift
+                            # Random shift
+                            h, w = img.shape[:2]
+                            shift_h = np.random.randint(-h // 8, h // 8)
+                            shift_w = np.random.randint(-w // 8, w // 8)
+                            img_pil = PIL.Image.fromarray(img)
+                            return np.array(
+                                PIL.Image.fromarray(np.zeros_like(img)).paste(
+                                    img_pil, (shift_w, shift_h)
+                                )
+                            )
+
+                    # Create augmentation visualization
+                    visualize_augmentations(
+                        image=original_img,
+                        augmentation_fn=demo_augmentation,
+                        output_path=output_dir / "augmentation_visualization.png",
+                        theme=theme,
+                        n_augmentations=8,
+                        title="Data Augmentation Examples",
+                    )
+                    logger.info("Generated augmentation visualization")
+            except Exception as e:
+                logger.error(f"Failed to generate augmentation visualization: {e}")
 
     logger.info("Finished generating plots for report")
 

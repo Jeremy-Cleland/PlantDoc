@@ -76,7 +76,7 @@ def plot_attention_heatmap(
     # Plot heatmap
     im = ax.imshow(attention_map, cmap=cmap)
     ax.set_title(title)
-    ax.axis('off')
+    ax.axis("off")
 
     if colorbar:
         fig.colorbar(im, ax=ax)
@@ -108,9 +108,15 @@ def visualize_attention_maps(
     """
     # Filter layers if specified
     if layer_names is not None:
-        filtered_maps = {k: v for k, v in attention_maps.items() if any(ln in k for ln in layer_names)}
+        filtered_maps = {
+            k: v
+            for k, v in attention_maps.items()
+            if any(ln in k for ln in layer_names)
+        }
         if not filtered_maps:
-            logger.warning(f"No attention maps found matching layer names: {layer_names}")
+            logger.warning(
+                f"No attention maps found matching layer names: {layer_names}"
+            )
             filtered_maps = attention_maps  # Fallback to all maps
     else:
         filtered_maps = attention_maps
@@ -156,18 +162,18 @@ def visualize_attention_maps(
         # Plot
         axes[i].imshow(attn_map, cmap=cmap)
         axes[i].set_title(name)
-        axes[i].axis('off')
+        axes[i].axis("off")
 
     # Hide unused axes
     for i in range(num_maps, len(axes)):
-        axes[i].axis('off')
+        axes[i].axis("off")
 
     plt.suptitle(suptitle)
     plt.tight_layout()
 
     # Save if requested
     if output_path:
-        plt.savefig(output_path, bbox_inches='tight', dpi=150)
+        plt.savefig(output_path, bbox_inches="tight", dpi=150)
 
     return fig
 
@@ -231,26 +237,26 @@ def visualize_attention_overlay(
     # Plot original image
     axes[0].imshow(image)
     axes[0].set_title("Original Image")
-    axes[0].axis('off')
+    axes[0].axis("off")
 
     # Plot attention map
     im = axes[1].imshow(attention_map, cmap=cmap)
     axes[1].set_title("Attention Map")
-    axes[1].axis('off')
+    axes[1].axis("off")
     fig.colorbar(im, ax=axes[1], fraction=0.046, pad=0.04)
 
     # Plot overlay
     axes[2].imshow(image)
     im = axes[2].imshow(attention_map, cmap=cmap, alpha=alpha)
     axes[2].set_title("Overlay")
-    axes[2].axis('off')
+    axes[2].axis("off")
 
     plt.suptitle(title)
     plt.tight_layout()
 
     # Save if requested
     if output_path:
-        plt.savefig(output_path, bbox_inches='tight', dpi=150)
+        plt.savefig(output_path, bbox_inches="tight", dpi=150)
 
     return fig
 
@@ -288,6 +294,7 @@ def visualize_layer_activations(
     def get_activation(name):
         def hook(module, input, output):
             activations[name] = output.detach()
+
         return hook
 
     # Find the layer
@@ -337,18 +344,18 @@ def visualize_layer_activations(
             break
         axes[i].imshow(act[i].cpu().numpy(), cmap=cmap)
         axes[i].set_title(f"Filter {i}")
-        axes[i].axis('off')
+        axes[i].axis("off")
 
     # Hide unused axes
     for i in range(num_channels, len(axes)):
-        axes[i].axis('off')
+        axes[i].axis("off")
 
     plt.suptitle(f"Activations for {layer_name}")
     plt.tight_layout()
 
     # Save if requested
     if output_path:
-        plt.savefig(output_path, bbox_inches='tight', dpi=150)
+        plt.savefig(output_path, bbox_inches="tight", dpi=150)
 
     return fig
 
@@ -397,7 +404,7 @@ def plot_attention_comparison(
         # Plot original image
         axes[i, 0].imshow(img)
         axes[i, 0].set_title(titles[i])
-        axes[i, 0].axis('off')
+        axes[i, 0].axis("off")
 
         # Plot channel attention
         ch_map = _to_numpy(channel_maps[i])
@@ -413,7 +420,7 @@ def plot_attention_comparison(
             # If it's 2D, display as image
             axes[i, 1].imshow(ch_map, cmap="viridis")
             axes[i, 1].set_title("Channel Attention")
-            axes[i, 1].axis('off')
+            axes[i, 1].axis("off")
 
         # Plot spatial attention
         sp_map = _to_numpy(spatial_maps[i])
@@ -430,13 +437,13 @@ def plot_attention_comparison(
         axes[i, 2].imshow(img)
         im = axes[i, 2].imshow(sp_map, cmap="jet", alpha=0.7)
         axes[i, 2].set_title("Spatial Attention")
-        axes[i, 2].axis('off')
+        axes[i, 2].axis("off")
 
     plt.tight_layout()
 
     # Save if requested
     if output_path:
-        plt.savefig(output_path, bbox_inches='tight', dpi=150)
+        plt.savefig(output_path, bbox_inches="tight", dpi=150)
 
     return fig
 
@@ -485,7 +492,7 @@ def generate_attention_report(
                     image.unsqueeze(0),
                     size=input_size,
                     mode="bilinear",
-                    align_corners=False
+                    align_corners=False,
                 ).squeeze(0)
 
     # Get attention maps
@@ -495,7 +502,9 @@ def generate_attention_report(
             _ = model(image.unsqueeze(0))  # Forward pass
             attention_maps = model.get_attention_maps()
         # Try backbone if available
-        elif hasattr(model, "backbone") and hasattr(model.backbone, "get_attention_maps"):
+        elif hasattr(model, "backbone") and hasattr(
+            model.backbone, "get_attention_maps"
+        ):
             _ = model(image.unsqueeze(0))  # Forward pass
             attention_maps = model.backbone.get_attention_maps()
         else:
@@ -523,11 +532,17 @@ def generate_attention_report(
     with open(report_file, "w") as f:
         f.write(f"<html>\n<head>\n<title>{title_prefix} Report</title>\n")
         f.write("<style>\n")
-        f.write("body { font-family: Arial, sans-serif; margin: 0 auto; max-width: 1200px; padding: 20px; }\n")
+        f.write(
+            "body { font-family: Arial, sans-serif; margin: 0 auto; max-width: 1200px; padding: 20px; }\n"
+        )
         f.write("h1, h2, h3 { color: #333; }\n")
         f.write(".figure { margin: 20px 0; text-align: center; }\n")
-        f.write(".figure img { max-width: 100%; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }\n")
-        f.write(".section { margin: 40px 0; border-top: 1px solid #eee; padding-top: 20px; }\n")
+        f.write(
+            ".figure img { max-width: 100%; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }\n"
+        )
+        f.write(
+            ".section { margin: 40px 0; border-top: 1px solid #eee; padding-top: 20px; }\n"
+        )
         f.write("</style>\n</head>\n<body>\n")
 
         # Header
@@ -548,9 +563,9 @@ def generate_attention_report(
         if img_np.max() <= 1.0:
             img_np = (img_np * 255).astype(np.uint8)
         plt.imshow(img_np)
-        plt.axis('off')
+        plt.axis("off")
         plt.tight_layout()
-        plt.savefig(img_path, bbox_inches='tight', dpi=150)
+        plt.savefig(img_path, bbox_inches="tight", dpi=150)
         plt.close()
 
         f.write("<div class='figure'>\n")
@@ -569,7 +584,7 @@ def generate_attention_report(
                 channel_maps,
                 figsize=(15, 10),
                 output_path=ch_path,
-                suptitle="Channel Attention Maps Overview"
+                suptitle="Channel Attention Maps Overview",
             )
 
             f.write("<h3>Channel Attention</h3>\n")
@@ -584,7 +599,7 @@ def generate_attention_report(
                 spatial_maps,
                 figsize=(15, 10),
                 output_path=sp_path,
-                suptitle="Spatial Attention Maps Overview"
+                suptitle="Spatial Attention Maps Overview",
             )
 
             f.write("<h3>Spatial Attention</h3>\n")
@@ -602,8 +617,12 @@ def generate_attention_report(
             f.write(f"<h3>Layer: {layer}</h3>\n")
 
             # Get channel and spatial attention for this layer
-            layer_ch_maps = {k: v for k, v in channel_maps.items() if k.startswith(layer)}
-            layer_sp_maps = {k: v for k, v in spatial_maps.items() if k.startswith(layer)}
+            layer_ch_maps = {
+                k: v for k, v in channel_maps.items() if k.startswith(layer)
+            }
+            layer_sp_maps = {
+                k: v for k, v in spatial_maps.items() if k.startswith(layer)
+            }
 
             # Need at least one map for this layer
             if not layer_ch_maps and not layer_sp_maps:
@@ -621,12 +640,14 @@ def generate_attention_report(
                         image=img_np,
                         attention_map=layer_sp_maps[sp_key][0],  # First item in batch
                         output_path=overlay_path,
-                        title=f"{layer} Block {block_idx} Attention"
+                        title=f"{layer} Block {block_idx} Attention",
                     )
 
                     f.write(f"<h4>Block {block_idx}</h4>\n")
                     f.write("<div class='figure'>\n")
-                    f.write(f"<img src='{os.path.relpath(overlay_path, output_dir.parent)}'>\n")
+                    f.write(
+                        f"<img src='{os.path.relpath(overlay_path, output_dir.parent)}'>\n"
+                    )
                     f.write("</div>\n")
 
         f.write("</div>\n")
@@ -674,11 +695,13 @@ def generate_attention_report(
                     spatial_maps=sp_maps_to_compare,
                     titles=layers_to_compare,
                     figsize=(15, 10),
-                    output_path=comparison_path
+                    output_path=comparison_path,
                 )
 
                 f.write("<div class='figure'>\n")
-                f.write(f"<img src='{os.path.relpath(comparison_path, output_dir.parent)}'>\n")
+                f.write(
+                    f"<img src='{os.path.relpath(comparison_path, output_dir.parent)}'>\n"
+                )
                 f.write("</div>\n")
 
             f.write("</div>\n")

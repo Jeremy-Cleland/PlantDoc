@@ -102,6 +102,17 @@ class BaseModel(nn.Module):
                 nn.Dropout(self.dropout_rate),
                 nn.Linear(hidden_dim, self.num_classes),
             )
+        elif self.head_type == "residual":
+            # Import here to avoid circular imports
+            from core.models.heads.residual import ResidualHead
+
+            hidden_dim = self.hidden_dim or self.backbone_dim // 2
+            return ResidualHead(
+                in_features=self.backbone_dim,
+                hidden_dim=hidden_dim,
+                num_classes=self.num_classes,
+                dropout_rate=self.dropout_rate,
+            )
         else:
             raise ValueError(f"Unknown head type: {self.head_type}")
 

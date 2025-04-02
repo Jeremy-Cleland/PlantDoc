@@ -130,7 +130,9 @@ class PlantDiseaseDataModule:
                 )
 
         else:
-            logger.info("Pre-split directories not found. Splitting dataset on the fly.")
+            logger.info(
+                "Pre-split directories not found. Splitting dataset on the fly."
+            )
             logger.info(
                 f"Using split ratio: {self.train_val_test_split} and seed: {self.random_seed}"
             )

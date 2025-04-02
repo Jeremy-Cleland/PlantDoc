@@ -15,7 +15,7 @@ from pathlib import Path
 def run_sweep(base_command, sweep_params, output_dir=None):
     """
     Run a parameter sweep similar to Hydra's multirun.
-    
+
     Args:
         base_command: Base command to run (e.g., "python cli/main.py train")
         sweep_params: Dictionary mapping parameter names to lists of values
@@ -52,7 +52,9 @@ def run_sweep(base_command, sweep_params, output_dir=None):
     # Run each combination
     for i, combination in enumerate(combinations):
         # Create parameter string
-        params = " ".join([f"{name}={value}" for name, value in zip(param_names, combination)])
+        params = " ".join(
+            [f"{name}={value}" for name, value in zip(param_names, combination)]
+        )
 
         # Create a unique run directory for this combination
         run_dir = sweep_dir / f"run_{i+1}"
@@ -78,10 +80,7 @@ def run_sweep(base_command, sweep_params, output_dir=None):
 
         # Run the command and capture output
         result = subprocess.run(
-            full_command,
-            shell=True,
-            capture_output=True,
-            text=True
+            full_command, shell=True, capture_output=True, text=True
         )
 
         duration = time.time() - start_time
@@ -109,20 +108,18 @@ def parse_arguments():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(description="Run parameter sweeps")
     parser.add_argument(
-        "command",
-        help="Base command to run (e.g., 'train' for training pipeline)"
+        "command", help="Base command to run (e.g., 'train' for training pipeline)"
     )
     parser.add_argument(
-        "--param", "-p",
+        "--param",
+        "-p",
         action="append",
         dest="params",
         help="Parameter in format 'name=value1,value2,value3'",
-        required=True
+        required=True,
     )
     parser.add_argument(
-        "--output-dir", "-o",
-        help="Output directory for sweep results",
-        default=None
+        "--output-dir", "-o", help="Output directory for sweep results", default=None
     )
     return parser.parse_args()
 
@@ -135,7 +132,9 @@ def main():
     sweep_params = {}
     for param_str in args.params:
         if "=" not in param_str:
-            print(f"Error: Parameter must be in format 'name=value1,value2,value3', got '{param_str}'")
+            print(
+                f"Error: Parameter must be in format 'name=value1,value2,value3', got '{param_str}'"
+            )
             sys.exit(1)
 
         name, values_str = param_str.split("=", 1)

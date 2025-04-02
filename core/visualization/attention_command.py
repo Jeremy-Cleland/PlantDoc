@@ -6,7 +6,6 @@ and generate HTML reports to explore model attention patterns.
 """
 
 import os
-from pathlib import Path
 from typing import Optional
 
 import torch

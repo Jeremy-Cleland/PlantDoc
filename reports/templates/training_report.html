@@ -11,23 +11,23 @@
     <style>
       :root {
         --bg-primary: #09090b;
-        --bg-secondary: #09090b;
-        --bg-tertiary: #09090b;
+        --bg-secondary: #111113;
+        --bg-tertiary: #1a1a1d;
         --text-primary: #f8fafc;
         --text-secondary: #cbd5e1;
         --text-tertiary: #94a3b8;
-        --accent-primary: #777777;
-        --accent-secondary: #ffffffb3;
+        --accent-primary: #7B3210;
+        --accent-secondary: #7B3210;
         --accent-tertiary: #b5fdbc;
         --success: #b5fdbc;
         --warning: #f59e0b;
         --danger: #ef4444;
-        --info: #3b82f6;
-        --border-radius: 8px;
-        --card-radius: 12px;
-        --shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        --info: #7B3210;
+        --border-radius: 15px;
+        --card-radius: 15px;
+        --shadow: 0 4px 16px rgba(23,23,23,0.5);
         --transition: all 0.3s ease;
-        --border-color: #23272e;
+        --border-color: #281C16;
       }
 
       * {
@@ -79,7 +79,7 @@
       .logo-icon {
         width: 2.5rem;
         height: 2.5rem;
-        background: linear-gradient(135deg, #777777, #b5fdbc);
+        background: linear-gradient(135deg, #777777, #281C16);
         border-radius: 50%;
         display: flex;
         align-items: center;
@@ -127,20 +127,20 @@
 
       .nav-item.active {
         background-color: #23272e;
-        border-left: 3px solid #b5fdbc;
+        border-left: 3px solid var(--accent-primary);
       }
 
       .nav-item i {
         font-size: 1.1rem;
-        color: #b5fdbc;
+        color: #f6f6f6;
       }
 
       .nav-item.active i {
-        color: #b5fdbc;
+        color: #f6f6f6;
       }
 
       .nav-link {
-        color: #b5fdbc;
+        color: #f6f6f6;
         text-decoration: none;
         font-size: 0.95rem;
         font-weight: 500;
@@ -582,47 +582,81 @@
         <div class="nav-section">
           <div class="nav-heading">Dashboard</div>
           <ul class="nav-items">
-            <li class="nav-item active">
+            <li class="nav-item active" data-section="overview">
               <i class="fas fa-chart-line"></i>
               <a href="#overview" class="nav-link">Performance Overview</a>
             </li>
-            <li class="nav-item">
+            <li class="nav-item" data-section="configuration">
               <i class="fas fa-cog"></i>
               <a href="#configuration" class="nav-link">Model Configuration</a>
             </li>
-            <li class="nav-item">
+            <li class="nav-item" data-section="training">
               <i class="fas fa-chart-area"></i>
               <a href="#training" class="nav-link">Training Metrics</a>
             </li>
-            <li class="nav-item">
+            <li class="nav-item" data-section="confusion">
               <i class="fas fa-table"></i>
               <a href="#confusion" class="nav-link">Confusion Matrix</a>
             </li>
-            <li class="nav-item">
+            <li class="nav-item" data-section="time">
               <i class="fas fa-clock"></i>
               <a href="#time" class="nav-link">Training Time</a>
             </li>
+            {% if 'plots/roc_curves.png' in available_plots %}
+            <li class="nav-item" data-section="roc-curves">
+              <i class="fas fa-chart-line"></i>
+              <a href="#roc-curves" class="nav-link">ROC Curves</a>
+            </li>
+            {% endif %}
+            {% if 'plots/precision_recall_curves.png' in available_plots %}
+            <li class="nav-item" data-section="pr-curves">
+              <i class="fas fa-chart-line"></i>
+              <a href="#pr-curves" class="nav-link">PR Curves</a>
+            </li>
+            {% endif %}
           </ul>
         </div>
 
         <div class="nav-section">
           <div class="nav-heading">Analysis</div>
           <ul class="nav-items">
-            <li class="nav-item">
+            <li class="nav-item" data-section="model-analysis">
               <i class="fas fa-microscope"></i>
               <a href="#model-analysis" class="nav-link">Model Analysis</a>
             </li>
-            <li class="nav-item">
-              <i class="fas fa-layer-group"></i>
-              <a href="#class-performance" class="nav-link"
-                >Class Performance</a
-              >
+            {% if 'plots/classification_examples.png' in available_plots %}
+            <li class="nav-item" data-section="classification-examples">
+              <i class="fas fa-images"></i>
+              <a href="#classification-examples" class="nav-link">Classification Examples</a>
             </li>
-            <li class="nav-item">
+            {% endif %}
+            {% if 'plots/augmentation_visualization.png' in available_plots %}
+            <li class="nav-item" data-section="augmentation-visualization">
+              <i class="fas fa-random"></i>
+              <a href="#augmentation-visualization" class="nav-link">Data Augmentation</a>
+            </li>
+            {% endif %}
+            {% if 'plots/tsne_visualization.png' in available_plots or 'plots/umap_visualization.png' in available_plots %}
+            <li class="nav-item" data-section="feature-space">
+              <i class="fas fa-braille"></i>
+              <a href="#feature-space" class="nav-link">Feature Space</a>
+            </li>
+            {% endif %}
+            {% if 'plots/confidence_distribution.png' in available_plots %}
+            <li class="nav-item" data-section="confidence-distribution">
+              <i class="fas fa-signal"></i>
+              <a href="#confidence-distribution" class="nav-link">Confidence Analysis</a>
+            </li>
+            {% endif %}
+            <li class="nav-item" data-section="class-performance">
+              <i class="fas fa-layer-group"></i>
+              <a href="#class-performance" class="nav-link">Class Performance</a>
+            </li>
+            <li class="nav-item" data-section="insights">
               <i class="fas fa-lightbulb"></i>
               <a href="#insights" class="nav-link">Key Insights</a>
             </li>
-            <li class="nav-item">
+            <li class="nav-item" data-section="conclusion">
               <i class="fas fa-flag-checkered"></i>
               <a href="#conclusion" class="nav-link">Conclusion</a>
             </li>
@@ -860,6 +894,223 @@
             </div>
           </section>
 
+          <!-- ROC Curves (if available) -->
+          {% if 'plots/roc_curves.png' in available_plots %}
+          <section class="chart-section" id="roc-curves">
+            <div class="section-header">
+              <h2 class="section-title">ROC Curves</h2>
+              <div class="section-actions">
+                <button class="btn btn-outline">
+                  <i class="fas fa-download"></i>
+                  <span>Export</span>
+                </button>
+                <button class="btn btn-outline">
+                  <i class="fas fa-expand"></i>
+                  <span>Fullscreen</span>
+                </button>
+              </div>
+            </div>
+            <div class="chart-content">
+              <img
+                src="{{ plots_dir }}/roc_curves.png"
+                alt="ROC Curves"
+                class="chart-image"
+              />
+              <div class="chart-caption">
+                <p>
+                  ROC curves showing the trade-off between true positive rate and false positive rate for each class.
+                </p>
+              </div>
+            </div>
+          </section>
+          {% endif %}
+          
+          <!-- Precision-Recall Curves (if available) -->
+          {% if 'plots/precision_recall_curves.png' in available_plots %}
+          <section class="chart-section" id="pr-curves">
+            <div class="section-header">
+              <h2 class="section-title">Precision-Recall Curves</h2>
+              <div class="section-actions">
+                <button class="btn btn-outline">
+                  <i class="fas fa-download"></i>
+                  <span>Export</span>
+                </button>
+                <button class="btn btn-outline">
+                  <i class="fas fa-expand"></i>
+                  <span>Fullscreen</span>
+                </button>
+              </div>
+            </div>
+            <div class="chart-content">
+              <img
+                src="{{ plots_dir }}/precision_recall_curves.png"
+                alt="Precision-Recall Curves"
+                class="chart-image"
+              />
+              <div class="chart-caption">
+                <p>
+                  Precision-recall curves showing the trade-off between precision and recall for each class.
+                </p>
+              </div>
+            </div>
+          </section>
+          {% endif %}
+          
+          <!-- Classification Examples Grid (if available) -->
+          {% if 'plots/classification_examples.png' in available_plots %}
+          <section class="chart-section" id="classification-examples">
+            <div class="section-header">
+              <h2 class="section-title">Classification Examples</h2>
+              <div class="section-actions">
+                <button class="btn btn-outline">
+                  <i class="fas fa-download"></i>
+                  <span>Export</span>
+                </button>
+                <button class="btn btn-outline">
+                  <i class="fas fa-expand"></i>
+                  <span>Fullscreen</span>
+                </button>
+              </div>
+            </div>
+            <div class="chart-content">
+              <img
+                src="{{ plots_dir }}/classification_examples.png"
+                alt="Classification Examples"
+                class="chart-image"
+              />
+              <div class="chart-caption">
+                <p>
+                  Examples of model predictions on test images, with correct predictions in green and incorrect ones in red.
+                </p>
+              </div>
+            </div>
+          </section>
+          {% endif %}
+          
+          <!-- Augmentation Visualization (if available) -->
+          {% if 'plots/augmentation_visualization.png' in available_plots %}
+          <section class="chart-section" id="augmentation-visualization">
+            <div class="section-header">
+              <h2 class="section-title">Data Augmentation</h2>
+              <div class="section-actions">
+                <button class="btn btn-outline">
+                  <i class="fas fa-download"></i>
+                  <span>Export</span>
+                </button>
+                <button class="btn btn-outline">
+                  <i class="fas fa-expand"></i>
+                  <span>Fullscreen</span>
+                </button>
+              </div>
+            </div>
+            <div class="chart-content">
+              <img
+                src="{{ plots_dir }}/augmentation_visualization.png"
+                alt="Data Augmentation Examples"
+                class="chart-image"
+              />
+              <div class="chart-caption">
+                <p>
+                  Examples of data augmentation techniques applied to training images.
+                </p>
+              </div>
+            </div>
+          </section>
+          {% endif %}
+          
+          <!-- Feature Visualizations (if available) -->
+          {% if 'plots/tsne_visualization.png' in available_plots %}
+          <section class="chart-section" id="feature-space">
+            <div class="section-header">
+              <h2 class="section-title">Feature Space Visualization</h2>
+              <div class="section-actions">
+                <button class="btn btn-outline">
+                  <i class="fas fa-download"></i>
+                  <span>Export</span>
+                </button>
+                <button class="btn btn-outline">
+                  <i class="fas fa-expand"></i>
+                  <span>Fullscreen</span>
+                </button>
+              </div>
+            </div>
+            <div class="chart-content">
+              <img
+                src="{{ plots_dir }}/tsne_visualization.png"
+                alt="t-SNE Visualization"
+                class="chart-image"
+              />
+              <div class="chart-caption">
+                <p>
+                  t-SNE visualization showing the distribution of samples in 2D feature space.
+                </p>
+              </div>
+            </div>
+          </section>
+          {% endif %}
+          
+          <!-- UMAP Visualization (if available) -->
+          {% if 'plots/umap_visualization.png' in available_plots %}
+          <section class="chart-section" id="umap-space">
+            <div class="section-header">
+              <h2 class="section-title">UMAP Feature Visualization</h2>
+              <div class="section-actions">
+                <button class="btn btn-outline">
+                  <i class="fas fa-download"></i>
+                  <span>Export</span>
+                </button>
+                <button class="btn btn-outline">
+                  <i class="fas fa-expand"></i>
+                  <span>Fullscreen</span>
+                </button>
+              </div>
+            </div>
+            <div class="chart-content">
+              <img
+                src="{{ plots_dir }}/umap_visualization.png"
+                alt="UMAP Visualization"
+                class="chart-image"
+              />
+              <div class="chart-caption">
+                <p>
+                  UMAP visualization showing the distribution of samples in 2D feature space with local structure preservation.
+                </p>
+              </div>
+            </div>
+          </section>
+          {% endif %}
+          
+          <!-- Confidence Distribution (if available) -->
+          {% if 'plots/confidence_distribution.png' in available_plots %}
+          <section class="chart-section" id="confidence-distribution">
+            <div class="section-header">
+              <h2 class="section-title">Prediction Confidence Analysis</h2>
+              <div class="section-actions">
+                <button class="btn btn-outline">
+                  <i class="fas fa-download"></i>
+                  <span>Export</span>
+                </button>
+                <button class="btn btn-outline">
+                  <i class="fas fa-expand"></i>
+                  <span>Fullscreen</span>
+                </button>
+              </div>
+            </div>
+            <div class="chart-content">
+              <img
+                src="{{ plots_dir }}/confidence_distribution.png"
+                alt="Confidence Distribution"
+                class="chart-image"
+              />
+              <div class="chart-caption">
+                <p>
+                  Distribution of prediction confidences for correct and incorrect predictions.
+                </p>
+              </div>
+            </div>
+          </section>
+          {% endif %}
+
           <!-- Class Performance -->
           <section class="analysis-section" id="class-performance">
             <div class="analysis-header">
@@ -871,7 +1122,7 @@
               </p>
 
               <div class="class-performance">
-                {% for class_data in class_performance[:8] %}
+                {% for class_data in class_performance %}
                 <div class="class-item">
                   <div class="class-name">{{ class_data.name }}</div>
                   <div class="class-metrics">
@@ -925,25 +1176,26 @@
     </div>
 
     <script>
-      // Highlight active section on scroll
       document.addEventListener("DOMContentLoaded", () => {
-        const sections = document.querySelectorAll("section, header");
+        // Get all sections and nav items
+        const sections = document.querySelectorAll("section[id], header[id]");
         const navItems = document.querySelectorAll(".nav-item");
 
+        // Create an observer to watch sections
         const observerOptions = {
           root: null,
           rootMargin: "0px",
-          threshold: 0.5,
+          threshold: 0.3,
         };
 
+        // When a section is visible, update the active nav item
         const observer = new IntersectionObserver((entries) => {
           entries.forEach((entry) => {
             if (entry.isIntersecting) {
               const id = entry.target.getAttribute("id");
               navItems.forEach((item) => {
                 item.classList.remove("active");
-                const link = item.querySelector(".nav-link");
-                if (link && link.getAttribute("href") === "#" + id) {
+                if (item.dataset.section === id) {
                   item.classList.add("active");
                 }
               });
@@ -951,6 +1203,7 @@
           });
         }, observerOptions);
 
+        // Observe all sections
         sections.forEach((section) => {
           if (section.getAttribute("id")) {
             observer.observe(section);
@@ -967,9 +1220,13 @@
               const targetElement = document.getElementById(targetId);
               if (targetElement) {
                 window.scrollTo({
-                  top: targetElement.offsetTop,
+                  top: targetElement.offsetTop - 20,
                   behavior: "smooth",
                 });
+                
+                // Update active item on click
+                navItems.forEach(navItem => navItem.classList.remove("active"));
+                item.classList.add("active");
               }
             });
           }

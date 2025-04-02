@@ -21,16 +21,6 @@ from utils.paths import (
     get_project_root,
     get_reports_dir,
 )
-from utils.visualization import (
-    count_model_parameters,
-    count_trainable_parameters,
-    get_model_size,
-    plot_class_metrics,
-    plot_learning_rate,
-    plot_model_comparison,
-    plot_training_history,
-    plot_training_time,
-)
 
 __all__ = [
     # Path utilities

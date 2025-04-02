@@ -5,7 +5,7 @@ This callback monitors model confidence and adjusts loss function parameters
 such as Focal Loss gamma and Center Loss weight to improve training dynamics.
 """
 
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional
 
 from core.training.callbacks.base import Callback
 from core.training.callbacks.confidence_monitor import ConfidenceMonitorCallback
@@ -38,7 +38,7 @@ class AdaptiveWeightAdjustmentCallback(Callback):
         kwargs.pop("enabled", None)
 
         # Explicitly allow passing the confidence callback instance
-        self.confidence_callback = kwargs.get("confidence_callback", None)
+        self.confidence_callback = kwargs.get("confidence_callback")
         if self.confidence_callback is not None and not isinstance(
             self.confidence_callback, ConfidenceMonitorCallback
         ):
@@ -267,7 +267,7 @@ class AdaptiveWeightAdjustmentCallback(Callback):
                     abs(new_gamma - current_gamma) > 1e-4
                 ):  # Only update if changed significantly
                     try:
-                        setattr(self._focal_loss_criterion, "gamma", new_gamma)
+                        self._focal_loss_criterion.gamma = new_gamma
                         logger.info(
                             f"  Adjusted Focal Loss gamma: {current_gamma:.2f} -> {new_gamma:.2f}"
                         )
@@ -296,7 +296,7 @@ class AdaptiveWeightAdjustmentCallback(Callback):
                     abs(new_weight - current_weight) > 1e-4
                 ):  # Only update if changed significantly
                     try:
-                        setattr(self._center_loss_criterion, "weight", new_weight)
+                        self._center_loss_criterion.weight = new_weight
                         logger.info(
                             f"  Adjusted Center Loss weight: {current_weight:.2f} -> {new_weight:.2f}"
                         )

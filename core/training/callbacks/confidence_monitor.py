@@ -2,9 +2,8 @@
 ConfidenceMonitorCallback for tracking model confidence and calibration during training.
 """
 
-import numbers
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import torch

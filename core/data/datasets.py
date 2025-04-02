@@ -59,9 +59,13 @@ class PlantDiseaseDataset(Dataset):
         self._load_samples()
 
         if not self.samples:
-            logger.warning(f"No valid image samples found in {self.data_dir} for split '{self.split}'.")
+            logger.warning(
+                f"No valid image samples found in {self.data_dir} for split '{self.split}'."
+            )
         else:
-            logger.info(f"Initialized dataset for split '{self.split}' with {len(self.samples)} samples from {len(self.classes)} classes.")
+            logger.info(
+                f"Initialized dataset for split '{self.split}' with {len(self.samples)} samples from {len(self.classes)} classes."
+            )
 
     def _find_classes(self, provided_classes: Optional[List[str]]):
         """Find classes from subdirectories or use provided list."""
@@ -70,14 +74,18 @@ class PlantDiseaseDataset(Dataset):
             self.classes = sorted(provided_classes)
         else:
             logger.info(f"Inferring classes from subdirectories in {self.data_dir}.")
-            self.classes = sorted([
-                d.name
-                for d in self.data_dir.iterdir()
-                if d.is_dir() and not d.name.startswith(".")
-            ])
+            self.classes = sorted(
+                [
+                    d.name
+                    for d in self.data_dir.iterdir()
+                    if d.is_dir() and not d.name.startswith(".")
+                ]
+            )
 
         if not self.classes:
-            raise ValueError(f"Could not find any class subdirectories in {self.data_dir}.")
+            raise ValueError(
+                f"Could not find any class subdirectories in {self.data_dir}."
+            )
 
         self.class_to_idx = {cls_name: i for i, cls_name in enumerate(self.classes)}
         logger.debug(f"Class to index mapping: {self.class_to_idx}")
@@ -86,7 +94,7 @@ class PlantDiseaseDataset(Dataset):
         """Load image paths and their corresponding class labels."""
         logger.info(f"Loading samples for split '{self.split}' from {self.data_dir}...")
         num_skipped = 0
-        
+
         for class_name in self.classes:
             class_dir = self.data_dir / class_name
             if not class_dir.is_dir():
@@ -129,12 +137,16 @@ class PlantDiseaseDataset(Dataset):
                 image_tensor = self.transform(image)
             else:
                 # Default conversion to tensor if no transform provided
-                image_tensor = torch.from_numpy(np.array(image).transpose(2, 0, 1)).float() / 255.0
+                image_tensor = (
+                    torch.from_numpy(np.array(image).transpose(2, 0, 1)).float() / 255.0
+                )
 
             return {"image": image_tensor, "label": label, "path": img_path}
 
         except UnidentifiedImageError:
-            logger.error(f"Cannot identify image file: {img_path}. Skipping sample {idx}.")
+            logger.error(
+                f"Cannot identify image file: {img_path}. Skipping sample {idx}."
+            )
             # Return dummy sample to allow training to continue
             dummy_image = torch.zeros((3, 224, 224), dtype=torch.float32)
             dummy_label = label if isinstance(label, int) else 0
@@ -143,7 +155,7 @@ class PlantDiseaseDataset(Dataset):
                 "label": dummy_label,
                 "path": f"INVALID:{img_path}",
             }
-            
+
         except Exception as e:
             logger.error(f"Error loading image {img_path} (sample {idx}): {e}")
             dummy_image = torch.zeros((3, 224, 224), dtype=torch.float32)
@@ -165,7 +177,9 @@ class PlantDiseaseDataset(Dataset):
             Tensor of class weights or None if samples aren't loaded
         """
         if not self.samples or not self.classes:
-            logger.warning("Cannot calculate class weights: samples or classes not available.")
+            logger.warning(
+                "Cannot calculate class weights: samples or classes not available."
+            )
             return None
 
         num_classes = len(self.classes)
@@ -173,7 +187,9 @@ class PlantDiseaseDataset(Dataset):
         class_counts = np.bincount(labels, minlength=num_classes)
 
         if np.any(class_counts == 0):
-            logger.warning(f"Some classes have zero samples in '{self.split}' split. Weights for these classes will be 0.")
+            logger.warning(
+                f"Some classes have zero samples in '{self.split}' split. Weights for these classes will be 0."
+            )
 
         if mode == "inv":
             weights = np.where(class_counts > 0, 1.0 / class_counts, 0)
@@ -195,5 +211,7 @@ class PlantDiseaseDataset(Dataset):
             logger.warning("Total weight is zero. Returning equal weights.")
             weights = np.ones_like(weights)
 
-        logger.debug(f"Calculated class weights for split '{self.split}' (mode={mode}): {weights}")
+        logger.debug(
+            f"Calculated class weights for split '{self.split}' (mode={mode}): {weights}"
+        )
         return torch.tensor(weights, dtype=torch.float32)

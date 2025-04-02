@@ -206,14 +206,13 @@ def run_validation(cfg: DictConfig) -> Dict[str, Any]:
 
                     # Image Verification (Do this BEFORE potential rename)
                     is_problematic = False
-                    if verify_images:
-                        if not validate_image(file_path):
-                            logger.warning(f"Problematic image detected: {file_path}")
-                            stats["problematic_files"] += 1
-                            class_problem_count += 1
-                            is_problematic = True
-                            # Decide whether to skip fixing problematic files
-                            # continue # Uncomment to skip fixing problematic files
+                    if verify_images and not validate_image(file_path):
+                        logger.warning(f"Problematic image detected: {file_path}")
+                        stats["problematic_files"] += 1
+                        class_problem_count += 1
+                        is_problematic = True
+                        # Decide whether to skip fixing problematic files
+                        # continue # Uncomment to skip fixing problematic files
 
                     # File Renaming Logic
                     has_spaces_or_special = any(
@@ -541,16 +540,20 @@ def run_analysis(cfg: DictConfig) -> Tuple[Optional[pd.DataFrame], Dict[str, Any
             "median_kb": float(df["file_size_kb"].median()) if not df.empty else None,
         },
         "color_info_stats (sample)": {
-            "avg_mean_rgb": [
-                df["mean_r"].mean(),
-                df["mean_g"].mean(),
-                df["mean_b"].mean(),
-            ]
-            if not df.empty
-            else None,
-            "avg_std_rgb": [df["std_r"].mean(), df["std_g"].mean(), df["std_b"].mean()]
-            if not df.empty
-            else None,
+            "avg_mean_rgb": (
+                [
+                    df["mean_r"].mean(),
+                    df["mean_g"].mean(),
+                    df["mean_b"].mean(),
+                ]
+                if not df.empty
+                else None
+            ),
+            "avg_std_rgb": (
+                [df["std_r"].mean(), df["std_g"].mean(), df["std_b"].mean()]
+                if not df.empty
+                else None
+            ),
             "avg_brightness": float(df["brightness"].mean()) if not df.empty else None,
         },
     }
@@ -564,11 +567,11 @@ def run_analysis(cfg: DictConfig) -> Tuple[Optional[pd.DataFrame], Dict[str, Any
             sanitized_stats = json.loads(
                 json.dumps(
                     dataset_stats,
-                    default=lambda x: int(x)
-                    if isinstance(x, np.integer)
-                    else float(x)
-                    if isinstance(x, np.floating)
-                    else str(x),
+                    default=lambda x: (
+                        int(x)
+                        if isinstance(x, np.integer)
+                        else float(x) if isinstance(x, np.floating) else str(x)
+                    ),
                 )
             )
             json.dump(sanitized_stats, f, indent=2)
@@ -760,9 +763,12 @@ def run_analysis(cfg: DictConfig) -> Tuple[Optional[pd.DataFrame], Dict[str, Any
                 xycoords="axes fraction",
                 fontsize=9,
                 color=text_color,
-                bbox=dict(
-                    boxstyle="round,pad=0.5", fc=bg_color, alpha=0.8, ec=grid_color
-                ),
+                bbox={
+                    "boxstyle": "round,pad=0.5",
+                    "fc": bg_color,
+                    "alpha": 0.8,
+                    "ec": grid_color,
+                },
             )
 
             plt.title(
@@ -1741,8 +1747,9 @@ def run_prepare_data(cfg: DictConfig):
                             f"  - Class balance: {analysis_stats.get('class_balance_status', 'N/A')}\n"
                         )
 
-                if prep_cfg.run_visualization_after_analysis and not analysis_stats.get(
-                    "error"
+                if (
+                    prep_cfg.run_visualization_after_analysis
+                    and not analysis_stats.get("error")
                 ):
                     f.write("- Visualization: COMPLETED\n")
                     f.write(
@@ -1810,8 +1817,9 @@ def run_prepare_data(cfg: DictConfig):
                         )
 
                 # Visualization details
-                if prep_cfg.run_visualization_after_analysis and not analysis_stats.get(
-                    "error"
+                if (
+                    prep_cfg.run_visualization_after_analysis
+                    and not analysis_stats.get("error")
                 ):
                     f.write("\n### Visualization Results\n\n")
                     f.write("- **Visualization Directory:** `visualization/`\n")
