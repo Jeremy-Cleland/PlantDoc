@@ -174,7 +174,7 @@ def visualize_attention_maps(
 
     # Save if requested
     if output_path:
-        plt.savefig(output_path, bbox_inches="tight", dpi=150)
+        plt.savefig(output_path, bbox_inches="tight", dpi=400)
 
     return fig
 
@@ -257,7 +257,7 @@ def visualize_attention_overlay(
 
     # Save if requested
     if output_path:
-        plt.savefig(output_path, bbox_inches="tight", dpi=150)
+        plt.savefig(output_path, bbox_inches="tight", dpi=400)
 
     return fig
 
@@ -356,7 +356,7 @@ def visualize_layer_activations(
 
     # Save if requested
     if output_path:
-        plt.savefig(output_path, bbox_inches="tight", dpi=150)
+        plt.savefig(output_path, bbox_inches="tight", dpi=400)
 
     return fig
 
@@ -444,7 +444,7 @@ def plot_attention_comparison(
 
     # Save if requested
     if output_path:
-        plt.savefig(output_path, bbox_inches="tight", dpi=150)
+        plt.savefig(output_path, bbox_inches="tight", dpi=400)
 
     return fig
 
@@ -648,7 +648,7 @@ def generate_attention_report(
         # Save the figure
         plt.savefig(
             spatial_viz_path,
-            dpi=300,
+            dpi=400,
             bbox_inches="tight",
             facecolor=theme["background_color"],
         )
@@ -740,7 +740,7 @@ def generate_attention_report(
             plt.tight_layout()
             plt.savefig(
                 channel_viz_path,
-                dpi=300,
+                dpi=400,
                 bbox_inches="tight",
                 facecolor=theme["background_color"],
             )
@@ -801,7 +801,7 @@ def generate_attention_report(
         plt.imshow(img_np)
         plt.axis("off")
         plt.tight_layout()
-        plt.savefig(img_path, bbox_inches="tight", dpi=150)
+        plt.savefig(img_path, bbox_inches="tight", dpi=400)
         plt.close()
 
         f.write("<div class='figure'>\n")

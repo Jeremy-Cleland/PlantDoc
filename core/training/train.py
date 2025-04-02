@@ -321,10 +321,7 @@ class Trainer:
             else:
                 for key, value in context.items():
                     # Always set config regardless of current value to ensure it's passed
-                    if key == "config":
-                        setattr(cb, key, value)
-                    # For other attributes, only set if they're None
-                    elif hasattr(cb, key) and getattr(cb, key) is None:
+                    if key == "config" or hasattr(cb, key) and getattr(cb, key) is None:
                         setattr(cb, key, value)
 
     def _setup_mixed_precision(self):

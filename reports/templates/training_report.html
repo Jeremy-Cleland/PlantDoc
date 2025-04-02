@@ -708,44 +708,44 @@
           <div class="dashboard">
             <div class="metric-card">
               <div class="metric-label">Accuracy</div>
-              <div class="metric-value">{{ (metrics.accuracy * 100)|round(2) }}%</div>
-              {% if metrics.val_accuracy %}
+              <div class="metric-value">{% if metrics.accuracy is number %}{{ (metrics.accuracy * 100)|round(2) }}%{% else %}{{ metrics.accuracy }}%{% endif %}</div>
+              {% if metrics.val_accuracy is defined and metrics.val_accuracy is not none %}
               <div class="metric-info">
                 <i class="fas fa-info-circle"></i>
-                <span>Val: {{ (metrics.val_accuracy * 100)|round(2) }}%</span>
+                <span>Val: {% if metrics.val_accuracy is number %}{{ (metrics.val_accuracy * 100)|round(2) }}{% else %}{{ metrics.val_accuracy }}{% endif %}%</span>
               </div>
               {% endif %}
             </div>
 
             <div class="metric-card">
               <div class="metric-label">Precision</div>
-              <div class="metric-value">{{ (metrics.precision * 100)|round(2) }}%</div>
-              {% if metrics.val_precision %}
+              <div class="metric-value">{% if metrics.precision is number %}{{ (metrics.precision * 100)|round(2) }}%{% else %}{{ metrics.precision }}%{% endif %}</div>
+              {% if metrics.val_precision is defined and metrics.val_precision is not none %}
               <div class="metric-info">
                 <i class="fas fa-info-circle"></i>
-                <span>Val: {{ (metrics.val_precision * 100)|round(2) }}%</span>
+                <span>Val: {% if metrics.val_precision is number %}{{ (metrics.val_precision * 100)|round(2) }}{% else %}{{ metrics.val_precision }}{% endif %}%</span>
               </div>
               {% endif %}
             </div>
 
             <div class="metric-card">
               <div class="metric-label">Recall</div>
-              <div class="metric-value">{{ (metrics.recall * 100)|round(2) }}%</div>
-              {% if metrics.val_recall %}
+              <div class="metric-value">{% if metrics.recall is number %}{{ (metrics.recall * 100)|round(2) }}%{% else %}{{ metrics.recall }}%{% endif %}</div>
+              {% if metrics.val_recall is defined and metrics.val_recall is not none %}
               <div class="metric-info">
                 <i class="fas fa-info-circle"></i>
-                <span>Val: {{ (metrics.val_recall * 100)|round(2) }}%</span>
+                <span>Val: {% if metrics.val_recall is number %}{{ (metrics.val_recall * 100)|round(2) }}{% else %}{{ metrics.val_recall }}{% endif %}%</span>
               </div>
               {% endif %}
             </div>
 
             <div class="metric-card">
               <div class="metric-label">F1 Score</div>
-              <div class="metric-value">{{ (metrics.f1 * 100)|round(2) }}%</div>
+              <div class="metric-value">{% if metrics.f1 is number %}{{ (metrics.f1 * 100)|round(2) }}%{% else %}{{ metrics.f1 }}%{% endif %}</div>
               {% if metrics.val_f1 %}
               <div class="metric-info">
                 <i class="fas fa-info-circle"></i>
-                <span>Val: {{ (metrics.val_f1 * 100)|round(2) }}%</span>
+                <span>Val: {% if metrics.val_f1 is number %}{{ (metrics.val_f1 * 100)|round(2) }}{% else %}{{ metrics.val_f1 }}{% endif %}%</span>
               </div>
               {% endif %}
             </div>
@@ -1244,7 +1244,7 @@
             </div>
             <div class="analysis-content">
               <p>
-                The {{ model_name }} model demonstrates {{ (metrics.accuracy * 100)|round(2) }}% accuracy for
+                The {{ model_name }} model demonstrates {% if metrics.accuracy is number %}{{ (metrics.accuracy * 100)|round(2) }}%{% else %}{{ metrics.accuracy }}%{% endif %} accuracy for
                 the classification task with {{ class_names|length }} classes.
               </p>
 

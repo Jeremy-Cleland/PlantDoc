@@ -82,7 +82,7 @@ class AttentionExtractor:
                 logger.info(f"Found CBAM block with ca/sa: {name}")
 
                 # Register hooks for channel attention
-                ca_module = getattr(module, "ca")
+                ca_module = module.ca
                 if isinstance(ca_module, nn.Module):
                     hooks.append(
                         ca_module.register_forward_hook(
@@ -92,7 +92,7 @@ class AttentionExtractor:
                     attention_found = True
 
                 # Register hooks for spatial attention
-                sa_module = getattr(module, "sa")
+                sa_module = module.sa
                 if isinstance(sa_module, nn.Module):
                     hooks.append(
                         sa_module.register_forward_hook(
@@ -420,7 +420,7 @@ class AttentionExtractor:
             plt.tight_layout()
 
             if output_path:
-                plt.savefig(output_path, dpi=300, bbox_inches="tight")
+                plt.savefig(output_path, dpi=400, bbox_inches="tight")
                 logger.info(f"Saved attention visualization to {output_path}")
 
             plt.close()
@@ -441,7 +441,7 @@ class AttentionExtractor:
             plt.axis("off")
 
             if output_path:
-                plt.savefig(output_path, dpi=300, bbox_inches="tight")
+                plt.savefig(output_path, dpi=400, bbox_inches="tight")
 
             plt.close()
 
@@ -513,7 +513,7 @@ class AttentionExtractor:
                 plt.axis("off")
 
                 if output_path:
-                    plt.savefig(output_path, dpi=300, bbox_inches="tight")
+                    plt.savefig(output_path, dpi=400, bbox_inches="tight")
 
                 plt.close()
                 return
@@ -577,7 +577,7 @@ class AttentionExtractor:
             plt.tight_layout()
 
             if output_path:
-                plt.savefig(output_path, dpi=300, bbox_inches="tight")
+                plt.savefig(output_path, dpi=400, bbox_inches="tight")
                 logger.info(f"Saved attention overlay to {output_path}")
 
             plt.close()
@@ -598,7 +598,7 @@ class AttentionExtractor:
             plt.axis("off")
 
             if output_path:
-                plt.savefig(output_path, dpi=300, bbox_inches="tight")
+                plt.savefig(output_path, dpi=400, bbox_inches="tight")
 
             plt.close()
 

@@ -648,7 +648,7 @@ def plot_confusion_matrix(
         try:
             output_path = Path(output_path)
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            plt.savefig(output_path, dpi=300, bbox_inches="tight")
+            plt.savefig(output_path, dpi=400, bbox_inches="tight")
             logger.info(f"Saved confusion matrix plot to {output_path}")
         except Exception as e:
             logger.error(f"Failed to save confusion matrix plot: {e}")
@@ -742,7 +742,7 @@ def plot_metrics_history(
         try:
             output_path = Path(output_path)
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            plt.savefig(output_path, dpi=300, bbox_inches="tight")
+            plt.savefig(output_path, dpi=400, bbox_inches="tight")
             logger.info(f"Saved metrics history plot to {output_path}")
         except Exception as e:
             logger.error(f"Failed to save metrics history plot: {e}")

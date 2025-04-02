@@ -409,7 +409,7 @@ class SHAPInterpreter:
 
             # Add overall title
             fig.suptitle(
-                f"SHAP Feature Attribution",
+                "SHAP Feature Attribution",
                 fontsize=14,
                 color=theme["text_color"],
                 y=0.98,
@@ -423,7 +423,7 @@ class SHAPInterpreter:
                 plt.savefig(
                     output_path,
                     bbox_inches="tight",
-                    dpi=300,
+                    dpi=400,
                     facecolor=theme["background_color"],
                 )
                 logger.info(f"Saved SHAP visualization to {output_path}")
@@ -587,7 +587,7 @@ class SHAPInterpreter:
             # Save if output path is provided
             if output_path:
                 ensure_dir(Path(output_path).parent)
-                plt.savefig(output_path, bbox_inches="tight", dpi=300)
+                plt.savefig(output_path, bbox_inches="tight", dpi=400)
                 logger.info(f"Saved multi-class SHAP visualization to {output_path}")
 
             if not show:
@@ -745,7 +745,7 @@ class SHAPInterpreter:
             # Save if output path is provided
             if output_path:
                 ensure_dir(Path(output_path).parent)
-                plt.savefig(output_path, bbox_inches="tight", dpi=300)
+                plt.savefig(output_path, bbox_inches="tight", dpi=400)
                 logger.info(f"Saved channel SHAP visualization to {output_path}")
 
             if not show:
@@ -947,7 +947,7 @@ class SHAPInterpreter:
             # Save if output path is provided
             if output_path:
                 ensure_dir(Path(output_path).parent)
-                plt.savefig(output_path, bbox_inches="tight", dpi=300)
+                plt.savefig(output_path, bbox_inches="tight", dpi=400)
                 logger.info(f"Saved feature importance visualization to {output_path}")
 
             if not show:
@@ -1108,7 +1108,7 @@ def compare_gradcam_and_shap(
         # Save if output path is provided
         if output_path:
             ensure_dir(Path(output_path).parent)
-            plt.savefig(output_path, bbox_inches="tight", dpi=300)
+            plt.savefig(output_path, bbox_inches="tight", dpi=400)
             logger.info(f"Saved comparison visualization to {output_path}")
             plt.close()
 
@@ -1406,10 +1406,7 @@ class ShapInterpreter:
                 inputs_tensor = inputs.to(self.device)
 
             # Handle 2D input (single sample) by adding batch dimension
-            if len(inputs_tensor.shape) == 2:
-                inputs_tensor = inputs_tensor.unsqueeze(0)
-            # Handle 3D input (single image with channels) by adding batch dimension
-            elif len(inputs_tensor.shape) == 3:
+            if len(inputs_tensor.shape) == 2 or len(inputs_tensor.shape) == 3:
                 inputs_tensor = inputs_tensor.unsqueeze(0)
 
             # Forward pass through the model
@@ -1642,7 +1639,7 @@ class ShapInterpreter:
             )
             plt.axis("off")
             plt.tight_layout()
-            plt.savefig(self.output_dir / "shap_error.png", dpi=200)
+            plt.savefig(self.output_dir / "shap_error.png", dpi=400)
             plt.close()
             raise
 
@@ -1657,6 +1654,7 @@ def generate_shap_visualizations(
     device: str = "cpu",
     num_samples: int = 100,
     batch_size: int = 32,
+    theme: str = "dark",
 ) -> None:
     """
     Generate SHAP visualizations for a model and save them to the experiment directory.
@@ -1669,17 +1667,120 @@ def generate_shap_visualizations(
         device: Device to run the model on ('cpu', 'cuda', 'mps')
         num_samples: Number of background samples for SHAP explainer
         batch_size: Batch size for processing
+        theme: Theme to use for visualization ('dark' or 'light')
     """
-    output_dir = Path(experiment_dir)
+    output_dir = Path(experiment_dir) / "shap_visualizations"
+    output_dir.mkdir(parents=True, exist_ok=True)
 
-    interpreter = ShapInterpreter(
+    logger.info(f"Generating SHAP visualizations with {theme} theme")
+
+    # Create an interpreter object
+    interpreter = SHAPInterpreter(
         model=model,
-        dataset=dataset,
-        class_names=class_names,
-        device=device,
-        output_dir=output_dir,
-        num_samples=num_samples,
-        batch_size=batch_size,
+        num_background_samples=50,
     )
 
-    interpreter.generate_visualizations()
+    # Prepare output directory
+    ensure_dir(output_dir)
+
+    # Sample images from the dataset for explanation
+    logger.info(f"Sampling {num_samples} images for SHAP analysis")
+
+    # List to store samples and their targets
+    samples = []
+    sample_targets = []
+    sample_paths = []
+
+    # Use a dataloader to batch-process
+    dataloader = torch.utils.data.DataLoader(
+        dataset, batch_size=batch_size, shuffle=True
+    )
+
+    # Get images and labels for visualization
+    for batch_images, batch_targets in dataloader:
+        for i in range(len(batch_images)):
+            samples.append(batch_images[i])
+            sample_targets.append(batch_targets[i].item())
+
+            # Try to get file path if available in dataset
+            path = None
+            if hasattr(dataset, "samples") and i < len(dataset.samples):
+                path = dataset.samples[i][0]
+            elif hasattr(dataset, "imgs") and i < len(dataset.imgs):
+                path = dataset.imgs[i][0]
+            elif hasattr(dataset, "filenames") and i < len(dataset.filenames):
+                path = dataset.filenames[i]
+
+            sample_paths.append(path)
+
+            if len(samples) >= num_samples:
+                break
+
+        if len(samples) >= num_samples:
+            break
+
+    # Generate explanations
+    results = []
+
+    for i, (image, target, path) in enumerate(
+        zip(samples, sample_targets, sample_paths)
+    ):
+        # Create a descriptive filename
+        if path:
+            base_name = os.path.basename(path)
+            file_name = f"{i:02d}_{base_name}"
+        else:
+            file_name = f"{i:02d}_class_{target}.png"
+
+        # Get target class name
+        target_class_name = (
+            class_names[target]
+            if class_names and target < len(class_names)
+            else f"Class {target}"
+        )
+
+        logger.info(
+            f"Generating SHAP for sample {i + 1}/{len(samples)}: {target_class_name}"
+        )
+
+        # Generate visualization with selected theme
+        output_path = output_dir / f"shap_{file_name}"
+
+        try:
+            # Apply dark theme through the visualize_shap method
+            result = interpreter.visualize_shap(
+                image_input=image,
+                target_class=target,
+                output_path=str(output_path),
+                class_names=class_names,
+            )
+
+            # Store results
+            results.append(
+                {
+                    "index": i,
+                    "target_class": target,
+                    "target_class_name": target_class_name,
+                    "output_path": str(output_path),
+                }
+            )
+
+            # Also generate channel-wise visualization
+            channel_output_path = output_dir / f"shap_channels_{file_name}"
+            interpreter.channel_shap(
+                image_input=image,
+                target_class=target,
+                output_path=str(channel_output_path),
+                class_names=class_names,
+            )
+
+        except Exception as e:
+            logger.error(f"Error generating SHAP for sample {i}: {e}")
+
+    logger.info(f"Generated SHAP visualizations for {len(results)} samples")
+
+    return {
+        "num_explained_samples": len(results),
+        "results": results,
+        "visualization_dir": str(output_dir),
+    }

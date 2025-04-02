@@ -4,6 +4,7 @@ Visualization tools for attention mechanisms in CBAM models.
 
 import json
 import os
+import traceback
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
@@ -278,15 +279,15 @@ class CBAMVisualizer:
                 sorted_weights = channel_weights[sorted_indices]
 
                 # Create bar chart figure with PlantDoc theme
-                plt.style.use('default')
+                plt.style.use("default")
                 fig, ax = plt.subplots(figsize=(12, 8))
-                fig.patch.set_facecolor('#f8f9fa')  # Light background
-                
+                fig.patch.set_facecolor("#121212")  # Light background
+
                 # Format the name for better readability
-                formatted_name = name.replace('backbone.backbone.', '')
-                formatted_name = formatted_name.replace('_channel', '')
-                formatted_name = formatted_name.replace('_', ' ')
-                
+                formatted_name = name.replace("backbone.backbone.", "")
+                formatted_name = formatted_name.replace("_channel", "")
+                formatted_name = formatted_name.replace("_", " ")
+
                 # Create a more visually appealing bar chart
                 bars = ax.bar(
                     range(len(sorted_weights)),
@@ -295,29 +296,44 @@ class CBAMVisualizer:
                         np.linspace(0, 1, len(sorted_weights))
                     ),
                     width=0.8,  # Slightly thinner bars
-                    edgecolor='white',  # White edges for better separation
-                    linewidth=0.5
+                    edgecolor="#404040",  # White edges for better separation
+                    linewidth=0.5,
                 )
-                
+
                 # Add a light grid for better readability
-                ax.grid(True, axis='y', linestyle='--', alpha=0.3)
-                
+                ax.grid(True, axis="y", linestyle="--", alpha=0.3)
+
                 # Style the chart
-                ax.set_xlabel("Channel Index (sorted by attention weight)", fontsize=12, fontweight='medium')
-                ax.set_ylabel("Attention Weight", fontsize=12, fontweight='medium')
-                ax.set_title(f"Channel Attention Weights: {formatted_name}", 
-                            fontsize=16, pad=20, fontweight='bold', color='#2e7d32')
-                
+                ax.set_xlabel(
+                    "Channel Index (sorted by attention weight)",
+                    fontsize=12,
+                    fontweight="medium",
+                )
+                ax.set_ylabel("Attention Weight", fontsize=12, fontweight="medium")
+                ax.set_title(
+                    f"Channel Attention Weights: {formatted_name}",
+                    fontsize=16,
+                    pad=20,
+                    fontweight="bold",
+                    color="#f5f5f5",
+                )
+
                 # Add a subtitle
-                plt.figtext(0.5, 0.91, "Features the model emphasizes for classification", 
-                          ha='center', fontsize=12, color='#1b5e20')
-                
+                plt.figtext(
+                    0.5,
+                    0.91,
+                    "Features the model emphasizes for classification",
+                    ha="center",
+                    fontsize=12,
+                    color="#f5f5f5",
+                )
+
                 # Improve axes appearance
-                ax.spines['top'].set_visible(False)
-                ax.spines['right'].set_visible(False)
-                ax.spines['left'].set_linewidth(0.5)
-                ax.spines['bottom'].set_linewidth(0.5)
-                
+                ax.spines["top"].set_visible(False)
+                ax.spines["right"].set_visible(False)
+                ax.spines["left"].set_linewidth(0.5)
+                ax.spines["bottom"].set_linewidth(0.5)
+
                 # Adjust layout
                 plt.tight_layout()
                 plt.subplots_adjust(top=0.85)  # Make room for title
@@ -325,42 +341,59 @@ class CBAMVisualizer:
                 # Save figure with high resolution
                 if output_dir:
                     fig.savefig(
-                        output_dir / f"{name}_channel_weights.png", 
+                        output_dir / f"{name}_channel_weights.png",
                         bbox_inches="tight",
-                        dpi=300,
-                        facecolor=fig.get_facecolor()
+                        dpi=400,
+                        facecolor=fig.get_facecolor(),
                     )
 
                 figures[f"{name}_weights"] = fig
 
                 # Create a figure showing the effect of channel attention on features
                 # This is a simplified approximation since we don't have direct access to feature maps
-                plt.style.use('default')
+                plt.style.use("default")
                 fig, axes = plt.subplots(1, 2, figsize=figsize)
-                fig.patch.set_facecolor('#f8f9fa')  # Light background
-                
+                fig.patch.set_facecolor("#121212")  # Light background
+
                 # Format the name for better readability
-                formatted_name = name.replace('backbone.backbone.', '')
-                formatted_name = formatted_name.replace('_channel', '')
-                formatted_name = formatted_name.replace('_', ' ')
-                
+                formatted_name = name.replace("backbone.backbone.", "")
+                formatted_name = formatted_name.replace("_channel", "")
+                formatted_name = formatted_name.replace("_", " ")
+
                 # Add main title
-                fig.suptitle(f"Channel Attention Visualization: {formatted_name}", 
-                            fontsize=18, fontweight='bold', color='#2e7d32', y=0.98)
-                
+                fig.suptitle(
+                    f"Channel Attention Visualization: {formatted_name}",
+                    fontsize=18,
+                    fontweight="bold",
+                    color="#f5f5f5",
+                    y=0.98,
+                )
+
                 # Add subtitle
-                plt.figtext(0.5, 0.94, "Effect of attention on feature channels", 
-                          ha='center', fontsize=14, color='#1b5e20')
+                plt.figtext(
+                    0.5,
+                    0.94,
+                    "Effect of attention on feature channels",
+                    ha="center",
+                    fontsize=14,
+                    color="#f5f5f5",
+                )
 
                 # Original image with enhanced presentation
                 axes[0].imshow(original_image)
-                axes[0].set_title("Original Image", fontsize=14, pad=10, fontweight='medium', color='#2e7d32')
+                axes[0].set_title(
+                    "Original Image",
+                    fontsize=14,
+                    pad=10,
+                    fontweight="medium",
+                    color="#f5f5f5",
+                )
                 axes[0].axis("off")
-                
+
                 # Add borders to axes
                 for spine in axes[0].spines.values():
                     spine.set_visible(True)
-                    spine.set_color('#dddddd')
+                    spine.set_color("#dddddd")
                     spine.set_linewidth(1)
 
                 # Create a visualization of channel attention effect
@@ -391,13 +424,19 @@ class CBAMVisualizer:
 
                 # Show channel attention visualization with enhanced presentation
                 axes[1].imshow(channel_attention_vis)
-                axes[1].set_title("Channel Attention Effect", fontsize=14, pad=10, fontweight='medium', color='#2e7d32')
+                axes[1].set_title(
+                    "Channel Attention Effect",
+                    fontsize=14,
+                    pad=10,
+                    fontweight="medium",
+                    color="#f5f5f5",
+                )
                 axes[1].axis("off")
-                
+
                 # Add borders to axes
                 for spine in axes[1].spines.values():
                     spine.set_visible(True)
-                    spine.set_color('#dddddd')
+                    spine.set_color("#dddddd")
                     spine.set_linewidth(1)
 
                 # Improve layout
@@ -407,10 +446,10 @@ class CBAMVisualizer:
                 # Save figure with high resolution
                 if output_dir:
                     fig.savefig(
-                        output_dir / f"{name}_channel_effect.png", 
+                        output_dir / f"{name}_channel_effect.png",
                         bbox_inches="tight",
-                        dpi=300,
-                        facecolor=fig.get_facecolor()
+                        dpi=400,
+                        facecolor=fig.get_facecolor(),
                     )
 
                 figures[f"{name}_effect"] = fig
@@ -468,8 +507,8 @@ class CBAMVisualizer:
 
         if spatial_maps:
             # Set theme and styling
-            plt.style.use('default')
-            
+            plt.style.use("default")
+
             # Determine grid size - make it more square and consistent
             n = len(spatial_maps)
             nrows = 3  # Fixed number of rows for more consistent layout
@@ -477,29 +516,43 @@ class CBAMVisualizer:
 
             # Create figure with PlantDoc theme
             fig = plt.figure(figsize=(15, 15))
-            fig.patch.set_facecolor('#f8f9fa')  # Light background
-            
+            fig.patch.set_facecolor("#121212")  # Light background
+
             # Main title
-            fig.suptitle("Attention Overlays", fontsize=22, fontweight='bold', color='#2e7d32')
+            fig.suptitle(
+                "Attention Overlays", fontsize=22, fontweight="bold", color="#f5f5f5"
+            )
             # Subtitle
-            plt.figtext(0.5, 0.92, "Areas the model focuses on for classification", 
-                       ha='center', fontsize=14, color='#1b5e20')
-            
+            plt.figtext(
+                0.5,
+                0.92,
+                "Areas the model focuses on for classification",
+                ha="center",
+                fontsize=14,
+                color="#f5f5f5",
+            )
+
             # Generate the subplot layout
             grid = plt.GridSpec(nrows, ncols, figure=fig, wspace=0.2, hspace=0.4)
-            
+
             # Original image - make it larger and centered in the first row
             ax_original = fig.add_subplot(grid[0, 0])
             ax_original.imshow(original_image)
-            ax_original.set_title("Original Image", fontsize=16, pad=10, fontweight='medium', color='#2e7d32')
+            ax_original.set_title(
+                "Original Image",
+                fontsize=16,
+                pad=10,
+                fontweight="medium",
+                color="#2e7d32",
+            )
             ax_original.axis("off")
-            
+
             # Add borders to axes
             for spine in ax_original.spines.values():
                 spine.set_visible(True)
-                spine.set_color('#dddddd')
+                spine.set_color("#121212")
                 spine.set_linewidth(1)
-            
+
             # Spatial attention maps in a consistent grid
             for i, (name, attention_map) in enumerate(spatial_maps):
                 if i < nrows * ncols - 1:  # Leave space for the original image
@@ -507,10 +560,10 @@ class CBAMVisualizer:
                     pos = i + 1
                     row = pos // ncols
                     col = pos % ncols
-                    
+
                     # Create subplot
                     ax = fig.add_subplot(grid[row, col])
-                    
+
                     # Resize to match input size for visualization
                     spatial_map = F.interpolate(
                         attention_map,
@@ -534,14 +587,22 @@ class CBAMVisualizer:
                     ax.imshow(overlaid_image)
                     layer_name = name.split("_spatial")[0]
                     # Make the title more readable by formatting it
-                    formatted_name = layer_name.replace('backbone.backbone.', '').replace('_', ' ')
-                    ax.set_title(f"{formatted_name}\nOverlay", fontsize=14, pad=10, fontweight='medium', color='#2e7d32')
+                    formatted_name = layer_name.replace(
+                        "backbone.backbone.", ""
+                    ).replace("_", " ")
+                    ax.set_title(
+                        f"{formatted_name}\nOverlay",
+                        fontsize=14,
+                        pad=10,
+                        fontweight="medium",
+                        color="#f5f5f5",
+                    )
                     ax.axis("off")
-                    
+
                     # Add borders to axes
                     for spine in ax.spines.values():
                         spine.set_visible(True)
-                        spine.set_color('#dddddd')
+                        spine.set_color("#121212")
                         spine.set_linewidth(1)
 
             # Turn off any unused axes
@@ -557,10 +618,10 @@ class CBAMVisualizer:
             # Save figure with high resolution
             if output_dir:
                 fig.savefig(
-                    output_dir / "all_spatial_attention_maps.png", 
-                    bbox_inches="tight", 
-                    dpi=300,
-                    facecolor=fig.get_facecolor()
+                    output_dir / "all_spatial_attention_maps.png",
+                    bbox_inches="tight",
+                    dpi=400,
+                    facecolor=fig.get_facecolor(),
                 )
 
             figures["all_spatial"] = fig
@@ -765,91 +826,132 @@ def run_cbam_attention_visualization(
 
     # Clean up
     visualizer.cleanup()
-    
+
     # Create a combined visualization grid if requested
     if create_combined_visualization and samples_processed > 0:
         try:
             logger.info("Creating combined attention visualization grid...")
-            
+
             # Collect sample images and their visualizations
             sample_images = []
             attention_overlays = []
-            
+
             # Find and collect sample images and attention maps
             for i in range(samples_processed):
-                for class_name in class_names if class_names else ['unknown']:
+                for class_name in class_names if class_names else ["unknown"]:
                     sample_dir = output_dir / f"sample_{i:02d}_{class_name}"
                     if sample_dir.exists():
                         # Find original image
                         orig_img_path = sample_dir / "original.png"
                         if orig_img_path.exists():
                             # Find spatial attention map
-                            attention_map_path = sample_dir / "all_spatial_attention_maps.png"
+                            attention_map_path = (
+                                sample_dir / "all_spatial_attention_maps.png"
+                            )
                             if attention_map_path.exists():
                                 sample_images.append(str(orig_img_path))
                                 attention_overlays.append(str(attention_map_path))
                                 break
-            
+
             # Create a grid visualization if we have samples
             if sample_images and attention_overlays:
                 # Create figure with PlantDoc theme
-                plt.style.use('default')
+                plt.style.use("default")
                 fig = plt.figure(figsize=(15, 5 * min(len(sample_images), 4)))
-                fig.patch.set_facecolor('#f8f9fa')  # Light background
-                
+                fig.patch.set_facecolor("#121212")  # Light background
+
                 # Main title
-                fig.suptitle("PlantDoc Attention Visualization", fontsize=24, fontweight='bold', color='#2e7d32')
+                fig.suptitle(
+                    "PlantDoc Attention Visualization",
+                    fontsize=24,
+                    fontweight="bold",
+                    color="#f5f5f5",
+                )
                 # Subtitle
-                plt.figtext(0.5, 0.98, "How our neural network focuses on important visual features", 
-                          ha='center', fontsize=16, color='#1b5e20')
-                
+                plt.figtext(
+                    0.5,
+                    0.98,
+                    "How our neural network focuses on important visual features",
+                    ha="center",
+                    fontsize=16,
+                    color="#f5f5f5",
+                )
+
                 # Determine grid size
                 n_samples = min(len(sample_images), 4)  # Show at most 4 samples
-                
+
                 for i in range(n_samples):
                     # Original image
                     ax1 = plt.subplot2grid((n_samples, 2), (i, 0))
                     img = plt.imread(sample_images[i])
                     ax1.imshow(img)
-                    ax1.set_title(f"Sample {i+1}: Original Image", fontsize=14, pad=10, fontweight='medium', color='#2e7d32')
+                    ax1.set_title(
+                        f"Sample {i + 1}: Original Image",
+                        fontsize=14,
+                        pad=10,
+                        fontweight="medium",
+                        color="#f5f5f5",
+                    )
                     ax1.axis("off")
-                    
+
                     # Add borders to axes
                     for spine in ax1.spines.values():
                         spine.set_visible(True)
-                        spine.set_color('#dddddd')
+                        spine.set_color("#404040")
                         spine.set_linewidth(1)
-                    
+
                     # Attention overlay
                     ax2 = plt.subplot2grid((n_samples, 2), (i, 1))
                     attention_img = plt.imread(attention_overlays[i])
                     ax2.imshow(attention_img)
-                    ax2.set_title(f"Sample {i+1}: Attention Overlays", fontsize=14, pad=10, fontweight='medium', color='#2e7d32')
+                    ax2.set_title(
+                        f"Sample {i + 1}: Attention Overlays",
+                        fontsize=14,
+                        pad=10,
+                        fontweight="medium",
+                        color="#f5f5f5",
+                    )
                     ax2.axis("off")
-                    
+
                     # Add borders to axes
                     for spine in ax2.spines.values():
                         spine.set_visible(True)
-                        spine.set_color('#dddddd')
+                        spine.set_color("#dddddd")
                         spine.set_linewidth(1)
-                
+
                 # Add explanatory text at the bottom
-                plt.figtext(0.5, 0.02, 
-                            "The attention overlays highlight the regions that the model focuses on when identifying plant diseases.", 
-                            ha='center', fontsize=12, color='#333333', 
-                            bbox=dict(facecolor='#e8f5e9', alpha=0.5, pad=10, boxstyle='round,pad=0.8'))
-                
+                plt.figtext(
+                    0.5,
+                    0.02,
+                    "The attention overlays highlight the regions that the model focuses on when identifying plant diseases.",
+                    ha="center",
+                    fontsize=12,
+                    color="#f5f5f5",
+                    bbox=dict(
+                        facecolor="#121212", alpha=0.5, pad=10, boxstyle="round,pad=0.8"
+                    ),
+                )
+
                 plt.tight_layout(pad=3.0, h_pad=3.0, w_pad=3.0)
-                plt.subplots_adjust(top=0.90, bottom=0.08)  # Adjust for title and annotation
-                
+                plt.subplots_adjust(
+                    top=0.90, bottom=0.08
+                )  # Adjust for title and annotation
+
                 # Save the combined visualization
                 combined_vis_path = output_dir / "combined_attention_visualization.png"
-                plt.savefig(combined_vis_path, bbox_inches="tight", dpi=300, facecolor=fig.get_facecolor())
+                plt.savefig(
+                    combined_vis_path,
+                    bbox_inches="tight",
+                    dpi=400,
+                    facecolor=fig.get_facecolor(),
+                )
                 plt.close()
-                
+
                 logger.info(f"Created combined visualization at {combined_vis_path}")
             else:
-                logger.warning("Not enough samples found to create combined visualization")
+                logger.warning(
+                    "Not enough samples found to create combined visualization"
+                )
         except Exception as e:
             logger.error(f"Error creating combined visualization: {e}")
             logger.error(traceback.format_exc())

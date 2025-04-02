@@ -321,7 +321,7 @@ class GradCAMCallback(Callback):
             plt.style.use("dark_background")
 
             # Create figure with dark background
-            fig, axes = plt.subplots(1, 3, figsize=(15, 5), dpi=300)
+            fig, axes = plt.subplots(1, 3, figsize=(15, 5), dpi=400)
             fig.patch.set_facecolor("#09090b")
 
             # Set axes styling for dark theme
@@ -352,7 +352,7 @@ class GradCAMCallback(Callback):
             # Save with high quality and dark theme
             plt.savefig(
                 output_path,
-                dpi=300,
+                dpi=400,
                 bbox_inches="tight",
                 facecolor="#09090b",
                 edgecolor="#23272e",

@@ -9,12 +9,36 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
+from omegaconf import DictConfig, ListConfig, OmegaConf
 
 from utils.logger import get_logger
+from utils.paths import ensure_dir
 
 from .base import Callback
 
 logger = get_logger(__name__)
+
+
+def _convert_omegaconf_to_python(obj):
+    """
+    Convert OmegaConf objects (DictConfig, ListConfig) to native Python types for JSON serialization.
+
+    Args:
+        obj: Object to convert
+
+    Returns:
+        Object with OmegaConf types converted to native Python types
+    """
+    if isinstance(obj, DictConfig):
+        return {k: _convert_omegaconf_to_python(v) for k, v in obj.items()}
+    elif isinstance(obj, ListConfig):
+        return [_convert_omegaconf_to_python(x) for x in obj]
+    elif isinstance(obj, (list, tuple)):
+        return [_convert_omegaconf_to_python(x) for x in obj]
+    elif isinstance(obj, dict):
+        return {k: _convert_omegaconf_to_python(v) for k, v in obj.items()}
+    else:
+        return obj
 
 
 class MetricsLogger(Callback):
@@ -108,7 +132,7 @@ class MetricsLogger(Callback):
             return
 
         try:
-            # Extract config
+            # Extract config - use OmegaConf.to_container if needed
             cfg = self.config
 
             # Extract relevant training parameters
@@ -126,7 +150,11 @@ class MetricsLogger(Callback):
                 # Optional model parameters
                 for param in ["head_type", "hidden_dim", "dropout_rate", "backbone"]:
                     if param in cfg.model:
-                        training_params["model"][param] = cfg.model[param]
+                        # Use OmegaConf.to_container for nested configs
+                        value = cfg.model[param]
+                        if isinstance(value, (DictConfig, ListConfig)):
+                            value = OmegaConf.to_container(value)
+                        training_params["model"][param] = value
 
             # Training parameters
             if "training" in cfg:
@@ -144,7 +172,11 @@ class MetricsLogger(Callback):
                     "precision",
                 ]:
                     if param in cfg.training:
-                        training_params["training"][param] = cfg.training[param]
+                        # Use OmegaConf.to_container for nested configs
+                        value = cfg.training[param]
+                        if isinstance(value, (DictConfig, ListConfig)):
+                            value = OmegaConf.to_container(value)
+                        training_params["training"][param] = value
 
             # Optimizer parameters
             if "optimizer" in cfg:
@@ -155,7 +187,11 @@ class MetricsLogger(Callback):
                 # Optional optimizer parameters
                 for param in ["lr", "weight_decay", "momentum", "beta1", "beta2"]:
                     if param in cfg.optimizer:
-                        training_params["optimizer"][param] = cfg.optimizer[param]
+                        # Use OmegaConf.to_container for nested configs
+                        value = cfg.optimizer[param]
+                        if isinstance(value, (DictConfig, ListConfig)):
+                            value = OmegaConf.to_container(value)
+                        training_params["optimizer"][param] = value
 
             # Scheduler parameters
             if "scheduler" in cfg:
@@ -173,7 +209,11 @@ class MetricsLogger(Callback):
                     "gamma",
                 ]:
                     if param in cfg.scheduler:
-                        training_params["scheduler"][param] = cfg.scheduler[param]
+                        # Use OmegaConf.to_container for nested configs
+                        value = cfg.scheduler[param]
+                        if isinstance(value, (DictConfig, ListConfig)):
+                            value = OmegaConf.to_container(value)
+                        training_params["scheduler"][param] = value
 
             # Loss parameters
             if "loss" in cfg:
@@ -184,40 +224,53 @@ class MetricsLogger(Callback):
                 # Optional loss parameters
                 for param in ["components", "weights"]:
                     if param in cfg.loss:
-                        training_params["loss"][param] = cfg.loss[param]
+                        # Use OmegaConf.to_container for nested configs
+                        value = cfg.loss[param]
+                        if isinstance(value, (DictConfig, ListConfig)):
+                            value = OmegaConf.to_container(value)
+                        training_params["loss"][param] = value
 
             # Data parameters
             if "data" in cfg:
                 training_params["data"] = {}
 
                 if "train_val_test_split" in cfg.data:
-                    training_params["data"]["train_val_test_split"] = (
-                        cfg.data.train_val_test_split
-                    )
+                    # Use OmegaConf.to_container for nested configs
+                    value = cfg.data.train_val_test_split
+                    if isinstance(value, (DictConfig, ListConfig)):
+                        value = OmegaConf.to_container(value)
+                    training_params["data"]["train_val_test_split"] = value
 
             # Preprocessing parameters
             if "preprocessing" in cfg:
                 training_params["data"]["preprocessing"] = {}
                 for param in ["resize", "center_crop", "normalize"]:
                     if param in cfg.preprocessing:
-                        training_params["data"]["preprocessing"][param] = (
-                            cfg.preprocessing[param]
-                        )
+                        # Use OmegaConf.to_container for nested configs
+                        value = cfg.preprocessing[param]
+                        if isinstance(value, (DictConfig, ListConfig)):
+                            value = OmegaConf.to_container(value)
+                        training_params["data"]["preprocessing"][param] = value
 
             # Augmentation parameters
             if "augmentation" in cfg and "train" in cfg.augmentation:
                 training_params["data"]["augmentation"] = {}
                 for param in ["rand_augment", "cutmix", "mixup"]:
                     if param in cfg.augmentation.train:
-                        training_params["data"]["augmentation"][param] = (
-                            cfg.augmentation.train[param]
-                        )
+                        # Use OmegaConf.to_container for nested configs
+                        value = cfg.augmentation.train[param]
+                        if isinstance(value, (DictConfig, ListConfig)):
+                            value = OmegaConf.to_container(value)
+                        training_params["data"]["augmentation"][param] = value
 
             # Save to file
             self._save_training_params(training_params)
 
         except Exception as e:
             logger.error(f"Error extracting and saving training parameters: {e}")
+            import traceback
+
+            logger.error(traceback.format_exc())
             self._create_default_training_params()
 
     def _create_default_training_params(self):
@@ -230,7 +283,7 @@ class MetricsLogger(Callback):
 
         # Try to extract model name and classes from self.model
         if hasattr(self, "model"):
-            model = getattr(self, "model")
+            model = self.model
             if hasattr(model, "__class__"):
                 model_name = model.__class__.__name__
             if hasattr(model, "num_classes"):
@@ -273,6 +326,9 @@ class MetricsLogger(Callback):
 
     def _save_training_params(self, training_params):
         """Save training parameters to file."""
+        # Convert OmegaConf objects to Python types
+        training_params = _convert_omegaconf_to_python(training_params)
+
         # Save to file
         output_path = self.metrics_dir / "training_params.json"
         # Also save to experiment_dir if it exists
@@ -346,15 +402,19 @@ class MetricsLogger(Callback):
 
     def _save_json(self, filepath: Path) -> None:
         """Save metrics in JSON format."""
+        # Convert history to JSON-serializable format
+        history = _convert_omegaconf_to_python(self.history)
         with open(filepath, "w") as f:
-            json.dump({"history": self.history}, f, indent=2)
+            json.dump({"history": history}, f, indent=2)
 
     def _save_jsonl(self, filepath: Path) -> None:
         """Save metrics in JSONL format (one JSON object per line)."""
         mode = "w" if self.overwrite or not self.has_saved else "a"
         with open(filepath, mode) as f:
             for metrics in self.history:
-                f.write(json.dumps(metrics) + "\n")
+                # Convert each metrics dict to JSON-serializable format
+                serializable_metrics = _convert_omegaconf_to_python(metrics)
+                f.write(json.dumps(serializable_metrics) + "\n")
 
     def _save_csv(self, filepath: Path) -> None:
         """Save metrics in CSV format."""
@@ -405,50 +465,52 @@ class MetricsLogger(Callback):
 
     def _save_report_files(self, final_metrics: Dict[str, Any]):
         """Save files needed for report generation."""
-        if not self.experiment_dir:
-            return
-
         try:
-            # Save metrics.json in experiment directory
-            metrics_path = self.experiment_dir / "metrics.json"
+            if self.experiment_dir is None:
+                logger.warning("No experiment_dir provided, skipping report files")
+                return
 
-            # Extract class metrics if available in final metrics
+            # Create metrics directory if needed
+            metrics_dir = self.experiment_dir / "metrics"
+            ensure_dir(metrics_dir)
+
+            # Process class metrics if present
             class_metrics = {}
             if (
-                self.class_names
-                and "class_metrics" in final_metrics
-                and final_metrics["class_metrics"]
+                "class_metrics" in final_metrics
+                and final_metrics["class_metrics"] is not None
             ):
                 logger.info(
                     "Found class metrics in final metrics, processing them for report"
                 )
+                class_metrics_data = _convert_omegaconf_to_python(
+                    final_metrics["class_metrics"]
+                )
 
-                class_data = final_metrics["class_metrics"]
-                if isinstance(class_data, dict) and "f1" in class_data:
+                # Check if we have dict or list structure for class metrics
+                if isinstance(class_metrics_data, dict):
+                    # Already dictionary format
+                    class_metrics = class_metrics_data
+                elif isinstance(class_metrics_data, list) and self.class_names:
+                    # List structure, convert to dict using class names
                     for i, class_name in enumerate(self.class_names):
-                        # Only process if we have enough values in the lists
-                        if i < len(class_data["f1"]):
-                            safe_name = class_name.replace(" ", "_")
-                            class_metrics[f"class_{safe_name}_f1"] = class_data["f1"][i]
-                            class_metrics[f"class_{safe_name}_precision"] = class_data[
-                                "precision"
-                            ][i]
-                            class_metrics[f"class_{safe_name}_recall"] = class_data[
-                                "recall"
-                            ][i]
-
-                    logger.info(
-                        f"Processed metrics for {len(self.class_names)} classes"
-                    )
+                        if i < len(class_metrics_data):
+                            class_metrics[class_name] = class_metrics_data[i]
                 else:
                     logger.warning(
-                        "class_metrics found but data structure is not as expected"
+                        f"Unrecognized class_metrics format: {type(class_metrics_data)}"
                     )
 
-            # Combine metrics - remove the complex class_metrics dict from the final report
+                logger.info(f"Processed metrics for {len(class_metrics)} classes")
+
+            # Copy basic metrics to be saved
             report_metrics = {
-                k: v for k, v in final_metrics.items() if k != "class_metrics"
+                k: _convert_omegaconf_to_python(v)
+                for k, v in final_metrics.items()
+                if k
+                not in ["class_metrics", "confusion_matrix", "final_metrics", "model"]
             }
+
             # Remove model key if it exists to avoid serialization issues
             if "model" in report_metrics:
                 del report_metrics["model"]
@@ -456,15 +518,32 @@ class MetricsLogger(Callback):
             # Add class metrics
             report_metrics.update(class_metrics)
 
+            # Save metrics.json for report
+            metrics_path = metrics_dir / "metrics.json"
             with open(metrics_path, "w") as f:
                 json.dump(report_metrics, f, indent=2)
             logger.info(f"Saved metrics.json to {metrics_path}")
 
+            # Also save a copy at the experiment root for backward compatibility
+            root_metrics_path = self.experiment_dir / "metrics.json"
+            with open(root_metrics_path, "w") as f:
+                json.dump(report_metrics, f, indent=2)
+            logger.info(f"Saved metrics.json to {root_metrics_path}")
+
             # Save history.json in correct format
-            history_path = self.experiment_dir / "history.json"
+            history_dict = self._convert_history_format()
+            history_dict = _convert_omegaconf_to_python(history_dict)
+
+            history_path = metrics_dir / "history.json"
             with open(history_path, "w") as f:
-                json.dump(self._convert_history_format(), f, indent=2)
+                json.dump(history_dict, f, indent=2)
             logger.info(f"Saved history.json to {history_path}")
+
+            # Also save a copy at the experiment root for backward compatibility
+            root_history_path = self.experiment_dir / "history.json"
+            with open(root_history_path, "w") as f:
+                json.dump(history_dict, f, indent=2)
+            logger.info(f"Saved history.json to {root_history_path}")
 
             # Save class names
             self._save_class_names()
@@ -474,8 +553,12 @@ class MetricsLogger(Callback):
                 "confusion_matrix" in final_metrics
                 and final_metrics["confusion_matrix"] is not None
             ):
-                cm_path = self.experiment_dir / "confusion_matrix.npy"
-                np.save(cm_path, np.array(final_metrics["confusion_matrix"]))
+                # Convert to numpy array and handle any OmegaConf objects
+                confusion_matrix = _convert_omegaconf_to_python(
+                    final_metrics["confusion_matrix"]
+                )
+                cm_path = metrics_dir / "confusion_matrix.npy"
+                np.save(cm_path, np.array(confusion_matrix))
                 logger.info(f"Saved confusion matrix to {cm_path}")
 
         except Exception as e:

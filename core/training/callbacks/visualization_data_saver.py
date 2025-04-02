@@ -9,6 +9,7 @@ This callback saves the necessary files for our enhanced visualization functions
 - test_images.npy - Sample images for classification examples grid
 """
 
+import os
 import random
 from pathlib import Path
 from typing import Any, Dict, Union
@@ -16,6 +17,7 @@ from typing import Any, Dict, Union
 import numpy as np
 import torch
 import torch.nn as nn
+from PIL import Image
 
 from core.training.callbacks.base import Callback
 from utils.logger import get_logger
@@ -113,130 +115,57 @@ class VisualizationDataSaver(Callback):
             elif hasattr(model, "backbone") and hasattr(model.backbone, "avgpool"):
                 logger.info("Using backbone.avgpool layer for feature extraction")
                 model.backbone.avgpool.register_forward_hook(hook_fn)
-            else:
-                logger.warning(
-                    "ResNet model structure not found - trying to find alternative layers"
-                )
-                # Fallback to adaptive_avg_pool2d if it exists
-                if hasattr(model, "adaptive_avg_pool2d"):
+        elif "cbam" in self.model_type.lower():
+            # For CBAM models, extract from the last layer of the backbone and after global pooling
+            if hasattr(model, "backbone") and hasattr(model.backbone, "layer4"):
+                logger.info("Using backbone.layer4[-1] for CBAM feature extraction")
+                # Get the last residual block in layer4
+                last_layer = model.backbone.layer4[-1]
+                last_layer.register_forward_hook(hook_fn)
+            elif hasattr(model, "backbone") and hasattr(model.backbone, "backbone"):
+                # For nested backbone structures
+                if hasattr(model.backbone.backbone, "layer4"):
                     logger.info(
-                        "Using adaptive_avg_pool2d layer for feature extraction"
+                        "Using backbone.backbone.layer4[-1] for CBAM feature extraction"
                     )
-                    model.adaptive_avg_pool2d.register_forward_hook(hook_fn)
-                # Try to find the last convolutional layer
-                elif hasattr(model, "layer4") and hasattr(
-                    model.layer4, "register_forward_hook"
-                ):
-                    logger.info("Using layer4 for feature extraction")
-                    model.layer4.register_forward_hook(hook_fn)
-        elif self.model_type.lower() == "efficientnet":
-            # For EfficientNet, extract from the classifier[0] layer
-            if hasattr(model, "classifier") and len(model.classifier) > 0:
-                logger.info("Using classifier[0] layer for feature extraction")
-                model.classifier[0].register_forward_hook(hook_fn)
-        elif self.model_type.lower() == "vit":
-            # For Vision Transformer, extract from the norm layer
-            if hasattr(model, "norm"):
-                logger.info("Using norm layer for feature extraction")
-                model.norm.register_forward_hook(hook_fn)
-        elif self.model_type.lower() in ["cbam", "cbam_only_resnet18"]:
-            # For CBAM models, try to extract features from various points
-            if hasattr(model, "backbone"):
-                # Try the feature layers or avgpool in the backbone
-                if hasattr(model.backbone, "avgpool"):
-                    logger.info("Using backbone.avgpool layer for feature extraction")
-                    model.backbone.avgpool.register_forward_hook(hook_fn)
-                elif hasattr(model.backbone, "layer4"):
-                    logger.info("Using backbone.layer4 for feature extraction")
-                    model.backbone.layer4.register_forward_hook(hook_fn)
-                elif hasattr(model.backbone, "features") and callable(
-                    getattr(model.backbone, "features", None)
-                ):
-                    logger.info("Using backbone.features method for feature extraction")
-                    # This is a safe way to check if a method exists and is callable
-                    # We'll hook the return of the features method
-                    # Note: This won't work with standard register_forward_hook
-                    # We'd need a custom method to capture the output of this function
-                    try:
-                        # Alternative approach: directly register a hook on the last layer
-                        if hasattr(model.backbone, "layer4") and hasattr(
-                            model.backbone.layer4, "register_forward_hook"
-                        ):
-                            logger.info(
-                                "Using backbone.layer4[-1] for feature extraction"
-                            )
-                            if (
-                                isinstance(model.backbone.layer4, nn.Sequential)
-                                and len(model.backbone.layer4) > 0
-                            ):
-                                model.backbone.layer4[-1].register_forward_hook(hook_fn)
-                            else:
-                                logger.warning(
-                                    "backbone.layer4 is not a nn.Sequential or is empty"
-                                )
-                    except Exception as e:
-                        logger.error(f"Error setting up feature hook: {e}")
-            else:
-                # Try direct access to layers
-                if hasattr(model, "avgpool"):
-                    logger.info("Using model avgpool for feature extraction")
-                    model.avgpool.register_forward_hook(hook_fn)
-                elif hasattr(model, "layer4"):
-                    logger.info("Using model layer4 for feature extraction")
-                    if (
-                        isinstance(model.layer4, nn.Sequential)
-                        and len(model.layer4) > 0
-                    ):
-                        model.layer4[-1].register_forward_hook(hook_fn)
-                    else:
-                        model.layer4.register_forward_hook(hook_fn)
+                    model.backbone.backbone.layer4[-1].register_forward_hook(hook_fn)
 
-            # If we still don't have a hook, try the head
-            if hasattr(model, "head") and hasattr(model.head, "register_forward_hook"):
-                if isinstance(model.head, nn.Sequential) and len(model.head) > 0:
-                    # Get the first layer of the head for features
-                    logger.info("Using head[0] for feature extraction")
-                    model.head[0].register_forward_hook(hook_fn)
-                else:
-                    logger.info("Using head for feature extraction")
-                    model.head.register_forward_hook(hook_fn)
+            # Also try to hook the global pooling if available
+            if hasattr(model, "global_pool"):
+                logger.info("Using global_pool for feature extraction")
+                model.global_pool.register_forward_hook(hook_fn)
+            elif hasattr(model, "backbone") and hasattr(model.backbone, "global_pool"):
+                logger.info("Using backbone.global_pool for feature extraction")
+                model.backbone.global_pool.register_forward_hook(hook_fn)
 
-        # If we couldn't hook a specific layer, try a more generic approach
-        if not features:
-            logger.warning("No specific layer found for hooks, trying generic approach")
-            # Find the last convolutional layer or linear layer before the final classifier
-            visited_modules = set()
-
-            def find_feature_layer(m, prefix=""):
-                if id(m) in visited_modules:
-                    return None
-                visited_modules.add(id(m))
-
-                # Look for likely feature extraction points
-                if isinstance(m, (nn.AdaptiveAvgPool2d, nn.AvgPool2d)):
-                    logger.info(f"Found pooling layer: {prefix}")
-                    return m
-                elif isinstance(m, nn.Linear) and not hasattr(m, "is_classifier"):
-                    # Assume first linear layer is for feature transform
-                    logger.info(f"Found linear layer: {prefix}")
-                    return m
-
-                # Recurse into children to find a suitable layer
-                for name, child in m.named_children():
-                    child_path = f"{prefix}.{name}" if prefix else name
-                    result = find_feature_layer(child, child_path)
-                    if result is not None:
-                        return result
-                return None
-
-            feature_layer = find_feature_layer(model)
-            if feature_layer is not None:
-                logger.info(
-                    f"Using generic feature layer: {type(feature_layer).__name__}"
-                )
-                feature_layer.register_forward_hook(hook_fn)
-            else:
-                logger.error("Could not find any suitable layer for feature extraction")
+            # For models with a feature_fusion module
+            if hasattr(model, "feature_fusion") and not isinstance(
+                model.feature_fusion, bool
+            ):
+                logger.info("Using feature_fusion for feature extraction")
+                model.feature_fusion.register_forward_hook(hook_fn)
+            elif (
+                hasattr(model, "backbone")
+                and hasattr(model.backbone, "feature_fusion")
+                and not isinstance(model.backbone.feature_fusion, bool)
+            ):
+                logger.info("Using backbone.feature_fusion for feature extraction")
+                model.backbone.feature_fusion.register_forward_hook(hook_fn)
+        elif hasattr(model, "features"):
+            # Generic approach for models with a features module (DenseNet, EfficientNet, etc.)
+            logger.info("Using generic 'features' module for feature extraction")
+            model.features.register_forward_hook(hook_fn)
+        else:
+            # Fallback for other model architectures
+            logger.warning(
+                f"No suitable feature extraction point found for {self.model_type}"
+            )
+            for name, module in model.named_modules():
+                # Try to find a convolutional layer near the end (before classification head)
+                if isinstance(module, nn.Conv2d) and "layer" in name and "4" in name:
+                    logger.info(f"Using {name} for feature extraction")
+                    module.register_forward_hook(hook_fn)
+                    break
 
         return features
 
@@ -565,60 +494,112 @@ class VisualizationDataSaver(Callback):
             logger.error(f"Error saving test images: {e}")
 
         # Save augmentation examples if requested
-        if self.save_augmentation_examples and train_loader is not None:
+        if (
+            hasattr(self, "save_augmentation_examples")
+            and isinstance(self.save_augmentation_examples, bool)
+            and self.save_augmentation_examples
+            and train_loader is not None
+        ):
             try:
-                # Try to get the transforms from the training dataset
-                if hasattr(train_loader, "dataset") and hasattr(
-                    train_loader.dataset, "transform"
-                ):
-                    transform = train_loader.dataset.transform
-                    logger.info(
-                        f"Found transforms for augmentation examples: {transform}"
-                    )
-
-                    # Get a few samples from the dataset
-                    dataset = train_loader.dataset
-                    indices = random.sample(range(len(dataset)), min(5, len(dataset)))
-
-                    for i, idx in enumerate(indices):
-                        sample = dataset[idx]
-
-                        # Extract the original image
-                        if isinstance(sample, (list, tuple)) and len(sample) >= 2:
-                            image = sample[0]
-                        elif isinstance(sample, dict) and "image" in sample:
-                            image = sample["image"]
-                        else:
-                            continue
-
-                        # Convert to numpy if tensor
-                        if isinstance(image, torch.Tensor):
-                            image = (
-                                image.numpy().transpose(1, 2, 0)
-                                if image.ndim == 3
-                                else image.numpy()
-                            )
-
-                        # Save the original image
-                        from PIL import Image
-
-                        if isinstance(image, np.ndarray):
-                            # Normalize to [0, 255] if in [0, 1]
-                            if image.max() <= 1.0:
-                                image = (image * 255).astype(np.uint8)
-                            Image.fromarray(image).save(
-                                self.aug_examples_dir / f"original_{i}.png"
-                            )
-
-                        # We could save augmented versions here, but that requires knowing the exact transforms
-                        # I'll leave this as a placeholder for now
-
-                    logger.info(
-                        f"Saved augmentation examples to {self.aug_examples_dir}"
-                    )
-                else:
-                    logger.warning("Training dataset does not have transform attribute")
+                self._save_augmentation_examples()
             except Exception as e:
                 logger.error(f"Error saving augmentation examples: {e}")
+                import traceback
+
+                logger.error(traceback.format_exc())
 
         logger.info("Finished saving data for enhanced visualizations")
+
+    def _save_augmentation_examples(self):
+        """Save augmentation examples for visualization."""
+        if not hasattr(self, "train_loader") or self.train_loader is None:
+            logger.warning("No train_loader available for augmentation examples")
+            return
+
+        # Get transforms if available
+        transforms = None
+        if hasattr(self.train_loader.dataset, "transform"):
+            transforms = self.train_loader.dataset.transform
+            logger.info(f"Found transforms for augmentation examples: {transforms}")
+        else:
+            logger.warning("No transforms found in dataset for augmentation examples")
+            return
+
+        # Save some examples of augmentations
+        try:
+            # Get a few random samples
+            samples = []
+            for i, batch in enumerate(self.train_loader):
+                if i >= 1:  # Just process one batch
+                    break
+
+                # Extract inputs from batch, handling different formats
+                if isinstance(batch, (list, tuple)):
+                    # Handle tuple/list format
+                    inputs = batch[0]  # First element is typically inputs
+                elif isinstance(batch, dict) and "image" in batch:
+                    # Handle dictionary format
+                    inputs = batch["image"]
+                else:
+                    logger.error(f"Unexpected batch format: {type(batch)}")
+                    continue
+
+                # Get a subset of the batch for visualization
+                inputs = inputs[: min(5, len(inputs))]
+
+                # Convert inputs to appropriate format to avoid data type issues
+                inputs_list = []
+                for img_tensor in inputs:
+                    # Convert to uint8 numpy array for consistent format
+                    if img_tensor.dim() == 3:  # CHW format
+                        # Convert CHW to HWC
+                        img_np = img_tensor.permute(1, 2, 0).cpu().numpy()
+
+                        # Handle different normalization scenarios
+                        if img_np.max() <= 1.0:
+                            img_np = (img_np * 255).astype(np.uint8)
+                        else:
+                            img_np = img_np.astype(np.uint8)
+
+                        # Ensure 3 channels (RGB)
+                        if img_np.shape[2] == 1:
+                            img_np = np.repeat(img_np, 3, axis=2)
+
+                        inputs_list.append(img_np)
+                    else:
+                        logger.warning(f"Unexpected tensor shape: {img_tensor.shape}")
+
+                samples.extend(inputs_list)
+
+            # Save augmentation examples in the experiment directory
+            output_dir = self.experiment_dir / "reports" / "plots" / "augmentation"
+            os.makedirs(output_dir, exist_ok=True)
+
+            # Process each sample
+            for i, img_array in enumerate(samples):
+                if i >= 5:  # Limit to 5 samples
+                    break
+
+                # Convert to PIL Image for augmentation
+                img = Image.fromarray(img_array)
+
+                # Save original image with augmentations
+                output_path = output_dir / f"augmentation_example_{i + 1}.png"
+
+                # Import here to avoid circular imports
+                from scripts.generate_augmentations import create_augmentation_grid
+
+                # Save the image first since create_augmentation_grid expects a path
+                img_path = output_dir / f"original_{i + 1}.png"
+                img.save(img_path)
+                
+                # Now create the augmentation grid
+                create_augmentation_grid(str(img_path), output_path, theme="plantdoc")
+
+                logger.info(f"Saved augmentation example to {output_path}")
+
+        except Exception as e:
+            logger.error(f"Error saving augmentation examples: {e}")
+            import traceback
+
+            logger.error(traceback.format_exc())

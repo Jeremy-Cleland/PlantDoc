@@ -12,8 +12,6 @@ Usage:
 """
 
 import argparse
-import os
-import sys
 import traceback
 from pathlib import Path
 
@@ -21,7 +19,6 @@ import torch
 
 from core.models import get_model
 from utils.logger import get_logger
-from utils.paths import ensure_dir
 
 logger = get_logger(__name__)
 
@@ -295,7 +292,7 @@ def load_class_names(experiment_dir: Path) -> list:
 
     if class_names_path.exists():
         try:
-            with open(class_names_path, "r") as f:
+            with open(class_names_path) as f:
                 class_names = [line.strip() for line in f]
             logger.info(f"Loaded {len(class_names)} class names")
             return class_names

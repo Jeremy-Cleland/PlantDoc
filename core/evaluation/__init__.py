@@ -5,13 +5,11 @@ Evaluation and interpretability tools for plant disease classification models.
 from core.evaluation.evaluate import evaluate_model
 from core.evaluation.interpretability import (
     GradCAM,
+    explain_model_predictions,
+    visualize_gradcam,
 )
 from core.evaluation.interpretability import (
     evaluate_model as evaluate_model_with_gradcam,
-)
-from core.evaluation.interpretability import (
-    explain_model_predictions,
-    visualize_gradcam,
 )
 from core.evaluation.metrics import (
     ClassificationMetrics,

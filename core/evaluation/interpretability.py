@@ -1019,7 +1019,7 @@ class GradCAM:
 
                 # Create output directory if it doesn't exist
                 ensure_dir(Path(output_path).parent)
-                plt.savefig(output_path, dpi=300, bbox_inches="tight")
+                plt.savefig(output_path, dpi=400, bbox_inches="tight")
                 plt.close(fig)
 
         finally:

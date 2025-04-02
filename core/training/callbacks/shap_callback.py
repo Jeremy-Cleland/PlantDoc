@@ -8,8 +8,6 @@ import os
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-import torch
-
 from core.evaluation.shap_evaluation import evaluate_with_shap
 from core.training.callbacks.base import Callback
 from utils.logger import get_logger
@@ -145,19 +143,14 @@ class SHAPCallback(Callback):
                     logger.warning(
                         f"No dataloader found for {self.dataset_split} split and no data_module available"
                     )
-
-                    # Fallback: If test loader is requested but not available, use validation loader instead
-                    if self.dataset_split == "test" and "val_loader" in logs:
+                    
+                    # Fallback options in order of preference
+                    if "val_loader" in logs:
                         dataloader = logs["val_loader"]
-                        logger.info(
-                            "Falling back to validation dataset for SHAP analysis"
-                        )
+                        logger.info("Falling back to validation dataset for SHAP analysis")
                     elif "train_loader" in logs:
-                        # Last resort fallback to training loader
                         dataloader = logs["train_loader"]
-                        logger.info(
-                            "Falling back to training dataset for SHAP analysis"
-                        )
+                        logger.info("Falling back to training dataset for SHAP analysis")
 
             if dataloader is None:
                 logger.error("No dataloader available for SHAP analysis, aborting")

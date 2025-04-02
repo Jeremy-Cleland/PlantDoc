@@ -8,19 +8,19 @@ used in training and saves them to the augmentation_examples directory.
 import argparse
 import os
 from pathlib import Path
+from typing import Union
 
 import matplotlib.pyplot as plt
 import numpy as np
 from PIL import Image, ImageEnhance, ImageFilter
 
 from utils.logger import get_logger
-from utils.paths import ensure_dir
 
 logger = get_logger(__name__)
 
 
 def create_augmentation_grid(
-    image_path: str,
+    image_path_or_img: Union[str, Image.Image],
     output_path: Path,
     figsize=(15, 15),
     theme="dark",
@@ -29,14 +29,18 @@ def create_augmentation_grid(
     Generate and save a grid of augmentation examples for a single image.
 
     Args:
-        image_path: Path to the original image
+        image_path_or_img: Path to the original image or PIL Image object
         output_path: Path to save the augmentation grid
         figsize: Figure size for the grid
         theme: Theme to use for visualization ('dark' or 'light')
     """
     try:
-        # Load original image
-        image = Image.open(image_path).convert("RGB")
+        # Load original image or use provided PIL Image
+        if isinstance(image_path_or_img, str):
+            image = Image.open(image_path_or_img).convert("RGB")
+        else:
+            # Ensure we're working with an RGB image
+            image = image_path_or_img.convert("RGB")
 
         # Create augmentations
         augmentations = [
@@ -128,7 +132,7 @@ def create_augmentation_grid(
         # Save figure with high resolution
         plt.savefig(
             output_path,
-            dpi=300,
+            dpi=400,
             bbox_inches="tight",
             facecolor=theme_settings["background_color"],
         )
@@ -163,7 +167,7 @@ def generate_augmentation_examples(
 
         import yaml
 
-        with open(config_path, "r") as f:
+        with open(config_path) as f:
             # Load experiment config
             try:
                 config = yaml.safe_load(f)
@@ -183,7 +187,6 @@ def generate_augmentation_examples(
 
         # Sample one image from each class to show augmentations
         import random
-        from pathlib import Path
 
         # Get class folders
         class_folders = [

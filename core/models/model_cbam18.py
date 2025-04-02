@@ -243,16 +243,20 @@ class CBAMResNet18Model(BaseModel):
         flat_features = torch.flatten(features, 1)
         return flat_features
 
-    def get_attention_maps(self, x):
+    def get_attention_maps(self, x=None):
         """
         Get the attention maps from the CBAM modules.
 
         Args:
-            x: Input tensor
+            x: Input tensor (optional)
 
         Returns:
             Dictionary of attention maps from different layers
         """
+        if x is None:
+            logger.warning("No input tensor provided for attention map extraction")
+            return {}
+            
         if not hasattr(self.backbone, "get_attention_maps"):
             logger.warning("Backbone does not support attention map extraction")
             return {}
