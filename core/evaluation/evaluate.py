@@ -98,6 +98,10 @@ def evaluate_model(
     all_targets = []
     all_probs = []
     all_image_paths = []
+    all_features = []
+    all_labels = []
+    all_scores = []
+    all_inputs = []
 
     # Disable gradient computation for evaluation
     with torch.no_grad():
@@ -132,6 +136,14 @@ def evaluate_model(
             all_targets.append(targets.cpu().numpy())
             all_probs.append(probs.cpu().numpy())
             all_image_paths.extend(img_paths)
+
+            # Extract features
+            if hasattr(model, "features"):
+                features = model.features(inputs)
+                all_features.append(features.cpu())
+                all_labels.append(targets.cpu())
+                all_scores.append(logits.cpu())
+                all_inputs.append(inputs.cpu())
 
     # Combine results
     all_preds = np.concatenate(all_preds)
@@ -216,6 +228,63 @@ def evaluate_model(
                                 else f"Unknown_{pred}"
                             )
                             f.write(f"{path},{true},{pred},{true_class},{pred_class}\n")
+
+    # Save features for visualization if needed
+    if isinstance(all_features, torch.Tensor):
+        features_path = output_dir / "features.npy"
+        # Convert features to numpy (move to CPU first if needed)
+        if all_features.is_cuda or all_features.device.type == "mps":
+            all_features = all_features.cpu()
+        features_np = all_features.detach().numpy()
+        np.save(features_path, features_np)
+        logger.info(
+            f"Saved {len(features_np)} features with shape {features_np.shape} to {features_path}"
+        )
+
+    # Save true labels if needed for visualizations
+    if isinstance(all_labels, torch.Tensor):
+        labels_path = output_dir / "true_labels.npy"
+        # Convert to numpy (move to CPU first if needed)
+        if all_labels.is_cuda or all_labels.device.type == "mps":
+            all_labels = all_labels.cpu()
+        labels_np = all_labels.detach().numpy()
+        np.save(labels_path, labels_np)
+        logger.info(
+            f"Saved {len(labels_np)} true labels with shape {labels_np.shape} to {labels_path}"
+        )
+
+    # Save predictions and scores for further analysis
+    predictions_path = output_dir / "predictions.npy"
+    np.save(predictions_path, all_preds)
+    logger.info(f"Saved {len(all_preds)} predictions to {predictions_path}")
+
+    if all_scores is not None:
+        scores_path = output_dir / "scores.npy"
+        np.save(scores_path, all_scores)
+        logger.info(f"Saved {len(all_scores)} prediction scores to {scores_path}")
+
+    # Save a small set of test images for visualization
+    if isinstance(all_inputs, torch.Tensor):
+        max_images = 50  # Save up to 50 sample images
+        if len(all_inputs) > max_images:
+            # Use evenly spaced indices to get representative samples
+            indices = np.linspace(0, len(all_inputs) - 1, max_images, dtype=int)
+            sample_images = all_inputs[indices]
+        else:
+            sample_images = all_inputs
+
+        # Move to CPU and convert to numpy
+        if sample_images.is_cuda or sample_images.device.type == "mps":
+            sample_images = sample_images.cpu()
+        sample_images = sample_images.detach().numpy()
+
+        # Save images
+        images_path = output_dir / "test_images.npy"
+        np.save(images_path, sample_images)
+        logger.info(f"Saved {len(sample_images)} test images to {images_path}")
+
+    else:
+        logger.warning("Could not save test images: all_inputs is not a tensor")
 
     # Log results
     logger.info(f"Evaluation completed in {report['eval_time']:.2f} seconds")

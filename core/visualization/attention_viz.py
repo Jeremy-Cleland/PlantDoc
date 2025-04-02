@@ -206,6 +206,12 @@ def visualize_attention_overlay(
     Returns:
         Matplotlib figure
     """
+    # Remove batch dimension if present
+    if isinstance(image, torch.Tensor) and image.dim() == 4:
+        image = image.squeeze(0)
+    if isinstance(attention_map, torch.Tensor) and attention_map.dim() == 4:
+        attention_map = attention_map.squeeze(0)
+
     # Convert image to numpy if needed
     if isinstance(image, torch.Tensor):
         # Move channel dimension to the end for plotting
@@ -503,6 +509,32 @@ def generate_attention_report(
         model = model.cpu()
         image = image.cpu()
 
+    # Handle image batch dimension and shape
+    if image.dim() == 4 and image.size(0) == 1:
+        # We have a batch dimension with batch size 1, keep it for model forward pass
+        unbatched_image = image.squeeze(0)  # Remove batch for visualization
+    elif image.dim() == 3:
+        # No batch dimension, add it for model forward pass
+        unbatched_image = image
+        image = image.unsqueeze(0)
+    else:
+        # Unexpected shape
+        logger.warning(
+            f"Unexpected image shape: {image.shape}. Expected [1, C, H, W] or [C, H, W]"
+        )
+        if image.dim() == 4 and image.size(0) > 1:
+            logger.warning(
+                f"Using only the first image from batch of size {image.size(0)}"
+            )
+            unbatched_image = image[0]
+            image = image[0:1]  # Keep only first image but maintain batch dim
+        else:
+            # Try best effort
+            unbatched_image = image
+            if image.dim() < 3:
+                logger.error(f"Cannot process image with shape {image.shape}")
+                return ""
+
     # Extract model name from the model instance
     model_name = model.__class__.__name__
 
@@ -518,6 +550,8 @@ def generate_attention_report(
     # Normalize and preprocess the input image if needed
     if resize_image:
         image = visualizer.preprocess_image(image, normalize=True)
+        # Also preprocess the unbatched version for visualization
+        unbatched_image = visualizer.preprocess_image(unbatched_image, normalize=True)
 
     # Get the file prefix for saving visualizations
     prefix = filename_prefix or "attention"
@@ -558,7 +592,7 @@ def generate_attention_report(
     # Generate visualization of spatial attention maps
     if spatial_maps:
         # Convert tensor to numpy for visualization
-        original_image = image.squeeze(0).permute(1, 2, 0).cpu().numpy()
+        original_image = unbatched_image.permute(1, 2, 0).cpu().numpy()
         # Denormalize image
         original_image = np.clip(original_image * 0.225 + 0.45, 0, 1)
 
@@ -913,7 +947,7 @@ def generate_attention_report(
                     overlay_path = output_dir / overlay_name
 
                     visualize_attention_overlay(
-                        image=img_np,
+                        image=unbatched_image,
                         attention_map=layer_sp_maps[sp_key][0],  # First item in batch
                         output_path=overlay_path,
                         title=f"{layer} Block {block_idx} Attention",
