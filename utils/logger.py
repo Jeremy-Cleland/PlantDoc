@@ -10,6 +10,53 @@ _LOGGERS: Dict[str, logging.Logger] = {}
 _GLOBAL_FILE_HANDLER = None
 
 
+class ImmediateFileHandler(logging.FileHandler):
+    """Custom FileHandler that flushes after each emit to ensure logs are written immediately."""
+
+    def __init__(self, filename, mode="a", encoding=None, delay=False):
+        # Don't use the parent's initialization, manage our own file
+        logging.Handler.__init__(self)
+        self.baseFilename = os.path.abspath(filename)
+        self.mode = mode
+        self.encoding = encoding
+        self.terminator = "\n"
+
+        # Open the file immediately with line buffering (buffering=1)
+        self._open()
+
+    def _open(self):
+        """Open the file with line buffering"""
+        self.stream = open(
+            self.baseFilename, self.mode, buffering=1, encoding=self.encoding
+        )
+        return self.stream
+
+    def emit(self, record):
+        """Override emit method to flush immediately after writing and ensure stream is open."""
+        if self.stream is None:
+            self._open()
+        try:
+            msg = self.format(record)
+            stream = self.stream
+            stream.write(msg + self.terminator)
+            self.flush()
+        except Exception as e:
+            self.handleError(record)
+
+    def close(self):
+        """
+        Close the file and clean up.
+        """
+        self.acquire()
+        try:
+            if self.stream:
+                self.flush()
+                self.stream.close()
+                self.stream = None
+        finally:
+            self.release()
+
+
 def get_logger(
     name: str,
     log_level: Union[str, int] = "INFO",
@@ -83,7 +130,8 @@ def get_logger(
                 if _GLOBAL_FILE_HANDLER is not None:
                     _GLOBAL_FILE_HANDLER.close()
 
-                _GLOBAL_FILE_HANDLER = logging.FileHandler(file_path, mode="a")
+                # Use our custom ImmediateFileHandler instead of regular FileHandler
+                _GLOBAL_FILE_HANDLER = ImmediateFileHandler(file_path, mode="a")
                 _GLOBAL_FILE_HANDLER.setFormatter(formatter)
 
             # Ensure the handler is attached (it might have been removed)
@@ -92,8 +140,8 @@ def get_logger(
                 logger.info(f"Logging to file: {file_path}")
         # For non-plantdoc loggers that need their own file handler
         else:
-            # Create a new file handler for this logger
-            file_handler = logging.FileHandler(file_path, mode="a")
+            # Create a new file handler for this logger using our custom handler
+            file_handler = ImmediateFileHandler(file_path, mode="a")
             file_handler.setFormatter(formatter)
             logger.addHandler(file_handler)
             logger.info(f"Logging to file: {file_path}")
@@ -133,6 +181,9 @@ def configure_logging(cfg) -> logging.Logger:
     """
     global _GLOBAL_FILE_HANDLER
     _GLOBAL_FILE_HANDLER = None
+
+    # Force Python to use unbuffered mode - this affects stdout/stderr
+    os.environ["PYTHONUNBUFFERED"] = "1"
 
     # Pull settings from config
     command = cfg.get("command", "run")
@@ -211,11 +262,24 @@ def configure_logging(cfg) -> logging.Logger:
         log_path = Path(log_dir) / log_file
         try:
             # Touch the file
-            with open(log_path, "a") as f:
+            with open(log_path, "a", buffering=1) as f:
                 pass  # Just create it if it doesn't exist
             root_logger.info(f"Initialized log file: {log_path}")
         except Exception as e:
             root_logger.error(f"Error initializing log file: {e}")
+
+    # Set a higher flush frequency for all handlers
+    def flush_all_loggers():
+        for name, logger_instance in _LOGGERS.items():
+            for handler in logger_instance.handlers:
+                handler.flush()
+
+    # Create a flush function and set it to run periodically via a timer
+    import threading
+
+    flush_timer = threading.Timer(5.0, flush_all_loggers)
+    flush_timer.daemon = True
+    flush_timer.start()
 
     root_logger.info(f"Logging initialized. Level: {log_level} | Log dir: {log_dir}")
     return root_logger

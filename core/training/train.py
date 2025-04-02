@@ -12,6 +12,7 @@ Includes additional features such as:
 """
 
 import inspect
+import logging
 import numbers
 import random
 import time
@@ -447,7 +448,24 @@ class Trainer:
         current_lr = self.optimizer.param_groups[0]["lr"]
         self.history["learning_rate"].append(current_lr)
         epoch_logs["learning_rate"] = current_lr
+
+        # Flush all logs to ensure they're written to disk
+        self._flush_logs()
+
         return epoch_logs
+
+    def _flush_logs(self):
+        """Force flush all logs to ensure they're written to disk immediately."""
+        # Get all loggers and flush their handlers
+        root_logger = logging.getLogger()
+        for handler in root_logger.handlers:
+            if hasattr(handler, "flush"):
+                handler.flush()
+
+        # Also flush our main logger
+        for handler in logger.handlers:
+            if hasattr(handler, "flush"):
+                handler.flush()
 
     def _handle_train_end(
         self, start_time: float, restore_best: bool, monitor_metric: str
@@ -946,6 +964,25 @@ def train_model(
     # Ensure experiment dir is used for logging
     cfg.paths.log_dir = str(experiment_dir / "logs")
     Path(cfg.paths.log_dir).mkdir(parents=True, exist_ok=True)
+
+    # Delete any existing log file with the same name to ensure a fresh start
+    log_path = Path(cfg.paths.log_dir) / log_file_name
+    if log_path.exists():
+        try:
+            log_path.unlink()
+            logger.info(f"Removed existing log file: {log_path}")
+        except Exception as e:
+            logger.warning(f"Could not remove existing log file {log_path}: {e}")
+
+    # Also create a timestamp-free symlink to the latest log for convenience
+    latest_log_path = Path(cfg.paths.log_dir) / "latest_train.log"
+    try:
+        if latest_log_path.exists():
+            latest_log_path.unlink()
+        latest_log_path.symlink_to(log_file_name)
+        logger.info(f"Created symlink to latest log: {latest_log_path}")
+    except Exception as e:
+        logger.warning(f"Could not create symlink to latest log: {e}")
 
     # Configure logging with updated settings
     configure_logging(cfg)
