@@ -523,7 +523,7 @@ class ClassificationMetrics:
 
             # Add confusion matrix
             if hasattr(self, "confusion_mat") and self.confusion_mat is not None:
-                cm_path = output_dir / "confusion_matrix.npy"
+                cm_path = output_dir / "evaluation_artifacts" / "confusion_matrix.npy"
                 np.save(cm_path, self.confusion_mat)
                 logger.info(f"Saved confusion matrix to {cm_path}")
 

@@ -64,7 +64,9 @@ class VisualizationDataSaver(Callback):
 
         # Create the augmentation examples directory if needed
         if save_augmentation_examples:
-            self.aug_examples_dir = self.experiment_dir / "augmentation_examples"
+            self.aug_examples_dir = (
+                self.experiment_dir / "reports" / "plots" / "augmentation"
+            )
             ensure_dir(self.aug_examples_dir)
 
         # Run at the end of training
@@ -185,37 +187,29 @@ class VisualizationDataSaver(Callback):
                 logger.info("Captured input images for visualization.")
 
     def on_train_end(self, logs: Dict[str, Any]) -> None:
-        """Save all visualization data at the end of training."""
-        logger.info("Saving data for enhanced visualizations...")
+        """
+        Save visualization data at the end of training.
 
-        # Get model and validation data
-        model = logs.get("model") or self.model
-        train_loader = getattr(self, "train_loader", None)
+        Args:
+            logs: Training logs
+        """
+        # Log available information
+        logger.info(
+            "VisualizationDataSaver: Saving visualization data at the end of training"
+        )
+        logger.info(f"Available keys: {logs.keys() if logs else 'No logs available'}")
+
+        # Get model and loaders from context
+        model = getattr(self, "model", None)
         val_loader = getattr(self, "val_loader", None)
 
-        # Detailed debugging logs
-        model_info = f"Model: {type(model).__name__ if model else None}"
-        train_loader_info = (
-            f"Train loader: {type(train_loader).__name__ if train_loader else None}"
-        )
-        val_loader_info = (
-            f"Val loader: {type(val_loader).__name__ if val_loader else None}"
-        )
-        logger.info(
-            f"Data available for visualization: {model_info}, {train_loader_info}, {val_loader_info}"
-        )
-
-        if model is None:
-            logger.error("Model not available, can't extract features")
+        if model is None or val_loader is None:
+            logger.warning("Model or validation dataloader not available")
             return
 
-        if val_loader is None:
-            logger.error("Validation loader not available, can't get validation data")
-            # Add info about how the callback was initialized
-            logger.error(
-                "Check if val_loader was provided to the Trainer or set manually on the callback"
-            )
-            return
+        # Create evaluation_artifacts directory
+        artifacts_dir = self.experiment_dir / "evaluation_artifacts"
+        ensure_dir(artifacts_dir)
 
         # Save predictions and targets if available from logs
         if self.val_outputs is not None and self.val_targets is not None:
@@ -223,10 +217,10 @@ class VisualizationDataSaver(Callback):
             outputs = self.val_outputs
             targets = self.val_targets
 
-            # Convert to numpy and save
-            predictions_path = self.experiment_dir / "predictions.npy"
-            true_labels_path = self.experiment_dir / "true_labels.npy"
-            scores_path = self.experiment_dir / "scores.npy"
+            # Convert to numpy and save"
+            predictions_path = artifacts_dir / "predictions.npy"
+            true_labels_path = artifacts_dir / "true_labels.npy"
+            scores_path = artifacts_dir / "scores.npy"
 
             # Convert to numpy with appropriate format
             if isinstance(outputs, torch.Tensor):
@@ -256,6 +250,14 @@ class VisualizationDataSaver(Callback):
             np.save(predictions_path, predictions)
             np.save(true_labels_path, true_labels)
             np.save(scores_path, scores)
+            
+            # Also save a subset of true labels that matches test_images size
+            # This prevents the size mismatch warning in generate_plots.py
+            subset_labels_path = artifacts_dir / "subset_true_labels.npy"
+            subset_size = min(self.num_test_images, len(true_labels))
+            if len(true_labels) > subset_size:
+                np.save(subset_labels_path, true_labels[:subset_size])
+                logger.info(f"Saved subset of true labels ({subset_size}) to match test_images size")
 
             logger.info(
                 f"Saved predictions, true labels, and scores for {len(predictions)} samples"
@@ -310,9 +312,23 @@ class VisualizationDataSaver(Callback):
                         targets = torch.cat(all_targets, dim=0)
 
                         # Save the predictions
-                        predictions_path = self.experiment_dir / "predictions.npy"
-                        true_labels_path = self.experiment_dir / "true_labels.npy"
-                        scores_path = self.experiment_dir / "scores.npy"
+                        predictions_path = (
+                            self.experiment_dir
+                            / "evaluation_artifacts"
+                            / "predictions.npy"
+                        )
+                        true_labels_path = (
+                            self.experiment_dir
+                            / "evaluation_artifacts"
+                            / "true_labels.npy"
+                        )
+                        scores_path = (
+                            self.experiment_dir / "evaluation_artifacts" / "scores.npy"
+                        )
+
+                        # Ensure the directory exists
+                        artifacts_dir = self.experiment_dir / "evaluation_artifacts"
+                        ensure_dir(artifacts_dir)
 
                         scores = outputs.numpy()
                         predictions = np.argmax(scores, axis=1)
@@ -333,6 +349,13 @@ class VisualizationDataSaver(Callback):
                         np.save(predictions_path, predictions)
                         np.save(true_labels_path, true_labels)
                         np.save(scores_path, scores)
+                        
+                        # Also save a subset of true labels that matches test_images size
+                        subset_labels_path = artifacts_dir / "subset_true_labels.npy"
+                        subset_size = min(self.num_test_images, len(true_labels))
+                        if len(true_labels) > subset_size:
+                            np.save(subset_labels_path, true_labels[:subset_size])
+                            logger.info(f"Saved subset of true labels ({subset_size}) to match test_images size")
 
                         logger.info(
                             f"Saved predictions, true labels, and scores for {len(predictions)} samples from manual pass"
@@ -353,11 +376,30 @@ class VisualizationDataSaver(Callback):
                 model.eval()
                 with torch.no_grad():
                     # Log that we're starting feature extraction
-                    logger.info("Running validation batch to extract features...")
+                    logger.info("Running validation batches to extract features...")
 
-                    # Get a batch of data
+                    # Get multiple batches of data to match the number of labels
                     batch_processed = False
+                    batch_count = 0
+                    max_batches = 5  # Process up to 5 batches to get more features
+                    
+                    # Calculate how many samples we need to match true_labels
+                    true_labels_path = self.experiment_dir / "evaluation_artifacts" / "true_labels.npy"
+                    required_samples = 0
+                    if true_labels_path.exists():
+                        try:
+                            true_labels = np.load(true_labels_path)
+                            required_samples = len(true_labels)
+                            logger.info(f"Need to extract features for {required_samples} samples to match true_labels")
+                        except Exception as e:
+                            logger.warning(f"Couldn't load true_labels for size matching: {e}")
+                    
+                    collected_samples = 0
+                    
                     for batch in val_loader:
+                        if batch_count >= max_batches:
+                            break
+                            
                         try:
                             if isinstance(batch, (list, tuple)) and len(batch) >= 2:
                                 inputs, _ = batch[0], batch[1]
@@ -370,18 +412,25 @@ class VisualizationDataSaver(Callback):
                             # Move to the same device as model
                             device = next(model.parameters()).device
                             inputs = inputs.to(device)
+                            batch_size = len(inputs)
+                            collected_samples += batch_size
                             logger.info(
-                                f"Processing batch with {len(inputs)} inputs on device {device}"
+                                f"Processing batch {batch_count+1} with {batch_size} inputs on device {device}"
                             )
 
                             # Forward pass
                             model(inputs)
                             batch_processed = True
+                            batch_count += 1
 
                             # Check if we got features
                             if features_list and len(features_list) > 0:
-                                logger.info("Successfully extracted features.")
-                                break
+                                logger.info(f"Successfully extracted features from batch {batch_count}")
+                                
+                                # If we have enough samples to match true_labels
+                                if required_samples > 0 and collected_samples >= required_samples:
+                                    logger.info(f"Collected enough samples ({collected_samples}) to match true_labels ({required_samples})")
+                                    break
                             else:
                                 logger.warning(
                                     "No features captured by the hook - feature list is empty."
@@ -396,34 +445,28 @@ class VisualizationDataSaver(Callback):
                         logger.error(
                             "No batches were successfully processed for feature extraction"
                         )
+                    else:
+                        logger.info(f"Processed {batch_count} batches with approx. {collected_samples} samples for feature extraction")
 
                 # Process and save features if available
                 if features_list and len(features_list) > 0:
                     # Flatten the features
                     features = features_list[0]
-                    logger.info(f"Raw feature tensor shape: {features.shape}")
+                    if features.shape[0] > 0:
+                        # Save features to numpy file
+                        features_path = (
+                            self.experiment_dir
+                            / "evaluation_artifacts"
+                            / "features.npy"
+                        )
 
-                    # Reshape to 2D: [batch_size, feature_dim]
-                    if len(features.shape) > 2:
-                        if len(features.shape) == 4:
-                            # Handle the case of [batch_size, channels, height, width]
-                            features = features.mean(dim=(2, 3))
-                            logger.info(
-                                f"Averaged features over spatial dimensions to shape: {features.shape}"
-                            )
-                        else:
-                            # Otherwise flatten everything after the first dimension
-                            features = features.flatten(1)
-                            logger.info(
-                                f"Flattened features to shape: {features.shape}"
-                            )
+                        # Ensure directory exists
+                        artifacts_dir = self.experiment_dir / "evaluation_artifacts"
+                        ensure_dir(artifacts_dir)
 
-                    # Save features
-                    features_path = self.experiment_dir / "features.npy"
-                    np.save(features_path, features.numpy())
-                    logger.info(
-                        f"Saved {len(features)} feature vectors with dimension {features.shape[1]}"
-                    )
+                        np.save(features_path, features.cpu().numpy())
+                    else:
+                        logger.warning("No features extracted from the model")
                 else:
                     logger.warning("No features extracted from the model")
             else:
@@ -481,7 +524,14 @@ class VisualizationDataSaver(Callback):
                     test_labels = np.array(test_labels)
 
                     # Save the test images and labels
-                    test_images_path = self.experiment_dir / "test_images.npy"
+                    test_images_path = (
+                        self.experiment_dir / "evaluation_artifacts" / "test_images.npy"
+                    )
+
+                    # Ensure the directory exists
+                    artifacts_dir = self.experiment_dir / "evaluation_artifacts"
+                    ensure_dir(artifacts_dir)
+
                     np.save(test_images_path, test_images)
                     logger.info(
                         f"Saved {len(test_images)} test images for visualization"
@@ -498,7 +548,7 @@ class VisualizationDataSaver(Callback):
             hasattr(self, "save_augmentation_examples")
             and isinstance(self.save_augmentation_examples, bool)
             and self.save_augmentation_examples
-            and train_loader is not None
+            and self.train_loader is not None
         ):
             try:
                 self._save_augmentation_examples()
@@ -592,9 +642,11 @@ class VisualizationDataSaver(Callback):
                 # Save the image first since create_augmentation_grid expects a path
                 img_path = output_dir / f"original_{i + 1}.png"
                 img.save(img_path)
-                
+
                 # Now create the augmentation grid
                 create_augmentation_grid(str(img_path), output_path, theme="plantdoc")
+
+                # Copy the image to the augmentation directory
 
                 logger.info(f"Saved augmentation example to {output_path}")
 

@@ -532,6 +532,11 @@ class Trainer:
             "confusion_matrix": (
                 confusion_matrix.tolist() if confusion_matrix is not None else None
             ),
+            # Include dataloaders for SHAP callback and other callbacks that need them
+            "train_loader": self.train_loader,
+            "val_loader": self.val_loader,
+            "data_module": getattr(self, "data_module", None),
+            "class_names": self.class_names,
         }
         for callback in self.callbacks:
             callback.on_train_end(final_logs)  # Callbacks might restore weights here

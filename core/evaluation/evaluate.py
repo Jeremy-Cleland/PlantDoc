@@ -7,10 +7,12 @@ from pathlib import Path
 from typing import Dict, Optional, Union
 
 import numpy as np
+import pandas as pd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from omegaconf import DictConfig
+from sklearn.calibration import calibration_curve
 from sklearn.metrics import (
     accuracy_score,
     classification_report,
@@ -24,6 +26,26 @@ from utils.logger import get_logger
 from utils.paths import ensure_dir
 
 logger = get_logger(__name__)
+
+try:
+    from sklearn.manifold import TSNE
+
+    TSNE_AVAILABLE = True
+except ImportError:
+    logger.warning(
+        "TSNE not available. Install scikit-learn for dimensionality reduction."
+    )
+    TSNE_AVAILABLE = False
+
+try:
+    import umap
+
+    UMAP_AVAILABLE = True
+except ImportError:
+    logger.warning(
+        "UMAP not available. Install umap-learn for improved dimensionality reduction."
+    )
+    UMAP_AVAILABLE = False
 
 
 def evaluate_model(
@@ -150,6 +172,34 @@ def evaluate_model(
     all_targets = np.concatenate(all_targets)
     all_probs = np.concatenate(all_probs)
 
+    # Process features if collected
+    if all_features:
+        all_features_tensor = torch.cat(all_features, dim=0)
+        all_labels_tensor = torch.cat(all_labels, dim=0)
+        all_scores_tensor = torch.cat(all_scores, dim=0) if all_scores else None
+
+        # Keep a limited number of test images for visualization
+        max_test_images = 50
+        if all_inputs:
+            # Sample evenly across batches
+            total_samples = sum(inputs.size(0) for inputs in all_inputs)
+            if total_samples > max_test_images:
+                # Calculate indices to keep
+                indices = np.linspace(0, total_samples - 1, max_test_images, dtype=int)
+
+                # Concatenate then sample
+                all_inputs_tensor = torch.cat(all_inputs, dim=0)
+                all_inputs_tensor = all_inputs_tensor[indices]
+            else:
+                all_inputs_tensor = torch.cat(all_inputs, dim=0)
+        else:
+            all_inputs_tensor = None
+    else:
+        all_features_tensor = None
+        all_labels_tensor = None
+        all_scores_tensor = None
+        all_inputs_tensor = None
+
     # Calculate metrics
     accuracy = accuracy_score(all_targets, all_preds)
     precision, recall, f1, _ = precision_recall_fscore_support(
@@ -192,17 +242,144 @@ def evaluate_model(
 
         # Save detailed report if output directory is provided
         if output_dir is not None:
+            # Create evaluation_artifacts directory
+            artifacts_dir = output_dir / "evaluation_artifacts"
+            ensure_dir(artifacts_dir)
+
             # Save confusion matrix
-            np.save(output_dir / "confusion_matrix.npy", conf_matrix)
+            np.save(
+                artifacts_dir / "confusion_matrix.npy",
+                conf_matrix,
+            )
 
             # Save predictions
-            np.save(output_dir / "predictions.npy", all_preds)
-            np.save(output_dir / "targets.npy", all_targets)
-            np.save(output_dir / "probabilities.npy", all_probs)
+            np.save(artifacts_dir / "predictions.npy", all_preds)
+            np.save(artifacts_dir / "targets.npy", all_targets)
+            np.save(artifacts_dir / "probabilities.npy", all_probs)
+
+            # Save misclassified indices
+            misclassified_indices = np.where(all_preds != all_targets)[0]
+            np.save(artifacts_dir / "misclassified_indices.npy", misclassified_indices)
+            logger.info(
+                f"Saved {len(misclassified_indices)} misclassified indices to {artifacts_dir / 'misclassified_indices.npy'}"
+            )
+
+            # Save per-class metrics
+            per_class_metrics = {
+                class_name: {
+                    k: v
+                    for k, v in metrics.items()
+                    if k in ["precision", "recall", "f1-score", "support"]
+                }
+                for class_name, metrics in class_report.items()
+                if class_name not in ["accuracy", "macro avg", "weighted avg"]
+            }
+            np.save(artifacts_dir / "per_class_metrics.npy", per_class_metrics)
+            logger.info(
+                f"Saved per-class metrics for {len(per_class_metrics)} classes to {artifacts_dir / 'per_class_metrics.npy'}"
+            )
+
+            # Save calibration data
+            try:
+                # Compute calibration curves for each class
+                n_classes = len(class_names)
+                calibration_data = {}
+
+                # For each class, compute the calibration curve
+                for class_idx in range(n_classes):
+                    # For binary case (convert to binary - this class vs. rest)
+                    y_true_binary = (all_targets == class_idx).astype(int)
+                    y_prob_binary = all_probs[:, class_idx]
+
+                    # Compute calibration curve
+                    prob_true, prob_pred = calibration_curve(
+                        y_true_binary, y_prob_binary, n_bins=10, strategy="uniform"
+                    )
+
+                    # Store data
+                    calibration_data[class_names[class_idx]] = {
+                        "true_probs": prob_true,
+                        "pred_probs": prob_pred,
+                    }
+
+                # Save calibration data
+                np.save(artifacts_dir / "calibration_data.npy", calibration_data)
+                logger.info(
+                    f"Saved calibration data for {n_classes} classes to {artifacts_dir / 'calibration_data.npy'}"
+                )
+            except Exception as e:
+                logger.error(f"Error computing calibration data: {e}")
+
+            # Compute and save embeddings if features are available
+            if (
+                isinstance(all_features_tensor, torch.Tensor)
+                and len(all_features_tensor) > 0
+            ):
+                try:
+                    # Stack features if they're in a list
+                    features_array = all_features_tensor.cpu().numpy()
+
+                    # Check we have enough data for meaningful dimensionality reduction
+                    min_samples = 5 * len(
+                        class_names
+                    )  # Rule of thumb - at least 5 samples per class
+
+                    if len(features_array) >= min_samples:
+                        # Create embeddings using available method
+                        embeddings = None
+                        method_used = "none"
+
+                        # Try UMAP first if available (better quality)
+                        if UMAP_AVAILABLE:
+                            try:
+                                reducer = umap.UMAP(
+                                    n_components=2,
+                                    n_neighbors=30,
+                                    min_dist=0.1,
+                                    metric="euclidean",
+                                    random_state=42,
+                                )
+                                embeddings = reducer.fit_transform(features_array)
+                                method_used = "umap"
+                            except Exception as e:
+                                logger.warning(
+                                    f"UMAP failed: {e}. Falling back to t-SNE."
+                                )
+
+                        # Fall back to t-SNE if UMAP not available or failed
+                        if embeddings is None and TSNE_AVAILABLE:
+                            try:
+                                tsne = TSNE(
+                                    n_components=2,
+                                    perplexity=min(30, len(features_array) - 1),
+                                    random_state=42,
+                                )
+                                embeddings = tsne.fit_transform(features_array)
+                                method_used = "t-sne"
+                            except Exception as e:
+                                logger.warning(f"t-SNE failed: {e}")
+
+                        # Save embeddings if generated
+                        if embeddings is not None:
+                            embedding_data = {
+                                "embeddings": embeddings,
+                                "labels": all_labels_tensor.cpu().numpy(),
+                                "method": method_used,
+                            }
+                            np.save(artifacts_dir / "embeddings.npy", embedding_data)
+                            logger.info(
+                                f"Saved 2D embeddings ({method_used}) for {len(embeddings)} samples to {artifacts_dir / 'embeddings.npy'}"
+                            )
+                    else:
+                        logger.warning(
+                            f"Not enough samples ({len(features_array)}) for dimensionality reduction. Need at least {min_samples}."
+                        )
+                except Exception as e:
+                    logger.error(f"Error computing embeddings: {e}")
 
             # Save paths for error analysis
             if any(all_image_paths):
-                with open(output_dir / "image_paths.txt", "w") as f:
+                with open(artifacts_dir / "image_paths.txt", "w") as f:
                     for path in all_image_paths:
                         f.write(f"{path}\n")
 
@@ -214,7 +391,10 @@ def evaluate_model(
                 ]
 
                 if errors:
-                    with open(output_dir / "misclassifications.csv", "w") as f:
+                    with open(
+                        artifacts_dir / "misclassifications.csv",
+                        "w",
+                    ) as f:
                         f.write("path,true_label,pred_label,true_class,pred_class\n")
                         for path, true, pred in errors:
                             true_class = (
@@ -230,59 +410,54 @@ def evaluate_model(
                             f.write(f"{path},{true},{pred},{true_class},{pred_class}\n")
 
     # Save features for visualization if needed
-    if isinstance(all_features, torch.Tensor):
-        features_path = output_dir / "features.npy"
+    if all_features_tensor is not None:
+        features_path = output_dir / "evaluation_artifacts" / "features.npy"
         # Convert features to numpy (move to CPU first if needed)
-        if all_features.is_cuda or all_features.device.type == "mps":
-            all_features = all_features.cpu()
-        features_np = all_features.detach().numpy()
+        if all_features_tensor.is_cuda or all_features_tensor.device.type == "mps":
+            all_features_tensor = all_features_tensor.cpu()
+        features_np = all_features_tensor.detach().numpy()
         np.save(features_path, features_np)
         logger.info(
             f"Saved {len(features_np)} features with shape {features_np.shape} to {features_path}"
         )
 
     # Save true labels if needed for visualizations
-    if isinstance(all_labels, torch.Tensor):
-        labels_path = output_dir / "true_labels.npy"
+    if all_labels_tensor is not None:
+        labels_path = output_dir / "evaluation_artifacts" / "true_labels.npy"
         # Convert to numpy (move to CPU first if needed)
-        if all_labels.is_cuda or all_labels.device.type == "mps":
-            all_labels = all_labels.cpu()
-        labels_np = all_labels.detach().numpy()
+        if all_labels_tensor.is_cuda or all_labels_tensor.device.type == "mps":
+            all_labels_tensor = all_labels_tensor.cpu()
+        labels_np = all_labels_tensor.detach().numpy()
         np.save(labels_path, labels_np)
         logger.info(
             f"Saved {len(labels_np)} true labels with shape {labels_np.shape} to {labels_path}"
         )
 
     # Save predictions and scores for further analysis
-    predictions_path = output_dir / "predictions.npy"
+    predictions_path = output_dir / "evaluation_artifacts" / "predictions.npy"
     np.save(predictions_path, all_preds)
     logger.info(f"Saved {len(all_preds)} predictions to {predictions_path}")
 
-    if all_scores is not None:
-        scores_path = output_dir / "scores.npy"
-        np.save(scores_path, all_scores)
-        logger.info(f"Saved {len(all_scores)} prediction scores to {scores_path}")
+    if all_scores_tensor is not None:
+        scores_path = output_dir / "evaluation_artifacts" / "scores.npy"
+        scores_np = all_scores_tensor.detach().numpy()
+        np.save(scores_path, scores_np)
+        logger.info(f"Saved {len(scores_np)} prediction scores to {scores_path}")
 
     # Save a small set of test images for visualization
-    if isinstance(all_inputs, torch.Tensor):
-        max_images = 50  # Save up to 50 sample images
-        if len(all_inputs) > max_images:
-            # Use evenly spaced indices to get representative samples
-            indices = np.linspace(0, len(all_inputs) - 1, max_images, dtype=int)
-            sample_images = all_inputs[indices]
-        else:
-            sample_images = all_inputs
+    if all_inputs_tensor is not None:
+        # Save images to evaluation_artifacts directory
+        artifacts_dir = output_dir / "evaluation_artifacts"
+        ensure_dir(artifacts_dir)
+        images_path = artifacts_dir / "test_images.npy"
 
         # Move to CPU and convert to numpy
-        if sample_images.is_cuda or sample_images.device.type == "mps":
-            sample_images = sample_images.cpu()
-        sample_images = sample_images.detach().numpy()
+        if all_inputs_tensor.is_cuda or all_inputs_tensor.device.type == "mps":
+            all_inputs_tensor = all_inputs_tensor.cpu()
+        sample_images = all_inputs_tensor.detach().numpy()
 
-        # Save images
-        images_path = output_dir / "test_images.npy"
         np.save(images_path, sample_images)
         logger.info(f"Saved {len(sample_images)} test images to {images_path}")
-
     else:
         logger.warning("Could not save test images: all_inputs is not a tensor")
 
@@ -291,5 +466,40 @@ def evaluate_model(
     logger.info(
         f"Accuracy: {accuracy:.4f}, Precision: {precision:.4f}, Recall: {recall:.4f}, F1: {f1:.4f}"
     )
+
+    # Try to extract and save attention maps if model has attention mechanisms
+    try:
+        from core.evaluation.visualization_data_saver import save_attention_maps
+
+        logger.info("Checking if model has attention mechanisms...")
+        save_attention_maps(
+            model=model,
+            dataloader=dataloader,
+            output_dir=output_dir,
+            device=device,
+            max_samples=20,
+            class_names=class_names if "class_names" in locals() else None,
+        )
+    except Exception as e:
+        logger.warning(f"Could not extract attention maps: {e}")
+
+    # Save a subset of true_labels with the same size as test_images
+    # This prevents size mismatch errors in generate_plots.py
+    try:
+        true_labels_path = output_dir / "evaluation_artifacts" / "true_labels.npy"
+        test_images_path = output_dir / "evaluation_artifacts" / "test_images.npy"
+        
+        if true_labels_path.exists() and test_images_path.exists():
+            true_labels = np.load(true_labels_path)
+            test_images = np.load(test_images_path)
+            
+            if len(true_labels) != len(test_images):
+                logger.info(f"Size mismatch: test_images {len(test_images)} vs true_labels {len(true_labels)}")
+                subset_labels_path = output_dir / "evaluation_artifacts" / "subset_true_labels.npy"
+                subset_size = min(len(test_images), len(true_labels))
+                np.save(subset_labels_path, true_labels[:subset_size])
+                logger.info(f"Saved subset of {subset_size} true labels to match test_images size")
+    except Exception as e:
+        logger.warning(f"Could not create subset of true labels: {e}")
 
     return report

@@ -256,7 +256,7 @@ class CBAMResNet18Model(BaseModel):
         if x is None:
             logger.warning("No input tensor provided for attention map extraction")
             return {}
-            
+
         if not hasattr(self.backbone, "get_attention_maps"):
             logger.warning("Backbone does not support attention map extraction")
             return {}

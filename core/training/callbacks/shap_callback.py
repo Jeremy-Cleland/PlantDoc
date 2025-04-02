@@ -6,9 +6,8 @@ SHAP callback for model interpretability after training.
 
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, Optional
 
-import numpy as np
 import torch
 from torch.utils.data import DataLoader, TensorDataset
 

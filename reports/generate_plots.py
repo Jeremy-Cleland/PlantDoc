@@ -7,11 +7,13 @@ import json
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
+import matplotlib.pyplot as plt
 import numpy as np
 from omegaconf import OmegaConf
 
 from core.visualization.base_visualization import (
     DEFAULT_THEME,
+    apply_dark_theme,
     plot_class_metrics,
     plot_learning_rate,
     plot_training_history,
@@ -131,7 +133,7 @@ def load_confusion_matrix(experiment_dir: Union[str, Path]) -> Optional[np.ndarr
 
     # Try different possible locations for the confusion matrix
     possible_paths = [
-        experiment_dir / "confusion_matrix.npy",
+        experiment_dir / "evaluation_artifacts" / "confusion_matrix.npy",
         experiment_dir / "metrics" / "confusion_matrix.npy",
     ]
 
@@ -426,7 +428,619 @@ def plot_learning_rate_from_history(
     logger.info(f"Saved learning rate plot to {output_path}")
 
 
-def generate_plots_for_report(
+def plot_top_misclassifications(
+    images: np.ndarray,
+    true_labels: np.ndarray,
+    predictions: np.ndarray,
+    class_names: List[str],
+    misclassified_indices: np.ndarray,
+    output_path: Union[str, Path],
+    max_examples: int = 20,
+    theme: Optional[Dict] = None,
+) -> None:
+    """
+    Plot the top misclassified examples with their predicted and actual labels.
+
+    Args:
+        images: Array of images
+        true_labels: Array of true labels (indices)
+        predictions: Array of predicted labels (indices)
+        class_names: List of class names
+        misclassified_indices: Indices of misclassified examples
+        output_path: Path to save the figure
+        max_examples: Maximum number of examples to show
+        theme: Visualization theme
+    """
+    if len(misclassified_indices) == 0:
+        logger.warning("No misclassified examples to visualize")
+        return
+
+    # Ensure we don't try to display more examples than we have
+    num_examples = min(max_examples, len(misclassified_indices))
+
+    # Apply theme if provided
+    if theme:
+        apply_theme(theme)
+
+    # Create figure
+    fig, axes = plt.subplots(
+        4, 5, figsize=(15, 12), subplot_kw={"xticks": [], "yticks": []}
+    )
+    axes = axes.flatten()
+
+    # Set dark background
+    fig.patch.set_facecolor("#121212")
+    for ax in axes:
+        ax.set_facecolor("#1e1e1e")
+
+    # Plot each misclassified example
+    for i in range(num_examples):
+        if i >= len(axes):
+            break
+
+        idx = misclassified_indices[i]
+        img = images[idx]
+        true_label = true_labels[idx]
+        pred_label = predictions[idx]
+
+        # Convert index to actual class name
+        true_class = (
+            class_names[true_label]
+            if true_label < len(class_names)
+            else f"Unknown {true_label}"
+        )
+        pred_class = (
+            class_names[pred_label]
+            if pred_label < len(class_names)
+            else f"Unknown {pred_label}"
+        )
+
+        # Prepare image for display
+        if img.shape[0] == 3 and len(img.shape) == 3:  # If in CHW format
+            img = np.transpose(img, (1, 2, 0))  # Convert to HWC for display
+
+        # Display image
+        axes[i].imshow(img)
+
+        # Add title with true and predicted labels
+        title = f"True: {true_class}\nPred: {pred_class}"
+        axes[i].set_title(title, color="white", fontsize=9)
+
+        # Add red border for emphasis
+        for spine in axes[i].spines.values():
+            spine.set_visible(True)
+            spine.set_color("red")
+            spine.set_linewidth(2)
+
+    # Hide unused axes
+    for i in range(num_examples, len(axes)):
+        axes[i].axis("off")
+
+    plt.suptitle("Top Misclassified Examples", color="white", fontsize=16)
+    plt.tight_layout()
+
+    # Save figure
+    plt.savefig(output_path, dpi=300, bbox_inches="tight", facecolor="#121212")
+    plt.close()
+    logger.info(f"Saved top misclassifications plot to {output_path}")
+
+
+def plot_class_difficulties(
+    per_class_metrics: Dict,
+    output_path: Union[str, Path],
+    theme: Optional[Dict] = None,
+) -> None:
+    """
+    Create a scatter plot showing precision vs recall for each class,
+    with point size representing class frequency (support).
+
+    Args:
+        per_class_metrics: Dictionary of per-class metrics
+        output_path: Path to save the figure
+        theme: Visualization theme
+    """
+    # Extract metrics for plotting
+    classes = []
+    precisions = []
+    recalls = []
+    supports = []
+
+    for class_name, metrics in per_class_metrics.items():
+        if class_name in ["accuracy", "macro avg", "weighted avg"]:
+            continue
+
+        classes.append(class_name)
+        precisions.append(metrics["precision"])
+        recalls.append(metrics["recall"])
+        supports.append(metrics["support"])
+
+    # Apply theme if provided
+    if theme:
+        apply_theme(theme)
+
+    # Create figure
+    plt.figure(figsize=(12, 10), facecolor="#121212")
+
+    # Calculate size based on support (normalize to a reasonable size range)
+    max_support = max(supports)
+    sizes = [100 + 900 * (s / max_support) for s in supports]
+
+    # Create scatter plot
+    scatter = plt.scatter(
+        recalls, precisions, s=sizes, c=recalls, cmap="viridis", alpha=0.7
+    )
+
+    # Add color bar
+    cbar = plt.colorbar(scatter)
+    cbar.set_label("Recall", color="white")
+
+    # Add diagonal line for precision = recall
+    plt.plot([0, 1], [0, 1], "--", color="gray", alpha=0.5)
+
+    # Add labels for each point
+    for i, class_name in enumerate(classes):
+        # Truncate long class names
+        if len(class_name) > 20:
+            display_name = class_name[:17] + "..."
+        else:
+            display_name = class_name
+
+        plt.annotate(
+            display_name,
+            (recalls[i], precisions[i]),
+            fontsize=8,
+            color="white",
+            xytext=(5, 5),
+            textcoords="offset points",
+        )
+
+    plt.title("Class Performance Map: Precision vs Recall", color="white", fontsize=16)
+    plt.xlabel("Recall", color="white")
+    plt.ylabel("Precision", color="white")
+    plt.grid(True, alpha=0.2)
+    plt.xlim(-0.05, 1.05)
+    plt.ylim(-0.05, 1.05)
+
+    # Add legend for bubble size
+    sizes_legend = [min(supports), max(supports)]
+    labels_legend = [f"Min Support: {min(supports)}", f"Max Support: {max(supports)}"]
+
+    # Create a legend proxy
+    legend_elements = [
+        plt.Line2D(
+            [0],
+            [0],
+            marker="o",
+            color="w",
+            label=labels_legend[i],
+            markerfacecolor="gray",
+            markersize=np.sqrt(100 + 900 * (s / max_support)) / 2,
+        )
+        for i, s in enumerate(sizes_legend)
+    ]
+    plt.legend(handles=legend_elements, loc="lower left", frameon=False)
+
+    # Save figure
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=300, bbox_inches="tight", facecolor="#121212")
+    plt.close()
+    logger.info(f"Saved class difficulty plot to {output_path}")
+
+
+def plot_calibration_curves(
+    calibration_data: Dict[int, Dict[str, np.ndarray]],
+    output_path: Union[str, Path],
+    max_classes: int = 10,
+    theme: Optional[Dict] = None,
+) -> None:
+    """
+    Plot calibration curves for each class (reliability diagram).
+
+    Args:
+        calibration_data: Dictionary containing calibration data for each class
+        output_path: Path to save the plot
+        max_classes: Maximum number of classes to plot
+        theme: Visualization theme configuration
+    """
+    import matplotlib.pyplot as plt
+    from matplotlib.gridspec import GridSpec
+
+    # Set plot style
+    apply_theme(theme)
+
+    plt.figure(figsize=(12, 10))
+    gs = GridSpec(2, 1, height_ratios=[3, 1])
+
+    ax1 = plt.subplot(gs[0])
+    ax2 = plt.subplot(gs[1])
+
+    # Add reference diagonal line
+    ax1.plot([0, 1], [0, 1], "k--", label="Perfectly Calibrated")
+
+    # Calculate calibration gap (ECE) for each class
+    calibration_gaps = {}
+    for class_idx, class_data in calibration_data.items():
+        # Extract data
+        prob_true = class_data["prob_true"]
+        prob_pred = class_data["prob_pred"]
+
+        # Calculate expected calibration error (ECE)
+        bin_proportion = class_data["bin_count"] / np.sum(class_data["bin_count"])
+        calibration_gap = np.sum(bin_proportion * np.abs(prob_true - prob_pred))
+        calibration_gaps[class_idx] = calibration_gap
+
+    # Sort classes by calibration gap (highest to lowest)
+    sorted_classes = sorted(
+        calibration_gaps.keys(), key=lambda x: calibration_gaps[x], reverse=True
+    )
+
+    # Plot only the top N classes with highest calibration gap
+    for i, class_idx in enumerate(sorted_classes[:max_classes]):
+        class_data = calibration_data[class_idx]
+
+        # Plot calibration curve
+        ax1.plot(
+            class_data["prob_pred"],
+            class_data["prob_true"],
+            marker="o",
+            linestyle="-",
+            label=f"Class {class_idx} (ECE: {calibration_gaps[class_idx]:.3f})",
+        )
+
+        # Plot calibration gap (bar chart in the second subplot)
+        ax2.bar(i, calibration_gaps[class_idx], alpha=0.7)
+
+    # Set axis labels and title
+    ax1.set_xlabel("Mean Predicted Probability")
+    ax1.set_ylabel("Fraction of Positives")
+    ax1.set_title("Calibration Curves (Reliability Diagram)")
+    ax1.grid(True, alpha=0.3)
+    ax1.legend(loc="best", fontsize="small")
+
+    ax2.set_title("Expected Calibration Error (ECE) by Class")
+    ax2.set_xlabel("Class Index")
+    ax2.set_ylabel("ECE")
+    ax2.set_xticks(range(min(max_classes, len(sorted_classes))))
+    ax2.set_xticklabels([str(idx) for idx in sorted_classes[:max_classes]])
+    ax2.grid(True, alpha=0.3)
+
+    # Calculate overall ECE
+    overall_ece = np.mean(list(calibration_gaps.values()))
+    plt.figtext(0.5, 0.01, f"Overall ECE: {overall_ece:.4f}", ha="center", fontsize=12)
+
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=300, bbox_inches="tight")
+    plt.close()
+
+    logger.info(f"Calibration curves saved to {output_path}")
+
+
+def plot_embeddings(
+    embedding_data: Dict[str, np.ndarray],
+    class_names: List[str],
+    output_path: Union[str, Path],
+    theme: Optional[Dict] = None,
+) -> None:
+    """
+    Plot 2D embeddings visualization using t-SNE or UMAP.
+
+    Args:
+        embedding_data: Dictionary containing embeddings and labels
+        class_names: List of class names
+        output_path: Path to save the plot
+        theme: Visualization theme configuration
+    """
+    import matplotlib.pyplot as plt
+    from matplotlib.colors import to_rgba
+
+    # Set plot style
+    apply_theme(theme)
+
+    # Extract data
+    embeddings = embedding_data["embeddings"]
+    labels = embedding_data["labels"]
+    method = embedding_data.get("method", "UMAP")  # Default to UMAP if not specified
+
+    # Convert to numpy arrays if needed
+    embeddings = np.array(embeddings)
+    labels = np.array(labels)
+
+    plt.figure(figsize=(12, 10))
+
+    # Create a scatter plot with different colors for each class
+    unique_labels = np.unique(labels)
+
+    # Get colors from theme if available
+    colors = get_theme_colors(theme, len(unique_labels))
+
+    # Plot each class
+    for i, label in enumerate(unique_labels):
+        idx = labels == label
+
+        # Check if we have class names
+        if i < len(class_names):
+            class_label = class_names[label]
+        else:
+            class_label = f"Class {label}"
+
+        plt.scatter(
+            embeddings[idx, 0],
+            embeddings[idx, 1],
+            c=[colors[i % len(colors)]],
+            label=class_label,
+            alpha=0.7,
+            edgecolors="none",
+            s=30,
+        )
+
+    # Set title and labels
+    plt.title(f"Feature Space Visualization using {method}")
+    plt.xlabel("Dimension 1")
+    plt.ylabel("Dimension 2")
+
+    # Add legend with small font size
+    if len(unique_labels) > 10:
+        plt.legend(
+            fontsize="small",
+            markerscale=1.5,
+            loc="center left",
+            bbox_to_anchor=(1, 0.5),
+        )
+    else:
+        plt.legend(fontsize="medium", markerscale=1.5, loc="best")
+
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=300, bbox_inches="tight")
+    plt.close()
+
+    logger.info(f"Feature space visualization saved to {output_path}")
+
+
+def apply_theme(theme: Optional[Dict] = None) -> None:
+    """
+    Apply visualization theme to matplotlib plots.
+
+    Args:
+        theme: Dictionary containing theme configuration
+    """
+    import matplotlib.pyplot as plt
+
+    # Default dark theme if none specified
+    if theme is None:
+        theme = {
+            "figure.facecolor": "#121212",
+            "axes.facecolor": "#1E1E1E",
+            "axes.edgecolor": "#404040",
+            "axes.labelcolor": "#FFFFFF",
+            "axes.titlecolor": "#FFFFFF",
+            "xtick.color": "#FFFFFF",
+            "ytick.color": "#FFFFFF",
+            "grid.color": "#333333",
+            "text.color": "#FFFFFF",
+            "legend.facecolor": "#1E1E1E",
+            "legend.edgecolor": "#333333",
+            "legend.textcolor": "#FFFFFF",
+        }
+
+    # Set style based on theme
+    plt.style.use("dark_background" if theme.get("dark", True) else "default")
+
+    # Apply specific theme parameters
+    for key, value in theme.items():
+        if key in plt.rcParams:
+            plt.rcParams[key] = value
+
+
+def get_theme_colors(theme: Optional[Dict] = None, num_colors: int = 10) -> List[str]:
+    """
+    Get colors from theme or generate a color palette.
+
+    Args:
+        theme: Dictionary containing theme configuration
+        num_colors: Number of colors needed
+
+    Returns:
+        List of colors as hex strings
+    """
+    import matplotlib.colors as mcolors
+    import matplotlib.pyplot as plt
+
+    # If theme has colors defined, use those
+    if theme and "colors" in theme:
+        colors = theme["colors"]
+        # If not enough colors, cycle through them
+        if len(colors) < num_colors:
+            colors = colors * (num_colors // len(colors) + 1)
+        return colors[:num_colors]
+
+    # Otherwise use a predefined colormap
+    cmap_name = "viridis"
+    if theme and "colormap" in theme:
+        cmap_name = theme["colormap"]
+
+    # Generate colors from colormap
+    cmap = plt.cm.get_cmap(cmap_name, num_colors)
+    return [mcolors.rgb2hex(cmap(i)) for i in range(num_colors)]
+
+
+def plot_attention_maps(
+    attention_data: Dict[str, np.ndarray],
+    output_path: Union[str, Path],
+    class_names: Optional[List[str]] = None,
+    max_samples: int = 10,
+    theme: Optional[Dict] = None,
+) -> None:
+    """
+    Visualize attention maps from a model.
+
+    Args:
+        attention_data: Dictionary containing attention maps and metadata
+        output_path: Path to save the visualizations
+        class_names: List of class names
+        max_samples: Maximum number of samples to visualize
+        theme: Visualization theme configuration
+    """
+    import matplotlib.cm as cm
+    import matplotlib.pyplot as plt
+    from matplotlib.colors import Normalize
+
+    # Apply theme
+    apply_theme(theme)
+
+    # Create output directory
+    output_dir = Path(output_path).parent
+    ensure_dir(output_dir)
+
+    # Extract data
+    attention_maps = attention_data["attention_maps"]
+    true_labels = attention_data["true_labels"]
+    pred_labels = attention_data["pred_labels"]
+    confidences = attention_data["confidences"]
+
+    # Determine number of samples to visualize
+    num_samples = min(max_samples, len(attention_maps))
+
+    # Create class name mapping if available
+    label_names = {}
+    if class_names:
+        for i in range(len(class_names)):
+            label_names[i] = class_names[i]
+
+    # Create subplots for each sample
+    for i in range(num_samples):
+        attention_map = attention_maps[i]
+        true_label = true_labels[i]
+        pred_label = pred_labels[i]
+        confidence = confidences[i]
+
+        # Get class names
+        true_name = label_names.get(true_label, f"Class {true_label}")
+        pred_name = label_names.get(pred_label, f"Class {pred_label}")
+
+        # Determine if prediction was correct
+        is_correct = true_label == pred_label
+        title_color = "green" if is_correct else "red"
+
+        # Create figure with two subplots side by side
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
+
+        # Reshape attention map if needed
+        if attention_map.ndim > 2:
+            # For multi-channel attention maps, take average across channels
+            if attention_map.shape[0] in (1, 3):  # Channel-first format
+                attention_map = np.mean(attention_map, axis=0)
+            else:
+                attention_map = np.mean(attention_map, axis=-1)
+
+        # Normalize attention map for visualization
+        norm = Normalize(vmin=np.min(attention_map), vmax=np.max(attention_map))
+
+        # Plot heatmap
+        im = ax1.imshow(attention_map, cmap="viridis")
+        ax1.set_title("Attention Map")
+        ax1.axis("off")
+        fig.colorbar(im, ax=ax1, fraction=0.046, pad=0.04)
+
+        # Plot 3D surface
+        from mpl_toolkits.mplot3d import Axes3D
+
+        ax2 = fig.add_subplot(1, 2, 2, projection="3d")
+
+        # Create meshgrid for 3D plot
+        h, w = attention_map.shape
+        y, x = np.mgrid[0:h, 0:w]
+
+        # Plot the surface
+        surf = ax2.plot_surface(
+            x,
+            y,
+            attention_map,
+            cmap="viridis",
+            linewidth=0,
+            antialiased=True,
+            rcount=100,
+            ccount=100,
+        )
+
+        ax2.set_title("3D Attention Surface")
+
+        # Add colorbar
+        fig.colorbar(surf, ax=ax2, shrink=0.5, aspect=5)
+
+        # Set main title
+        plt.suptitle(
+            f"Sample {i + 1}: True={true_name}, Pred={pred_name}, Conf={confidence:.2f}",
+            color=title_color,
+            fontsize=14,
+        )
+
+        plt.tight_layout()
+
+        # Save the figure
+        sample_path = Path(output_path).parent / f"attention_map_{i + 1}.png"
+        plt.savefig(sample_path, dpi=300, bbox_inches="tight")
+        plt.close()
+
+    # Create a combined visualization of all attention maps
+    fig = plt.figure(figsize=(15, 10))
+
+    # Calculate grid dimensions
+    cols = min(5, num_samples)
+    rows = (num_samples + cols - 1) // cols
+
+    for i in range(num_samples):
+        attention_map = attention_maps[i]
+        true_label = true_labels[i]
+        pred_label = pred_labels[i]
+
+        # Reshape attention map if needed
+        if attention_map.ndim > 2:
+            # For multi-channel attention maps, take average across channels
+            if attention_map.shape[0] in (1, 3):  # Channel-first format
+                attention_map = np.mean(attention_map, axis=0)
+            else:
+                attention_map = np.mean(attention_map, axis=-1)
+
+        # Get class names
+        true_name = label_names.get(true_label, f"Class {true_label}")
+        pred_name = label_names.get(pred_label, f"Class {pred_label}")
+
+        # Create subplot
+        ax = fig.add_subplot(rows, cols, i + 1)
+
+        # Plot heatmap
+        im = ax.imshow(attention_map, cmap="viridis")
+
+        # Add border color based on correctness
+        is_correct = true_label == pred_label
+        border_color = "green" if is_correct else "red"
+        for spine in ax.spines.values():
+            spine.set_visible(True)
+            spine.set_color(border_color)
+            spine.set_linewidth(2)
+
+        # Add minimal title
+        ax.set_title(f"T:{true_name}\nP:{pred_name}", fontsize=8)
+        ax.axis("off")
+
+    plt.suptitle("Attention Map Overview", fontsize=16)
+    plt.tight_layout()
+
+    # Save the overview figure
+    plt.savefig(output_path, dpi=300, bbox_inches="tight")
+    plt.close()
+
+    logger.info(f"Saved attention map visualizations to {output_dir}")
+
+
+def ensure_dir(path: Union[str, Path]) -> Path:
+    """Create directory if it doesn't exist and return Path object."""
+    path = Path(path)
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def generate_plots(
     experiment_dir: Union[str, Path],
     output_dir: Optional[Union[str, Path]] = None,
 ) -> None:
@@ -458,40 +1072,41 @@ def generate_plots_for_report(
     cm = load_confusion_matrix(experiment_dir)
     class_names = load_class_names(experiment_dir)
 
-    # Check if we have additional data for enhanced visualizations
-    predictions_path = experiment_dir / "predictions.npy"
-    features_path = experiment_dir / "features.npy"
-    true_labels_path = experiment_dir / "true_labels.npy"
-    scores_path = experiment_dir / "scores.npy"
-    test_images_path = experiment_dir / "test_images.npy"
-    augmentation_examples_path = experiment_dir / "augmentation_examples"
-    attention_visualizations_path = experiment_dir / "attention_visualizations"
-    shap_visualizations_path = experiment_dir / "shap_visualizations"
+    # Define paths for all evaluation artifacts
+    evaluation_artifacts_dir = experiment_dir / "evaluation_artifacts"
 
-    # Check for alternative file locations in metrics directory
-    metrics_dir = experiment_dir / "metrics"
-    if metrics_dir.exists():
-        if not features_path.exists() and (metrics_dir / "features.npy").exists():
-            features_path = metrics_dir / "features.npy"
-            logger.info(f"Using features from metrics directory: {features_path}")
+    # Basic evaluation artifacts
+    predictions_path = evaluation_artifacts_dir / "predictions.npy"
+    features_path = evaluation_artifacts_dir / "features.npy"
+    true_labels_path = evaluation_artifacts_dir / "true_labels.npy"
+    scores_path = evaluation_artifacts_dir / "scores.npy"
+    test_images_path = evaluation_artifacts_dir / "test_images.npy"
 
-        if not true_labels_path.exists() and (metrics_dir / "true_labels.npy").exists():
-            true_labels_path = metrics_dir / "true_labels.npy"
-            logger.info(f"Using true labels from metrics directory: {true_labels_path}")
+    # New evaluation artifacts
+    misclassified_indices_path = evaluation_artifacts_dir / "misclassified_indices.npy"
+    per_class_metrics_path = evaluation_artifacts_dir / "per_class_metrics.npy"
+    calibration_path = evaluation_artifacts_dir / "calibration_data.npy"
+    embeddings_path = evaluation_artifacts_dir / "embeddings.npy"
 
-        if not predictions_path.exists() and (metrics_dir / "predictions.npy").exists():
-            predictions_path = metrics_dir / "predictions.npy"
-            logger.info(f"Using predictions from metrics directory: {predictions_path}")
+    # Other visualization directories
+    augmentation_examples_path = experiment_dir / "reports" / "plots" / "augmentation"
+    attention_visualizations_path = experiment_dir / "reports" / "plots" / "attention"
+    shap_visualizations_path = experiment_dir / "reports" / "plots" / "shap"
 
-        if not scores_path.exists() and (metrics_dir / "scores.npy").exists():
-            scores_path = metrics_dir / "scores.npy"
-            logger.info(f"Using scores from metrics directory: {scores_path}")
+    # SHAP directory
+    shap_dir = experiment_dir / "shap_visualizations"
+    shap_output_dir = output_dir / "shap"
 
+    # Check which artifacts exist
     has_predictions = predictions_path.exists()
     has_features = features_path.exists()
     has_true_labels = true_labels_path.exists()
     has_scores = scores_path.exists()
     has_test_images = test_images_path.exists()
+    has_misclassified_indices = misclassified_indices_path.exists()
+    has_per_class_metrics = per_class_metrics_path.exists()
+    has_calibration = calibration_path.exists()
+    has_embeddings = embeddings_path.exists()
     has_augmentation_examples = (
         augmentation_examples_path.exists() and augmentation_examples_path.is_dir()
     )
@@ -503,16 +1118,36 @@ def generate_plots_for_report(
         shap_visualizations_path.exists() and shap_visualizations_path.is_dir()
     )
 
-    # Check for SHAP visualizations
-    shap_plots = []
-    shap_dir = experiment_dir / "shap_visualizations"
-    shap_output_dir = output_dir / "shap"
+    # Load artifacts that exist
+    predictions = np.load(predictions_path) if has_predictions else None
+    features = np.load(features_path) if has_features else None
+    true_labels = np.load(true_labels_path) if has_true_labels else None
+    scores = np.load(scores_path) if has_scores else None
+    test_images = np.load(test_images_path) if has_test_images else None
+    misclassified_indices = (
+        np.load(misclassified_indices_path) if has_misclassified_indices else None
+    )
+    per_class_metrics = (
+        np.load(per_class_metrics_path, allow_pickle=True).item()
+        if has_per_class_metrics
+        else None
+    )
+    calibration_data = (
+        np.load(calibration_path, allow_pickle=True).item() if has_calibration else None
+    )
+    embedding_data = (
+        np.load(embeddings_path, allow_pickle=True).item() if has_embeddings else None
+    )
 
+    # Load theme from config
+    theme = load_visualization_theme(experiment_dir)
+
+    # Copy SHAP visualizations if available
     if shap_dir.exists() and any(shap_dir.glob("*.png")):
-        # Create output directory for SHAP visualizations
         ensure_dir(shap_output_dir)
+        import shutil
 
-        # Only copy files that are actual SHAP visualizations (not regular plots)
+        # Only copy relevant SHAP visualizations
         real_shap_patterns = [
             "shap_summary.png",
             "shap_example_*.png",
@@ -521,9 +1156,7 @@ def generate_plots_for_report(
             "shap_explanation_*.png",
         ]
 
-        # Copy only SHAP visualization files that match the pattern
-        import shutil
-
+        shap_plots = []
         for pattern in real_shap_patterns:
             for shap_file in shap_dir.glob(pattern):
                 shutil.copy2(shap_file, shap_output_dir / shap_file.name)
@@ -537,369 +1170,263 @@ def generate_plots_for_report(
         else:
             logger.info("No matching SHAP visualizations found")
 
-    # Load these files if they exist
-    predictions = np.load(predictions_path) if has_predictions else None
-    features = np.load(features_path) if has_features else None
-    true_labels = np.load(true_labels_path) if has_true_labels else None
-    scores = np.load(scores_path) if has_scores else None
-    test_images = np.load(test_images_path) if has_test_images else None
-
-    # Load theme from config
-    theme = load_visualization_theme(experiment_dir)
-
-    # Always generate basic plots
-    if history:
-        # Plot training history
-        plot_training_history_from_file(
-            history=history,
-            output_path=output_dir / "training_history.png",
-            theme=theme,
-        )
-
-        # Plot training time if available
-        if "epoch_times" in history:
-            plot_training_time_from_history(
+    # Generate basic plots
+    try:
+        # Always generate basic plots
+        if history:
+            # Plot training history
+            plot_training_history_from_file(
                 history=history,
-                output_path=output_dir / "training_time.png",
+                output_path=output_dir / "training_history.png",
                 theme=theme,
             )
 
-        # Plot learning rate if available
-        if "learning_rate" in history:
-            plot_learning_rate_from_history(
-                history=history,
-                output_path=output_dir / "learning_rate.png",
-                theme=theme,
-            )
-
-    # Plot confusion matrix if available
-    if cm is not None and len(class_names) > 0:
-        plot_confusion_matrix_from_file(
-            cm=cm,
-            class_names=class_names,
-            output_path=output_dir / "confusion_matrix.png",
-            theme=theme,
-        )
-
-    # Plot class metrics if available
-    if metrics and "class_metrics" in metrics and len(class_names) > 0:
-        plot_class_metrics_from_metrics(
-            metrics=metrics,
-            class_names=class_names,
-            output_path=output_dir / "class_metrics.png",
-            theme=theme,
-        )
-
-        # Generate performance by class bar chart
-        plot_class_performance(
-            metrics=metrics["class_metrics"],
-            class_names=class_names,
-            output_path=output_dir / "class_performance_bars.png",
-            theme=theme,
-        )
-
-    # Enhanced visualizations if library is available
-    if ENHANCED_VISUALIZATION_AVAILABLE:
-        logger.info("Using enhanced visualization")
-
-        # ROC curves
-        if has_true_labels and has_scores and len(class_names) > 0:
-            plot_roc_curve(
-                y_true=true_labels,
-                y_scores=scores,
-                class_names=class_names,
-                output_path=output_dir / "roc_curves.png",
-                theme=theme,
-            )
-
-        # Precision-Recall curves
-        if has_true_labels and has_scores and len(class_names) > 0:
-            plot_precision_recall_curve(
-                y_true=true_labels,
-                y_scores=scores,
-                class_names=class_names,
-                output_path=output_dir / "precision_recall_curves.png",
-                theme=theme,
-            )
-
-        # Prediction confidence analysis if predictions are available
-        if has_scores and has_true_labels:
-            # Extract max confidence for each prediction
-            confidences = np.max(scores, axis=1) if scores.ndim > 1 else scores
-
-            # Determine which predictions were correct
-            if true_labels.ndim > 1:  # One-hot encoded
-                pred_classes = np.argmax(scores, axis=1)
-                true_classes = np.argmax(true_labels, axis=1)
-                correctness = pred_classes == true_classes
-            else:
-                pred_classes = (
-                    np.argmax(scores, axis=1)
-                    if scores.ndim > 1
-                    else np.round(scores).astype(int)
+            # Plot training time if available
+            if "epoch_times" in history:
+                plot_training_time_from_history(
+                    history=history,
+                    output_path=output_dir / "training_time.png",
+                    theme=theme,
                 )
-                correctness = pred_classes == true_labels
 
-            # Plot confidence distribution
-            plot_confidence_distribution(
-                confidences=confidences,
-                correctness=correctness,
-                output_path=output_dir / "confidence_distribution.png",
+            # Plot learning rate if available
+            if "learning_rate" in history:
+                plot_learning_rate_from_history(
+                    history=history,
+                    output_path=output_dir / "learning_rate.png",
+                    theme=theme,
+                )
+
+        # Plot confusion matrix if available
+        if cm is not None and len(class_names) > 0:
+            plot_confusion_matrix_from_file(
+                cm=cm,
+                class_names=class_names,
+                output_path=output_dir / "confusion_matrix.png",
                 theme=theme,
             )
 
-            # Plot histogram of prediction confidences
-            plot_histogram(
-                data=confidences,
-                output_path=output_dir / "confidence_histogram.png",
+        # Plot class metrics if available
+        if metrics and "class_metrics" in metrics and len(class_names) > 0:
+            plot_class_metrics_from_metrics(
+                metrics=metrics,
+                class_names=class_names,
+                output_path=output_dir / "class_metrics.png",
                 theme=theme,
-                bins=20,
-                title="Prediction Confidence Histogram",
-                xlabel="Confidence",
-                ylabel="Count",
             )
 
-            # Plot distribution of class predictions
-            class_counts = np.bincount(pred_classes, minlength=len(class_names))
-            plot_categorical(
-                data=class_counts,
-                categories=class_names,
-                output_path=output_dir / "prediction_distribution.png",
+            # Generate performance by class bar chart
+            plot_class_performance(
+                metrics=metrics["class_metrics"],
+                class_names=class_names,
+                output_path=output_dir / "class_performance_bars.png",
                 theme=theme,
-                title="Prediction Distribution",
-                xlabel="Class",
-                ylabel="Count",
-                kind="bar",  # Use bar chart for discrete classes
             )
 
-        # Classification examples grid if test images are available
-        if (
-            has_test_images
-            and has_predictions
-            and has_true_labels
-            and len(class_names) > 0
-        ):
-            try:
-                # Check for size mismatch between images and labels
-                if len(test_images) != len(true_labels):
-                    logger.warning(
-                        f"Size mismatch: test_images ({len(test_images)}) vs true_labels ({len(true_labels)}). "
-                        f"Using only the available images."
-                    )
-                    # Limit the number of labels to match the number of images
-                    limited_true_labels = true_labels[: len(test_images)]
-                    limited_predictions = predictions[: len(test_images)]
-                else:
-                    limited_true_labels = true_labels
-                    limited_predictions = predictions
+        # Enhanced visualizations if library is available
+        if ENHANCED_VISUALIZATION_AVAILABLE:
+            logger.info("Using enhanced visualization")
 
-                # Convert predictions to class indices if needed
-                if limited_predictions.ndim > 1 and limited_predictions.shape[1] > 1:
-                    pred_indices = np.argmax(limited_predictions, axis=1)
-                else:
-                    pred_indices = limited_predictions.astype(int)
-
-                # Create classification examples grid
-                create_classification_examples_grid(
-                    images=test_images,
-                    true_labels=limited_true_labels,
-                    pred_labels=limited_predictions,
+            # ROC curves
+            if has_true_labels and has_scores and len(class_names) > 0:
+                plot_roc_curve(
+                    y_true=true_labels,
+                    y_scores=scores,
                     class_names=class_names,
-                    output_path=output_dir / "classification_examples.png",
+                    output_path=output_dir / "roc_curves.png",
                     theme=theme,
-                    max_examples=min(
-                        20, len(test_images)
-                    ),  # Ensure max_examples doesn't exceed actual images
-                    separate_correct_incorrect=True,
                 )
-                logger.info("Generated classification examples grid")
-            except Exception as e:
-                logger.error(f"Failed to generate classification examples grid: {e}")
-                logger.exception("Detailed traceback:")
 
-        # Augmentation visualization using the new function
-        if has_test_images:
-            try:
-                # Import PIL libraries for image manipulation
-                import PIL.Image
-                from PIL import ImageEnhance, ImageFilter
-
-                # Select a sample image from the test set
-                sample_idx = np.random.randint(0, len(test_images))
-                original_img = test_images[sample_idx]
-
-                # Create augmented versions
-                augmented_images = []
-                augmentation_names = [
-                    "Horizontal Flip",
-                    "Vertical Flip",
-                    "Rotation (30°)",
-                    "Brightness +30%",
-                    "Contrast +30%",
-                    "Crop & Resize",
-                    "Blur",
-                    "Color Jitter",
-                ]
-
-                # Convert to PIL image for easier manipulation
-                if original_img.dtype == np.float32 or original_img.max() <= 1.0:
-                    # Convert from PyTorch format (C,H,W) to PIL format if needed
-                    if original_img.shape[0] == 3 and len(original_img.shape) == 3:
-                        # Handle PyTorch format (C,H,W) -> (H,W,C)
-                        original_img = np.transpose(original_img, (1, 2, 0))
-
-                    original_img_pil = PIL.Image.fromarray(
-                        (original_img * 255).astype(np.uint8)
-                    )
-                else:
-                    # Handle PyTorch format (C,H,W) -> (H,W,C) if needed
-                    if original_img.shape[0] == 3 and len(original_img.shape) == 3:
-                        original_img = np.transpose(original_img, (1, 2, 0))
-
-                    original_img_pil = PIL.Image.fromarray(
-                        original_img.astype(np.uint8)
-                    )
-
-                # Create augmented versions
-                # 1. Horizontal Flip
-                h_flip = np.array(original_img_pil.transpose(PIL.Image.FLIP_LEFT_RIGHT))
-                augmented_images.append(h_flip)
-
-                # 2. Vertical Flip
-                v_flip = np.array(original_img_pil.transpose(PIL.Image.FLIP_TOP_BOTTOM))
-                augmented_images.append(v_flip)
-
-                # 3. Rotation
-                rotated = np.array(original_img_pil.rotate(30))
-                augmented_images.append(rotated)
-
-                # 4. Brightness enhancement
-                bright = np.array(
-                    ImageEnhance.Brightness(original_img_pil).enhance(1.3)
-                )
-                augmented_images.append(bright)
-
-                # 5. Contrast enhancement
-                contrast = np.array(
-                    ImageEnhance.Contrast(original_img_pil).enhance(1.3)
-                )
-                augmented_images.append(contrast)
-
-                # 6. Random crop and resize
-                width, height = original_img_pil.size
-                left = width // 4
-                top = height // 4
-                right = 3 * width // 4
-                bottom = 3 * height // 4
-                cropped = original_img_pil.crop((left, top, right, bottom))
-                resized = np.array(cropped.resize((width, height)))
-                augmented_images.append(resized)
-
-                # 7. Blur
-                blurred = np.array(
-                    original_img_pil.filter(ImageFilter.GaussianBlur(radius=2))
-                )
-                augmented_images.append(blurred)
-
-                # 8. Color jitter (adjust color balance)
-                color = np.array(ImageEnhance.Color(original_img_pil).enhance(1.5))
-                augmented_images.append(color)
-
-                # Create grid visualization
-                create_augmentation_grid(
-                    original_image=original_img,
-                    augmented_images=augmented_images,
-                    augmentation_names=augmentation_names,
-                    output_path=output_dir / "augmentation.png",
+            # Precision-Recall curves
+            if has_true_labels and has_scores and len(class_names) > 0:
+                plot_precision_recall_curve(
+                    y_true=true_labels,
+                    y_scores=scores,
+                    class_names=class_names,
+                    output_path=output_dir / "precision_recall_curves.png",
                     theme=theme,
-                    title="Data Augmentation Examples",
                 )
-                logger.info("Generated augmentation visualization grid")
-            except Exception as e:
-                logger.error(f"Failed to generate augmentation visualization: {e}")
 
-        # Feature space visualization if features are available
-        if has_features and has_true_labels and len(class_names) > 0:
-            try:
-                # Create feature space visualizations directory
-                feature_space_dir = output_dir / "feature_space"
-                ensure_dir(feature_space_dir)
+            # Confidence distribution
+            if has_scores and has_true_labels:
+                # Calculate confidence metrics
+                confidences = np.max(scores, axis=1) if scores.ndim > 1 else scores
 
-                # Check shapes and prepare data
-                logger.info(f"Features shape: {features.shape}")
+                # Determine which predictions were correct
                 if true_labels.ndim > 1:  # One-hot encoded
-                    true_indices = np.argmax(true_labels, axis=1)
+                    pred_classes = np.argmax(scores, axis=1)
+                    true_classes = np.argmax(true_labels, axis=1)
+                    correctness = pred_classes == true_classes
                 else:
-                    true_indices = true_labels.flatten()
-
-                # Check if features and labels have the same number of samples
-                if len(features) != len(true_indices):
-                    logger.warning(
-                        f"Size mismatch: features ({len(features)}) vs labels ({len(true_indices)}). "
-                        f"Unable to generate feature space visualizations."
+                    pred_classes = (
+                        np.argmax(scores, axis=1)
+                        if scores.ndim > 1
+                        else np.round(scores).astype(int)
                     )
+                    correctness = pred_classes == true_labels
+
+                # Plot confidence distributions
+                plot_confidence_distribution(
+                    confidences=confidences,
+                    correctness=correctness,
+                    output_path=output_dir / "confidence_distribution.png",
+                    theme=theme,
+                )
+    except Exception as e:
+        logger.error(f"Error generating basic plots: {e}")
+        logger.exception("Detailed traceback:")
+
+    # Plot misclassified examples if available
+    if (
+        has_misclassified_indices
+        and has_predictions
+        and has_test_images
+        and has_true_labels
+    ):
+        try:
+            # Check for size mismatch between test_images and true_labels
+            if len(test_images) != len(true_labels):
+                logger.warning(f"Size mismatch: test_images ({len(test_images)}) vs true_labels ({len(true_labels)}). Using only the available images.")
+                
+                # Check if we have a subset of labels saved
+                subset_labels_path = evaluation_artifacts_dir / "subset_true_labels.npy"
+                if subset_labels_path.exists():
+                    subset_labels = np.load(subset_labels_path)
+                    logger.info(f"Using subset_true_labels ({len(subset_labels)}) for visualization")
+                    true_labels = subset_labels
                 else:
-                    # Limit number of samples for visualization if needed
-                    max_samples = 5000  # Limit for t-SNE and UMAP processing
-                    if len(features) > max_samples:
-                        logger.info(
-                            f"Limiting feature visualization to {max_samples} samples"
-                        )
-                        # Random sample to avoid class imbalance
-                        indices = np.random.choice(
-                            len(features), max_samples, replace=False
-                        )
-                        vis_features = features[indices]
-                        vis_labels = true_indices[indices]
-                    else:
-                        vis_features = features
-                        vis_labels = true_indices
+                    # Create a subset on the fly if needed
+                    subset_size = min(len(test_images), len(true_labels))
+                    true_labels = true_labels[:subset_size]
+                    logger.info(f"Created subset of {subset_size} labels to match test_images")
+                    
+                # Also limit predictions if needed
+                if len(predictions) > len(true_labels):
+                    predictions = predictions[:len(true_labels)]
+                
+                # Adjust misclassified indices to only include valid indices
+                misclassified_indices = misclassified_indices[misclassified_indices < len(true_labels)]
+            
+            # Now plot with matching sizes
+            plot_top_misclassifications(
+                images=test_images,
+                true_labels=true_labels[:len(test_images)],  # Ensure sizes match
+                predictions=predictions[:len(test_images)],  # Ensure sizes match
+                class_names=class_names,
+                misclassified_indices=misclassified_indices,
+                output_path=output_dir / "top_misclassifications.png",
+                theme=theme,
+            )
+        except Exception as e:
+            logger.error(f"Error generating misclassification plot: {e}")
 
-                    # Generate feature space visualization with PCA
-                    plot_feature_space(
-                        features=vis_features,
-                        labels=vis_labels,
-                        class_names=class_names,
-                        output_path=feature_space_dir / "feature_space_pca.png",
-                        theme=theme,
-                        reduction_method="pca",  # Use PCA for the general feature space visualization
-                    )
-                    logger.info("Generated PCA feature space visualization")
+    # Plot class difficulty map if per-class metrics are available
+    if has_per_class_metrics:
+        try:
+            plot_class_difficulties(
+                per_class_metrics=per_class_metrics,
+                output_path=output_dir / "class_difficulty_map.png",
+                theme=theme,
+            )
+        except Exception as e:
+            logger.error(f"Error generating class difficulty plot: {e}")
 
-                    # Generate t-SNE visualization
-                    plot_tsne_visualization(
-                        features=vis_features,
-                        labels=vis_labels,
-                        class_names=class_names,
-                        output_path=feature_space_dir / "tsne_visualization.png",
-                        theme=theme,
-                        perplexity=30,
-                        n_iter=1000,
-                    )
-                    logger.info("Generated t-SNE visualization")
+    # Plot calibration curves if available
+    if has_calibration:
+        try:
+            plot_calibration_curves(
+                calibration_data=calibration_data,
+                output_path=output_dir / "calibration_curves.png",
+                theme=theme,
+            )
+        except Exception as e:
+            logger.error(f"Error generating calibration curves: {e}")
 
-                    # Try to generate UMAP visualization, but it requires additional dependencies
-                    try:
-                        plot_umap_visualization(
-                            features=vis_features,
-                            labels=vis_labels,
-                            class_names=class_names,
-                            output_path=feature_space_dir / "umap_visualization.png",
-                            theme=theme,
-                            n_neighbors=15,
-                            min_dist=0.1,
-                        )
-                        logger.info("Generated UMAP visualization")
-                    except ImportError:
-                        logger.warning(
-                            "UMAP is not installed. Skipping UMAP visualization."
-                        )
+    # Plot feature space embeddings if available
+    if has_embeddings:
+        try:
+            # Check for size mismatch between embeddings and labels
+            if 'labels' in embedding_data and 'embeddings' in embedding_data:
+                embeddings = embedding_data['embeddings']
+                labels = embedding_data['labels']
+                
+                if len(embeddings) != len(labels):
+                    logger.warning(f"Size mismatch: features ({len(embeddings)}) vs labels ({len(labels)}). Adjusting for visualization.")
+                    
+                    # Use the smaller of the two to avoid index errors
+                    min_size = min(len(embeddings), len(labels))
+                    embedding_data['embeddings'] = embeddings[:min_size]
+                    embedding_data['labels'] = labels[:min_size]
+                    logger.info(f"Using {min_size} samples for feature space visualization")
+            
+            plot_embeddings(
+                embedding_data=embedding_data,
+                class_names=class_names,
+                output_path=output_dir / "feature_space.png",
+                theme=theme,
+            )
+        except Exception as e:
+            logger.error(f"Error generating feature space visualization: {e}")
 
-            except Exception as e:
-                logger.error(f"Failed to generate feature space visualizations: {e}")
-                logger.exception("Detailed traceback:")
+    # Check for attention maps and visualize if available
+    attention_maps_path = evaluation_artifacts_dir / "attention_maps.npy"
+    if attention_maps_path.exists():
+        try:
+            # Load attention maps data
+            attention_data = np.load(attention_maps_path, allow_pickle=True).item()
+
+            # Create subdirectory for attention visualizations
+            attention_dir = output_dir / "attention"
+            ensure_dir(attention_dir)
+
+            # Generate visualizations
+            plot_attention_maps(
+                attention_data=attention_data,
+                output_path=attention_dir / "attention_overview.png",
+                class_names=class_names,
+                max_samples=10,
+                theme=theme,
+            )
+            logger.info(f"Generated attention map visualizations in {attention_dir}")
+        except Exception as e:
+            logger.error(f"Error generating attention map visualizations: {e}")
 
     logger.info("Finished generating plots for report")
+
+
+def generate_plots_for_report(
+    experiment_dir: Union[str, Path], 
+    output_dir: Optional[Union[str, Path]] = None
+) -> None:
+    """
+    Generate plots for a training report.
+    
+    This is a wrapper function for generate_plots that properly handles paths
+    and provides a clear API for the CLI.
+    
+    Args:
+        experiment_dir: Path to experiment directory
+        output_dir: Directory to save plots (default: experiment_dir/reports/plots)
+    """
+    # Resolve experiment directory
+    experiment_dir = Path(experiment_dir)
+    if not experiment_dir.is_absolute():
+        # If path is relative, it's expected to be relative to the current directory
+        experiment_dir = Path.cwd() / experiment_dir
+
+    # Make sure the directory exists
+    if not experiment_dir.exists():
+        logger.error(f"Experiment directory {experiment_dir} does not exist")
+        return
+
+    # Generate plots
+    generate_plots(
+        experiment_dir=experiment_dir,
+        output_dir=output_dir,
+    )
+    
+    logger.info(f"Plots generated for experiment: {experiment_dir}")
+    return
 
 
 def main():
@@ -920,20 +1447,9 @@ def main():
 
     args = parser.parse_args()
 
-    # Resolve experiment directory
-    experiment_dir = Path(args.experiment)
-    if not experiment_dir.is_absolute():
-        # If path is relative, it's expected to be relative to the current directory
-        experiment_dir = Path.cwd() / experiment_dir
-
-    # Make sure the directory exists
-    if not experiment_dir.exists():
-        logger.error(f"Experiment directory {experiment_dir} does not exist")
-        return
-
-    # Generate plots
+    # Call the wrapper function
     generate_plots_for_report(
-        experiment_dir=experiment_dir,
+        experiment_dir=args.experiment,
         output_dir=args.output,
     )
 

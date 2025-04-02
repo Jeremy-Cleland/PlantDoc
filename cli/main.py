@@ -273,13 +273,41 @@ def generate_attention_visualizations(
     """
     from pathlib import Path
 
+    import numpy as np
     import torch
+    from PIL import Image
+    from torchvision.transforms import functional as TF
 
     from core.visualization.attention_viz import generate_attention_report
 
     # Create output directory
     attention_dir = Path(cfg.paths.experiment_dir) / "attention_visualizations"
     attention_dir.mkdir(parents=True, exist_ok=True)
+
+    # Function to prepare images for visualization
+    def prepare_image_for_visualization(img_tensor):
+        """Convert tensor to proper format for visualization"""
+        # Ensure we have a tensor
+        if not isinstance(img_tensor, torch.Tensor):
+            return img_tensor
+
+        # Convert to numpy for PIL
+        img_np = img_tensor.cpu().numpy()
+
+        # If CHW format, convert to HWC for PIL
+        if img_np.shape[0] == 3 and len(img_np.shape) == 3:
+            img_np = np.transpose(img_np, (1, 2, 0))
+
+        # Scale values to 0-255 range if needed
+        if img_np.max() <= 1.0:
+            img_np = (img_np * 255).astype(np.uint8)
+
+        # Convert to PIL Image
+        img_pil = Image.fromarray(img_np.astype(np.uint8))
+
+        # Convert back to tensor (now correctly formatted)
+        img_tensor = TF.to_tensor(img_pil)
+        return img_tensor
 
     # Ensure test dataloader is set up
     test_loader = data_module.test_dataloader()
@@ -310,69 +338,38 @@ def generate_attention_visualizations(
         if len(images_by_class) >= min(n_samples, len(class_names)):
             break
 
-    # If we couldn't get samples for all classes, add some random ones to reach n_samples
-    if len(images_by_class) < n_samples:
-        for batch in test_loader:
-            # Handle both dictionary and tuple return types
-            if isinstance(batch, dict):
-                images, labels = batch["image"], batch["label"]
-            else:
-                images, labels = batch
-
-            for img, label in zip(images, labels):
-                label_idx = label.item()
-                label_name = class_names[label_idx]
-
-                # Only add if we need more samples and don't already have this class
-                if (
-                    label_name not in images_by_class
-                    and len(images_by_class) < n_samples
-                ):
-                    images_by_class[label_name] = img
-
-                if len(images_by_class) >= n_samples:
-                    break
-
-            if len(images_by_class) >= n_samples:
-                break
-
-    # Convert to list of (image, class_name) tuples
-    test_samples = [(img, class_name) for class_name, img in images_by_class.items()]
-
-    logger.info(f"Generating attention visualizations for {len(test_samples)} samples")
-
-    # Load the best model checkpoint
-    checkpoint = torch.load(checkpoint_path, map_location="cpu")
-    if "model_state_dict" in checkpoint:
-        model.load_state_dict(checkpoint["model_state_dict"])
-    elif "state_dict" in checkpoint:
-        model.load_state_dict(checkpoint["state_dict"])
-    else:
-        model.load_state_dict(checkpoint)
-
+    # Load model with checkpoint
+    # (model is already loaded from checkpoint in the train function)
     model.eval()
 
-    # Process each sample
-    for i, (image_tensor, class_name) in enumerate(test_samples):
-        try:
-            # Generate the report
-            report_path = generate_attention_report(
-                model=model,
-                image=image_tensor,
-                output_dir=str(attention_dir),
-                title_prefix=f"Class: {class_name}",
-                filename_prefix=f"sample_{i + 1}_{class_name.replace(' ', '_')}",
-            )
+    # Generate visualizations for each class
+    logger.info(
+        f"Generating attention visualizations for {len(images_by_class)} samples"
+    )
 
-            if report_path:
-                logger.info(f"Generated attention visualization for class {class_name}")
-            else:
-                logger.warning(
-                    f"Failed to generate attention visualization for class {class_name}"
+    try:
+        for class_name, image in images_by_class.items():
+            # Prepare image for visualization
+            image = prepare_image_for_visualization(image)
+            if image.dim() == 3:
+                image = image.unsqueeze(0)  # Add batch dimension again if needed
+
+            try:
+                # Process image and generate report
+                with torch.no_grad():
+                    generate_attention_report(
+                        model=model,
+                        image=image,
+                        output_dir=attention_dir,
+                        title_prefix=f"CBAM Attention - {class_name}",
+                        filename_prefix=class_name.replace(" ", "_"),
+                    )
+            except Exception as e:
+                logger.error(
+                    f"Error generating visualization for class {class_name}: {e}"
                 )
-
-        except Exception as e:
-            logger.error(f"Error generating visualization for class {class_name}: {e}")
+    except Exception as e:
+        logger.error(f"Error in attention visualization: {e}")
 
     logger.info(f"Attention visualizations saved to {attention_dir}")
 

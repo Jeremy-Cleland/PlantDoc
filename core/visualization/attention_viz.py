@@ -32,9 +32,7 @@ def _to_numpy(tensor: torch.Tensor) -> np.ndarray:
         Numpy array
     """
     # Check for MPS device and move to CPU first
-    if tensor.device.type == "mps":
-        tensor = tensor.cpu()
-    elif tensor.is_cuda:
+    if tensor.device.type == "mps" or tensor.is_cuda:
         tensor = tensor.cpu()
     if tensor.requires_grad:
         tensor = tensor.detach()
@@ -591,8 +589,20 @@ def generate_attention_report(
 
     # Generate visualization of spatial attention maps
     if spatial_maps:
-        # Convert tensor to numpy for visualization
-        original_image = unbatched_image.permute(1, 2, 0).cpu().numpy()
+        # Safely convert tensor to numpy for visualization
+        # Handle tensors with different dimensions
+        if unbatched_image.dim() == 3:  # [C, H, W]
+            original_image = unbatched_image.cpu().detach()
+            original_image = original_image.permute(1, 2, 0).numpy()
+        elif unbatched_image.dim() == 4:  # [1, C, H, W]
+            original_image = unbatched_image.squeeze(0).cpu().detach()
+            original_image = original_image.permute(1, 2, 0).numpy()
+        else:
+            logger.error(
+                f"Cannot convert tensor with shape {unbatched_image.shape} to image"
+            )
+            original_image = np.zeros((224, 224, 3))  # Fallback to empty image
+
         # Denormalize image
         original_image = np.clip(original_image * 0.225 + 0.45, 0, 1)
 
@@ -663,6 +673,18 @@ def generate_attention_report(
             try:
                 # Normalize attention map
                 attn_map = attention_map.squeeze().cpu().numpy()
+
+                # Explicitly resize the attention map to match original image size using cv2
+                # This avoids the broadcasting error when overlaying attention maps
+                import cv2
+
+                attn_map = cv2.resize(
+                    attn_map,
+                    (original_image.shape[1], original_image.shape[0]),
+                    interpolation=cv2.INTER_CUBIC,
+                )
+
+                # Normalize after resizing
                 attn_map = (attn_map - attn_map.min()) / (
                     attn_map.max() - attn_map.min() + 1e-8
                 )

@@ -31,9 +31,7 @@ def _convert_omegaconf_to_python(obj):
     """
     if isinstance(obj, DictConfig):
         return {k: _convert_omegaconf_to_python(v) for k, v in obj.items()}
-    elif isinstance(obj, ListConfig):
-        return [_convert_omegaconf_to_python(x) for x in obj]
-    elif isinstance(obj, (list, tuple)):
+    elif isinstance(obj, ListConfig) or isinstance(obj, (list, tuple)):
         return [_convert_omegaconf_to_python(x) for x in obj]
     elif isinstance(obj, dict):
         return {k: _convert_omegaconf_to_python(v) for k, v in obj.items()}
@@ -524,12 +522,6 @@ class MetricsLogger(Callback):
                 json.dump(report_metrics, f, indent=2)
             logger.info(f"Saved metrics.json to {metrics_path}")
 
-            # Also save a copy at the experiment root for backward compatibility
-            root_metrics_path = self.experiment_dir / "metrics.json"
-            with open(root_metrics_path, "w") as f:
-                json.dump(report_metrics, f, indent=2)
-            logger.info(f"Saved metrics.json to {root_metrics_path}")
-
             # Save history.json in correct format
             history_dict = self._convert_history_format()
             history_dict = _convert_omegaconf_to_python(history_dict)
@@ -538,12 +530,6 @@ class MetricsLogger(Callback):
             with open(history_path, "w") as f:
                 json.dump(history_dict, f, indent=2)
             logger.info(f"Saved history.json to {history_path}")
-
-            # Also save a copy at the experiment root for backward compatibility
-            root_history_path = self.experiment_dir / "history.json"
-            with open(root_history_path, "w") as f:
-                json.dump(history_dict, f, indent=2)
-            logger.info(f"Saved history.json to {root_history_path}")
 
             # Save class names
             self._save_class_names()
@@ -557,7 +543,7 @@ class MetricsLogger(Callback):
                 confusion_matrix = _convert_omegaconf_to_python(
                     final_metrics["confusion_matrix"]
                 )
-                cm_path = metrics_dir / "confusion_matrix.npy"
+                cm_path = metrics_dir / "evaluation_artifacts" / "confusion_matrix.npy"
                 np.save(cm_path, np.array(confusion_matrix))
                 logger.info(f"Saved confusion matrix to {cm_path}")
 
