@@ -303,11 +303,26 @@ def generate_attention_visualizations(
             img_np = (img_np * 255).astype(np.uint8)
 
         # Convert to PIL Image
-        img_pil = Image.fromarray(img_np.astype(np.uint8))
-
-        # Convert back to tensor (now correctly formatted)
-        img_tensor = TF.to_tensor(img_pil)
-        return img_tensor
+        try:
+            img_pil = Image.fromarray(img_np.astype(np.uint8))
+            
+            # Save original size for debugging
+            orig_size = img_pil.size
+            
+            # Resize to match expected input size (optional but safer)
+            if img_pil.size != (224, 224):
+                img_pil = img_pil.resize((224, 224))
+                
+            # Convert back to tensor directly in CHW format
+            img_tensor = TF.to_tensor(img_pil)
+            logger.info(f"Prepared image: original size {orig_size}, tensor shape {img_tensor.shape}")
+            
+            return img_tensor
+            
+        except Exception as e:
+            logger.error(f"Error preparing image for visualization: {e}")
+            # Return a safely formatted tensor in a last attempt
+            return torch.zeros(3, 224, 224)
 
     # Ensure test dataloader is set up
     test_loader = data_module.test_dataloader()

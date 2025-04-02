@@ -1272,6 +1272,56 @@ def generate_plots(
                     output_path=output_dir / "confidence_distribution.png",
                     theme=theme,
                 )
+                
+                # Plot additional visualization plots
+                try:
+                    # Confidence histogram
+                    plot_histogram(
+                        values=confidences,
+                        title="Prediction Confidence Histogram",
+                        xlabel="Confidence",
+                        ylabel="Count",
+                        output_path=output_dir / "confidence_histogram.png",
+                        theme=theme,
+                    )
+                    logger.info("Generated confidence histogram")
+                    
+                    # Prediction distribution
+                    plot_categorical(
+                        values=pred_classes,
+                        labels=class_names,
+                        title="Prediction Distribution",
+                        output_path=output_dir / "prediction_distribution.png",
+                        theme=theme,
+                    )
+                    logger.info("Generated prediction distribution")
+                    
+                    # Classification examples grid
+                    if has_test_images:
+                        n_examples = min(len(test_images), 20)
+                        examples_indices = np.random.choice(len(test_images), n_examples, replace=False)
+                        
+                        create_classification_examples_grid(
+                            images=test_images[examples_indices],
+                            true_labels=true_labels[examples_indices] if len(true_labels) >= len(test_images) else None,
+                            pred_labels=pred_classes[examples_indices] if len(pred_classes) >= len(test_images) else None,
+                            class_names=class_names,
+                            output_path=output_dir / "classification_examples.png",
+                            theme=theme,
+                        )
+                        logger.info("Generated classification examples grid")
+                        
+                    # Augmentation visualization
+                    if has_augmentation_examples and has_test_images:
+                        visualize_augmentations(
+                            original_image=test_images[0],
+                            output_path=output_dir / "augmentation.png",
+                            theme=theme,
+                        )
+                        logger.info("Generated augmentation visualization")
+                        
+                except Exception as e:
+                    logger.error(f"Error generating additional visualizations: {e}")
     except Exception as e:
         logger.error(f"Error generating basic plots: {e}")
         logger.exception("Detailed traceback:")

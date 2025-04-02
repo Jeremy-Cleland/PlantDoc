@@ -297,6 +297,91 @@ class SHAPInterpreter:
         except Exception as e:
             logger.error(f"Error in get_shap_values: {e}", exc_info=True)
             raise
+            
+    def _prepare_input(self, image_input):
+        """
+        Prepare image input for SHAP analysis.
+        
+        Args:
+            image_input: Image tensor, PIL Image, or path to image
+            
+        Returns:
+            Tuple of (input_tensor, original_image)
+        """
+        import numpy as np
+        import torch
+        from PIL import Image
+        from torchvision import transforms
+        
+        # If image_input is a string, assume it's a file path
+        if isinstance(image_input, str):
+            try:
+                # Load image and convert to RGB
+                original_image = Image.open(image_input).convert('RGB')
+                
+                # Create transform with normalization
+                transform = transforms.Compose([
+                    transforms.Resize(self.input_size),
+                    transforms.ToTensor(),
+                    transforms.Normalize(mean=self.mean, std=self.std)
+                ])
+                
+                # Apply transform and add batch dimension
+                input_tensor = transform(original_image).unsqueeze(0)
+                
+                return input_tensor, original_image
+                
+            except Exception as e:
+                logger.error(f"Error loading image from path: {e}")
+                raise ValueError(f"Could not load image from path: {image_input}")
+        
+        # If image_input is a tensor
+        elif isinstance(image_input, torch.Tensor):
+            # Handle batch dimension
+            if image_input.dim() == 3:
+                input_tensor = image_input.unsqueeze(0)
+            else:
+                input_tensor = image_input
+                
+            # Convert to numpy for visualization
+            if input_tensor.shape[1] == 3:  # CHW format
+                img_np = input_tensor[0].permute(1, 2, 0).cpu().numpy()
+                
+                # Denormalize if needed
+                if img_np.max() <= 1.0:
+                    # Handle normalization
+                    mean = np.array(self.mean).reshape(1, 1, 3)
+                    std = np.array(self.std).reshape(1, 1, 3)
+                    img_np = img_np * std + mean
+                    img_np = np.clip(img_np * 255, 0, 255).astype(np.uint8)
+                    
+                original_image = Image.fromarray(img_np)
+            else:
+                # Fallback if format is unknown
+                original_image = Image.fromarray(
+                    np.zeros((self.input_size[0], self.input_size[1], 3), dtype=np.uint8)
+                )
+                
+            return input_tensor, original_image
+            
+        # If image_input is a PIL Image
+        elif hasattr(image_input, 'convert'):  # PIL Image
+            original_image = image_input
+            
+            # Create transform with normalization
+            transform = transforms.Compose([
+                transforms.Resize(self.input_size),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=self.mean, std=self.std)
+            ])
+            
+            # Apply transform and add batch dimension
+            input_tensor = transform(original_image).unsqueeze(0)
+            
+            return input_tensor, original_image
+            
+        else:
+            raise ValueError(f"Unsupported image input type: {type(image_input)}")
 
     def visualize_shap(
         self,
