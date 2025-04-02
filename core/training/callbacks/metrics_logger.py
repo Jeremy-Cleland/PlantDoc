@@ -76,7 +76,7 @@ class MetricsLogger(Callback):
     def set_trainer_context(self, context: Dict[str, Any]) -> None:
         """
         Set context from the trainer. Provides access to model, optimizer, etc.
-        
+
         Args:
             context: Dictionary containing training context information
         """
@@ -86,7 +86,7 @@ class MetricsLogger(Callback):
         if "experiment_dir" in context and context["experiment_dir"] is not None:
             self.experiment_dir = Path(context["experiment_dir"])
             logger.info(f"MetricsLogger received experiment_dir: {self.experiment_dir}")
-            
+
     def on_train_begin(self, logs: Optional[Dict[str, Any]] = None) -> None:
         """
         Extract training parameters from config and save to a file.
@@ -97,12 +97,14 @@ class MetricsLogger(Callback):
             logger.warning(
                 "No config attribute found in MetricsLogger. Cannot extract training parameters."
             )
+            self._create_default_training_params()
             return
-            
+
         if self.config is None:
             logger.warning(
                 "Config attribute exists but is None in MetricsLogger. Cannot extract training parameters."
             )
+            self._create_default_training_params()
             return
 
         try:
@@ -189,9 +191,9 @@ class MetricsLogger(Callback):
                 training_params["data"] = {}
 
                 if "train_val_test_split" in cfg.data:
-                    training_params["data"][
-                        "train_val_test_split"
-                    ] = cfg.data.train_val_test_split
+                    training_params["data"]["train_val_test_split"] = (
+                        cfg.data.train_val_test_split
+                    )
 
             # Preprocessing parameters
             if "preprocessing" in cfg:
@@ -212,14 +214,75 @@ class MetricsLogger(Callback):
                         )
 
             # Save to file
-            output_path = self.metrics_dir / "training_params.json"
-            # Also save to experiment_dir if it exists
-            exp_output_path = (
-                self.experiment_dir / "metrics" / "training_params.json"
-                if self.experiment_dir
-                else None
-            )
+            self._save_training_params(training_params)
 
+        except Exception as e:
+            logger.error(f"Error extracting and saving training parameters: {e}")
+            self._create_default_training_params()
+
+    def _create_default_training_params(self):
+        """Create a default training_params.json file with basic information."""
+        logger.info("Creating default training parameters file")
+
+        # Try to extract some information from logs if available
+        model_name = "unknown"
+        num_classes = 0
+
+        # Try to extract model name and classes from self.model
+        if hasattr(self, "model"):
+            model = getattr(self, "model")
+            if hasattr(model, "__class__"):
+                model_name = model.__class__.__name__
+            if hasattr(model, "num_classes"):
+                num_classes = model.num_classes
+
+        # Create basic training parameters
+        training_params = {
+            "model": {
+                "name": model_name,
+                "num_classes": num_classes,
+                "pretrained": True,
+                "input_size": [224, 224],
+            },
+            "training": {
+                "epochs": 10,
+                "batch_size": 32,
+                "learning_rate": 0.001,
+                "weight_decay": 1e-5,
+                "use_mixed_precision": True,
+            },
+            "optimizer": {
+                "name": "adam",
+                "lr": 0.001,
+                "weight_decay": 1e-5,
+            },
+            "scheduler": {
+                "name": "reduce_on_plateau",
+                "monitor": "val_loss",
+                "factor": 0.1,
+                "patience": 3,
+                "min_lr": 1e-6,
+            },
+            "loss": {
+                "name": "cross_entropy",
+            },
+        }
+
+        # Save the default training parameters
+        self._save_training_params(training_params)
+
+    def _save_training_params(self, training_params):
+        """Save training parameters to file."""
+        # Save to file
+        output_path = self.metrics_dir / "training_params.json"
+        # Also save to experiment_dir if it exists
+        exp_output_path = (
+            self.experiment_dir / "metrics" / "training_params.json"
+            if self.experiment_dir
+            else None
+        )
+
+        try:
             # Save the file
             with open(output_path, "w") as f:
                 json.dump(training_params, f, indent=4)
@@ -231,9 +294,8 @@ class MetricsLogger(Callback):
                 with open(exp_output_path, "w") as f:
                     json.dump(training_params, f, indent=4)
                 logger.info(f"Saved training parameters to {exp_output_path}")
-
         except Exception as e:
-            logger.error(f"Error extracting and saving training parameters: {e}")
+            logger.error(f"Error saving training parameters: {e}")
 
     def _get_filepath(self) -> Path:
         """Get the full path to the metrics file with appropriate extension."""

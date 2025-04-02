@@ -693,6 +693,8 @@ def generate_attention_visualizations(
     num_images: int = 5,
     device: str = "cpu",
     model: Optional[nn.Module] = None,
+    create_combined_visualization: bool = True,
+    theme: str = "plantdoc",
 ) -> None:
     """
     Generate attention visualizations for a model.

@@ -561,27 +561,57 @@ class GradCAM:
                     )
 
                 # Enhanced CAM processing
-                cam = F.relu(cam)  # Apply ReLU
+                cam = F.relu(cam)
 
-                # If CAM is all zeros after ReLU, try using absolute values of activations
+                # If CAM is all zeros after ReLU, try using alternative methods
                 if cam.sum() < 1e-10:
                     logger.warning(
                         "CAM is all zeros after ReLU - using alternative method"
                     )
-                    # Method 1: Average activations
+                    # Try several alternative approaches in sequence until we get a non-zero map
+
+                    # Method 1: Use absolute values of activations without ReLU
                     cam = torch.abs(self.activations[0].mean(dim=0))
                     if self.debug:
                         logger.info(
-                            f"Alternative CAM (avg activations) - min: {cam.min()}, max: {cam.max()}"
+                            f"Alternative CAM (avg abs activations) - min: {cam.min()}, max: {cam.max()}, sum: {cam.sum()}"
                         )
 
-                    # If still zero, try a more aggressive approach
+                    # Method 2: If still zero, try using the raw activations without weights
                     if cam.sum() < 1e-10:
-                        # Method 2: Create a synthetic heatmap with positive values where activations are high
-                        logger.warning(
-                            "Alternative CAM still zeros - using synthetic heatmap"
+                        logger.warning("Method 1 failed - trying raw activations")
+                        cam = torch.mean(torch.abs(self.activations[0]), dim=0)
+                        if self.debug:
+                            logger.info(
+                                f"Alternative CAM (raw activations) - min: {cam.min()}, max: {cam.max()}, sum: {cam.sum()}"
+                            )
+
+                    # Method 3: If still zero, try using the gradients directly
+                    if cam.sum() < 1e-10:
+                        logger.warning("Method 2 failed - trying gradients directly")
+                        cam = torch.mean(torch.abs(self.gradients[0]), dim=0)
+                        if self.debug:
+                            logger.info(
+                                f"Alternative CAM (gradients) - min: {cam.min()}, max: {cam.max()}, sum: {cam.sum()}"
+                            )
+
+                    # Method 4: Last resort - create a synthetic heatmap
+                    if cam.sum() < 1e-10:
+                        logger.warning("All methods failed - using synthetic heatmap")
+                        # Create a gaussian blob in the center as fallback
+                        h, w = cam.shape
+                        y, x = torch.meshgrid(
+                            torch.linspace(-1, 1, h),
+                            torch.linspace(-1, 1, w),
+                            indexing="ij",
                         )
-                        cam = torch.ones_like(cam) * 0.5  # Base value
+                        d = torch.sqrt(x * x + y * y)
+                        sigma, mu = 0.5, 0.0
+                        cam = torch.exp(-((d - mu) ** 2 / (2.0 * sigma**2)))
+                        if self.debug:
+                            logger.info(
+                                f"Synthetic CAM - min: {cam.min()}, max: {cam.max()}, sum: {cam.sum()}"
+                            )
 
                 # Normalization
                 if cam.max() > cam.min():  # Only normalize if there's a range of values

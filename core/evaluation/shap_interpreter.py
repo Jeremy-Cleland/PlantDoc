@@ -304,59 +304,41 @@ class SHAPInterpreter:
         target_class: Optional[int] = None,
         output_path: Optional[str] = None,
         show: bool = False,
-        figsize: Tuple[int, int] = (12, 5),
+        figsize: Tuple[int, int] = (15, 5),
         class_names: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """
-        Visualize SHAP values for an image.
+        Visualize SHAP values for a single image and target class.
 
         Args:
-            image_input: Input image as path, PIL image, numpy array, or tensor
-            target_class: Target class index (if None, uses predicted class)
-            output_path: Path to save visualization (if None, doesn't save)
-            show: Whether to show the plot
-            figsize: Figure size
-            class_names: Class names for visualization
+            image_input: Input image (can be path, PIL Image, numpy array, or tensor)
+            target_class: Target class index (if None, uses prediction)
+            output_path: Path to save the visualization
+            show: Whether to display the visualization
+            figsize: Size of the figure
+            class_names: List of class names for display
 
         Returns:
-            Dictionary with SHAP results and visualization data
+            Dictionary with SHAP values and visualization data
         """
         try:
-            # Get SHAP values
-            shap_values, input_tensor, target_class = self.get_shap_values(
-                image_input, target_class
-            )
+            # Prepare inputs
+            input_tensor, original_image = self._prepare_input(image_input)
 
-            # Get original image for visualization
-            if isinstance(image_input, str):
-                original_image = np.array(
-                    Image.open(image_input).convert("RGB").resize(self.input_size)
-                )
-            elif isinstance(image_input, Image.Image):
-                original_image = np.array(image_input.resize(self.input_size))
-            elif isinstance(image_input, np.ndarray):
-                # Resize numpy array
-                original_image = np.array(
-                    Image.fromarray(
-                        image_input.astype(np.uint8)
-                        if image_input.dtype != np.uint8
-                        else image_input
-                    ).resize(self.input_size)
-                )
-            elif isinstance(image_input, torch.Tensor):
-                # Denormalize tensor image
-                img_tensor = input_tensor[0].clone()
-                for i in range(3):
-                    img_tensor[i] = img_tensor[i] * self.std[i] + self.mean[i]
-                img_np = img_tensor.clamp(0, 1).permute(1, 2, 0).cpu().numpy()
-                original_image = (img_np * 255).astype(np.uint8)
+            # Run model to get target class if not provided
+            if target_class is None:
+                with torch.no_grad():
+                    outputs = self.model(input_tensor.to(self.device))
+                    target_class = outputs.argmax(dim=1).item()
 
             # Get class name if available
-            class_name = None
             if class_names and target_class < len(class_names):
                 class_name = class_names[target_class]
             else:
                 class_name = f"Class {target_class}"
+
+            # Generate SHAP values
+            shap_values = self.explainer(input_tensor.to(self.device).cpu().numpy())
 
             # Process SHAP values
             if isinstance(shap_values, list):
@@ -372,19 +354,27 @@ class SHAPInterpreter:
                 # Already for the target class
                 target_shap_values = shap_values
 
-            # Create visualization
-            plt.figure(figsize=figsize)
+            # Create visualization with dark theme
+            from core.visualization.base_visualization import (
+                DEFAULT_THEME,
+                apply_dark_theme,
+            )
 
-            # Create subplot grid
-            fig, axes = plt.subplots(1, 3, figsize=figsize)
+            theme = DEFAULT_THEME.copy()
+            apply_dark_theme(theme)
+
+            # Create subplot grid with dark theme
+            fig, axes = plt.subplots(
+                1, 3, figsize=figsize, facecolor=theme["background_color"]
+            )
+
+            for ax in axes:
+                ax.set_facecolor(theme["background_color"])
 
             # Plot original image
             axes[0].imshow(original_image)
-            axes[0].set_title("Original Image")
+            axes[0].set_title("Original Image", color=theme["text_color"], fontsize=12)
             axes[0].axis("off")
-
-            # Get input data for shap.image_plot
-            img_data = input_tensor[0].permute(1, 2, 0).cpu().numpy()
 
             # Plot SHAP values
             # Remove any existing colorbar axes to avoid warnings
@@ -398,9 +388,12 @@ class SHAPInterpreter:
 
             # SHAP visualization
             im = axes[1].imshow(normalized_shap, cmap="hot")
-            axes[1].set_title(f"SHAP Values ({class_name})")
+            axes[1].set_title(
+                f"SHAP Values ({class_name})", color=theme["text_color"], fontsize=12
+            )
             axes[1].axis("off")
-            plt.colorbar(im, ax=axes[1], fraction=0.046, pad=0.04)
+            cbar = plt.colorbar(im, ax=axes[1], fraction=0.046, pad=0.04)
+            cbar.ax.tick_params(colors=theme["text_color"])
 
             # Create overlay of SHAP values on original image
             heatmap = plt.cm.hot(normalized_shap)[:, :, :3]  # Remove alpha channel
@@ -409,15 +402,30 @@ class SHAPInterpreter:
             overlaid = np.clip(overlaid, 0, 255).astype(np.uint8)
 
             axes[2].imshow(overlaid)
-            axes[2].set_title(f"SHAP Overlay ({class_name})")
+            axes[2].set_title(
+                f"SHAP Overlay ({class_name})", color=theme["text_color"], fontsize=12
+            )
             axes[2].axis("off")
+
+            # Add overall title
+            fig.suptitle(
+                f"SHAP Feature Attribution",
+                fontsize=14,
+                color=theme["text_color"],
+                y=0.98,
+            )
 
             plt.tight_layout()
 
             # Save if output path is provided
             if output_path:
                 ensure_dir(Path(output_path).parent)
-                plt.savefig(output_path, bbox_inches="tight", dpi=300)
+                plt.savefig(
+                    output_path,
+                    bbox_inches="tight",
+                    dpi=300,
+                    facecolor=theme["background_color"],
+                )
                 logger.info(f"Saved SHAP visualization to {output_path}")
 
             if not show:

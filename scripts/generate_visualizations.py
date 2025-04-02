@@ -35,7 +35,7 @@ def generate_all_visualizations(
     skip_attention: bool = False,
     skip_shap: bool = False,
     force: bool = False,
-    theme: str = "plantdoc",  # Use a plantdoc theme for all visualizations
+    theme: str = "dark",  # Use a dark theme for all visualizations
 ):
     """
     Generate all visualizations for a trained model.
@@ -92,6 +92,7 @@ def generate_all_visualizations(
             generate_augmentation_examples(
                 experiment_dir=experiment_dir,
                 num_images=num_images,
+                theme=theme,
             )
             logger.info("✅ Augmentation examples generated successfully")
         except Exception as e:
@@ -131,6 +132,8 @@ def generate_all_visualizations(
                         experiment_dir=experiment_dir,
                         num_images=num_images,
                         device=device,
+                        create_combined_visualization=True,
+                        theme=theme,
                     )
                     logger.info("✅ Attention visualizations generated successfully")
             except Exception as e:
@@ -182,6 +185,7 @@ def generate_all_visualizations(
                     device=device,
                     num_samples=min(100, len(dataset)),
                     batch_size=32,
+                    theme=theme,
                 )
                 logger.info("✅ SHAP explanations generated successfully")
         except Exception as e:

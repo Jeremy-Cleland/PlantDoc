@@ -765,6 +765,94 @@ def run_cbam_attention_visualization(
 
     # Clean up
     visualizer.cleanup()
+    
+    # Create a combined visualization grid if requested
+    if create_combined_visualization and samples_processed > 0:
+        try:
+            logger.info("Creating combined attention visualization grid...")
+            
+            # Collect sample images and their visualizations
+            sample_images = []
+            attention_overlays = []
+            
+            # Find and collect sample images and attention maps
+            for i in range(samples_processed):
+                for class_name in class_names if class_names else ['unknown']:
+                    sample_dir = output_dir / f"sample_{i:02d}_{class_name}"
+                    if sample_dir.exists():
+                        # Find original image
+                        orig_img_path = sample_dir / "original.png"
+                        if orig_img_path.exists():
+                            # Find spatial attention map
+                            attention_map_path = sample_dir / "all_spatial_attention_maps.png"
+                            if attention_map_path.exists():
+                                sample_images.append(str(orig_img_path))
+                                attention_overlays.append(str(attention_map_path))
+                                break
+            
+            # Create a grid visualization if we have samples
+            if sample_images and attention_overlays:
+                # Create figure with PlantDoc theme
+                plt.style.use('default')
+                fig = plt.figure(figsize=(15, 5 * min(len(sample_images), 4)))
+                fig.patch.set_facecolor('#f8f9fa')  # Light background
+                
+                # Main title
+                fig.suptitle("PlantDoc Attention Visualization", fontsize=24, fontweight='bold', color='#2e7d32')
+                # Subtitle
+                plt.figtext(0.5, 0.98, "How our neural network focuses on important visual features", 
+                          ha='center', fontsize=16, color='#1b5e20')
+                
+                # Determine grid size
+                n_samples = min(len(sample_images), 4)  # Show at most 4 samples
+                
+                for i in range(n_samples):
+                    # Original image
+                    ax1 = plt.subplot2grid((n_samples, 2), (i, 0))
+                    img = plt.imread(sample_images[i])
+                    ax1.imshow(img)
+                    ax1.set_title(f"Sample {i+1}: Original Image", fontsize=14, pad=10, fontweight='medium', color='#2e7d32')
+                    ax1.axis("off")
+                    
+                    # Add borders to axes
+                    for spine in ax1.spines.values():
+                        spine.set_visible(True)
+                        spine.set_color('#dddddd')
+                        spine.set_linewidth(1)
+                    
+                    # Attention overlay
+                    ax2 = plt.subplot2grid((n_samples, 2), (i, 1))
+                    attention_img = plt.imread(attention_overlays[i])
+                    ax2.imshow(attention_img)
+                    ax2.set_title(f"Sample {i+1}: Attention Overlays", fontsize=14, pad=10, fontweight='medium', color='#2e7d32')
+                    ax2.axis("off")
+                    
+                    # Add borders to axes
+                    for spine in ax2.spines.values():
+                        spine.set_visible(True)
+                        spine.set_color('#dddddd')
+                        spine.set_linewidth(1)
+                
+                # Add explanatory text at the bottom
+                plt.figtext(0.5, 0.02, 
+                            "The attention overlays highlight the regions that the model focuses on when identifying plant diseases.", 
+                            ha='center', fontsize=12, color='#333333', 
+                            bbox=dict(facecolor='#e8f5e9', alpha=0.5, pad=10, boxstyle='round,pad=0.8'))
+                
+                plt.tight_layout(pad=3.0, h_pad=3.0, w_pad=3.0)
+                plt.subplots_adjust(top=0.90, bottom=0.08)  # Adjust for title and annotation
+                
+                # Save the combined visualization
+                combined_vis_path = output_dir / "combined_attention_visualization.png"
+                plt.savefig(combined_vis_path, bbox_inches="tight", dpi=300, facecolor=fig.get_facecolor())
+                plt.close()
+                
+                logger.info(f"Created combined visualization at {combined_vis_path}")
+            else:
+                logger.warning("Not enough samples found to create combined visualization")
+        except Exception as e:
+            logger.error(f"Error creating combined visualization: {e}")
+            logger.error(traceback.format_exc())
 
     logger.info(
         f"CBAM attention visualization completed for {samples_processed} samples"

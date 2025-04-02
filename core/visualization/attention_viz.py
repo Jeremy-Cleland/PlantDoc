@@ -16,6 +16,7 @@ import torch.nn as nn
 from PIL import Image
 
 from utils.logger import get_logger
+from utils.paths import ensure_dir
 
 logger = get_logger(__name__)
 
@@ -472,60 +473,285 @@ def generate_attention_report(
     Returns:
         Path to the report HTML file
     """
-    from datetime import datetime
-
-    import torch.nn.functional as F
-
-    # Create output directory
+    # Ensure output directory exists
     output_dir = Path(output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
+    ensure_dir(output_dir)
 
-    # Ensure model is in eval mode
-    model.eval()
+    # Extract model name from the model instance
+    model_name = model.__class__.__name__
 
-    # Resize image if needed
-    if resize_image and hasattr(model, "input_size"):
-        input_size = model.input_size
-        if isinstance(input_size, (list, tuple)) and len(input_size) == 2:
-            # Check if image needs resizing
-            if image.shape[-2:] != tuple(input_size):
-                logger.info(f"Resizing image from {image.shape[-2:]} to {input_size}")
-                image = F.interpolate(
-                    image.unsqueeze(0),
-                    size=input_size,
-                    mode="bilinear",
-                    align_corners=False,
-                ).squeeze(0)
+    # Apply dark theme for visualizations
+    from core.visualization.base_visualization import DEFAULT_THEME, apply_dark_theme
+
+    theme = DEFAULT_THEME.copy()
+    apply_dark_theme(theme)
+
+    # Create an attention visualizer
+    visualizer = CBAMVisualizer(model)
+
+    # Normalize and preprocess the input image if needed
+    if resize_image:
+        image = visualizer.preprocess_image(image, normalize=True)
+
+    # Get the file prefix for saving visualizations
+    prefix = filename_prefix or "attention"
 
     # Get attention maps
-    with torch.no_grad():
-        # Check if model has a get_attention_maps method
-        if hasattr(model, "get_attention_maps"):
-            _ = model(image.unsqueeze(0))  # Forward pass
-            attention_maps = model.get_attention_maps()
-        # Try backbone if available
-        elif hasattr(model, "backbone") and hasattr(
-            model.backbone, "get_attention_maps"
-        ):
-            _ = model(image.unsqueeze(0))  # Forward pass
-            attention_maps = model.backbone.get_attention_maps()
-        else:
-            logger.error("Model does not support attention map extraction")
-            return ""
+    attention_maps = visualizer.get_attention_maps(image)
 
-    # Separate channel and spatial attention maps
-    channel_maps = {k: v for k, v in attention_maps.items() if "channel" in k}
-    spatial_maps = {k: v for k, v in attention_maps.items() if "spatial" in k}
+    # Generate visualizations of attention maps (spatial and channel)
+    spatial_maps = {
+        name: attention_map
+        for name, attention_map in attention_maps.items()
+        if "_spatial" in name
+    }
+    channel_maps = {
+        name: attention_map
+        for name, attention_map in attention_maps.items()
+        if "_channel" in name
+    }
 
-    # Extract attention maps for different layers
-    if layer_names is None:
-        # Extract unique layer names from keys
-        layer_names = set()
-        for key in attention_maps.keys():
-            parts = key.split("_")
-            if len(parts) >= 2:
-                layer_names.add(parts[0])
-        layer_names = sorted(list(layer_names))
+    # Create output paths
+    spatial_viz_path = output_dir / f"{prefix}_spatial.png"
+    channel_viz_path = output_dir / f"{prefix}_channel.png"
+    overlay_viz_path = output_dir / f"{prefix}_overlay.png"
+
+    # Filter attention maps by layer_names if provided
+    if layer_names:
+        spatial_maps = {
+            k: v
+            for k, v in spatial_maps.items()
+            if any(name in k for name in layer_names)
+        }
+        channel_maps = {
+            k: v
+            for k, v in channel_maps.items()
+            if any(name in k for name in layer_names)
+        }
+
+    # Generate visualization of spatial attention maps
+    if spatial_maps:
+        # Convert tensor to numpy for visualization
+        original_image = image.squeeze(0).permute(1, 2, 0).cpu().numpy()
+        # Denormalize image
+        original_image = np.clip(original_image * 0.225 + 0.45, 0, 1)
+
+        # Set theme and styling
+        plt.style.use("dark_background")
+
+        # Determine grid size
+        n = len(spatial_maps)
+        nrows = 3  # Fixed number of rows for more consistent layout
+        ncols = 3  # Fixed number of columns
+
+        # Create figure with dark theme
+        fig = plt.figure(figsize=(15, 15), facecolor=theme["background_color"])
+
+        # Main title
+        fig.suptitle(
+            "Attention Overlays",
+            fontsize=22,
+            fontweight="bold",
+            color=theme["text_color"],
+        )
+        # Subtitle
+        plt.figtext(
+            0.5,
+            0.92,
+            "Areas the model focuses on for classification",
+            ha="center",
+            fontsize=14,
+            color=theme["text_color"],
+        )
+
+        # Generate the subplot layout
+        grid = plt.GridSpec(nrows, ncols, figure=fig, wspace=0.2, hspace=0.4)
+
+        # Original image - make it larger and centered in the first row
+        ax_original = fig.add_subplot(grid[0, 0])
+        ax_original.set_facecolor(theme["background_color"])
+        ax_original.imshow(original_image)
+        ax_original.set_title(
+            "Original Image",
+            fontsize=16,
+            pad=10,
+            fontweight="medium",
+            color=theme["text_color"],
+        )
+        ax_original.axis("off")
+
+        # Add borders to axes
+        for spine in ax_original.spines.values():
+            spine.set_visible(True)
+            spine.set_color(theme["grid_color"])
+            spine.set_linewidth(1)
+
+        # Add attention overlays
+        for i, (name, attention_map) in enumerate(spatial_maps.items()):
+            # Skip if we've filled the grid
+            if i >= nrows * ncols - 1:  # -1 for the original image
+                break
+
+            # Calculate position - fill first row then continue to next rows
+            row = (i + 1) // ncols
+            col = (i + 1) % ncols
+
+            # Create subplot
+            ax = fig.add_subplot(grid[row, col])
+            ax.set_facecolor(theme["background_color"])
+
+            try:
+                # Normalize attention map
+                attn_map = attention_map.squeeze().cpu().numpy()
+                attn_map = (attn_map - attn_map.min()) / (
+                    attn_map.max() - attn_map.min() + 1e-8
+                )
+
+                # Create heatmap
+                heatmap = plt.cm.get_cmap("hot")(attn_map)
+                heatmap = heatmap[:, :, :3]  # Remove alpha channel
+
+                # Create alpha blend overlay
+                alpha = 0.7  # Slightly higher alpha for better visibility in dark theme
+                overlay = original_image * (1 - alpha) + heatmap * alpha
+                overlay = np.clip(overlay, 0, 1)
+
+                # Show overlay
+                ax.imshow(overlay)
+
+                # Format the name for better readability
+                formatted_name = name.replace("backbone.backbone.", "")
+                formatted_name = formatted_name.replace("_spatial", "")
+                formatted_name = formatted_name.replace("_", " ")
+
+                ax.set_title(formatted_name, fontsize=12, color=theme["text_color"])
+                ax.axis("off")
+
+                # Add subtle borders to distinguish plots
+                for spine in ax.spines.values():
+                    spine.set_visible(True)
+                    spine.set_color(theme["grid_color"])
+                    spine.set_linewidth(0.5)
+
+            except Exception as e:
+                logger.error(f"Error visualizing attention map {name}: {e}")
+                ax.text(
+                    0.5,
+                    0.5,
+                    "Visualization Error",
+                    ha="center",
+                    va="center",
+                    color="red",
+                )
+                ax.axis("off")
+
+        # Save the figure
+        plt.savefig(
+            spatial_viz_path,
+            dpi=300,
+            bbox_inches="tight",
+            facecolor=theme["background_color"],
+        )
+        logger.info(f"Saved spatial attention visualization to {spatial_viz_path}")
+
+    # Generate visualization of channel attention maps
+    if channel_maps:
+        plt.figure(figsize=(12, 8), facecolor=theme["background_color"])
+        plt.style.use("dark_background")
+
+        for name, attention_map in channel_maps.items():
+            # Process channel attention (typically shape [C, 1, 1])
+            channel_weights = attention_map.squeeze().cpu().numpy()
+
+            # Sort channels by attention weight (descending)
+            sorted_indices = np.argsort(channel_weights)[::-1]
+            sorted_weights = channel_weights[sorted_indices]
+
+            # Create bar chart with dark theme
+            fig, ax = plt.subplots(figsize=(12, 8), facecolor=theme["background_color"])
+            ax.set_facecolor(theme["background_color"])
+
+            # Format name for better readability
+            formatted_name = name.replace("backbone.backbone.", "")
+            formatted_name = formatted_name.replace("_channel", "")
+            formatted_name = formatted_name.replace("_", " ")
+
+            # Create color gradient for bars
+            cmap = plt.cm.get_cmap("plasma")
+            colors = cmap(np.linspace(0, 1, len(sorted_weights)))
+
+            # Create bars with enhanced styling
+            bars = ax.bar(
+                range(len(sorted_weights)),
+                sorted_weights,
+                color=colors,
+                width=0.8,
+                edgecolor=theme["grid_color"],
+                linewidth=0.5,
+            )
+
+            # Add subtle grid and styling
+            ax.grid(
+                True, axis="y", linestyle="--", alpha=0.3, color=theme["grid_color"]
+            )
+            ax.set_facecolor(theme["background_color"])
+            ax.set_xlabel(
+                "Channel Index (sorted by weight)",
+                color=theme["text_color"],
+                fontsize=12,
+            )
+            ax.set_ylabel("Attention Weight", color=theme["text_color"], fontsize=12)
+            ax.set_title(
+                f"Channel Attention Weights: {formatted_name}",
+                color=theme["text_color"],
+                fontsize=14,
+                pad=20,
+            )
+
+            # Set tick colors
+            ax.tick_params(axis="x", colors=theme["text_color"])
+            ax.tick_params(axis="y", colors=theme["text_color"])
+
+            # Add value annotations for the top channels
+            for i, bar in enumerate(bars[:10]):  # Annotate just the top 10
+                height = bar.get_height()
+                ax.text(
+                    bar.get_x() + bar.get_width() / 2.0,
+                    height + 0.002,
+                    f"{height:.3f}",
+                    ha="center",
+                    va="bottom",
+                    color=theme["text_color"],
+                    fontsize=8,
+                )
+
+            # Highlight the most important channels
+            for i, bar in enumerate(bars[:5]):  # Highlight top 5 channels
+                bar.set_edgecolor(theme["main_color"])
+                bar.set_linewidth(1.5)
+
+            # Add subtle border to the entire plot
+            for spine in ax.spines.values():
+                spine.set_visible(True)
+                spine.set_color(theme["grid_color"])
+                spine.set_linewidth(0.5)
+
+            # Save the figure for this channel attention map
+            plt.tight_layout()
+            plt.savefig(
+                channel_viz_path,
+                dpi=300,
+                bbox_inches="tight",
+                facecolor=theme["background_color"],
+            )
+            logger.info(f"Saved channel attention visualization to {channel_viz_path}")
+            plt.close()
+
+            # We only process the first channel attention map
+            break
+
+    # Create HTML report
+    from datetime import datetime
 
     # Create HTML report
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -739,3 +965,123 @@ def generate_attention_report(
 
     logger.info(f"Attention report generated at: {report_file}")
     return str(report_file)
+
+
+class CBAMVisualizer:
+    """
+    Visualizer for CBAM attention maps.
+    """
+
+    def __init__(self, model: nn.Module):
+        """
+        Initialize the CBAM attention visualizer.
+
+        Args:
+            model: PyTorch model with CBAM layers
+        """
+        self.model = model
+        self.device = next(model.parameters()).device
+        self.model.eval()
+
+        # Set up normalization parameters
+        self.mean = torch.tensor([0.485, 0.456, 0.406]).reshape(3, 1, 1)
+        self.std = torch.tensor([0.229, 0.224, 0.225]).reshape(3, 1, 1)
+
+    def preprocess_image(
+        self, image: torch.Tensor, normalize: bool = True
+    ) -> torch.Tensor:
+        """
+        Preprocess an image for model input.
+
+        Args:
+            image: Input image tensor (C, H, W)
+            normalize: Whether to normalize using ImageNet stats
+
+        Returns:
+            Preprocessed image tensor
+        """
+        # Ensure image is on the correct device
+        image = image.to(self.device)
+
+        # Add batch dimension if missing
+        if image.dim() == 3:
+            image = image.unsqueeze(0)
+
+        # Resize if model has input_size attribute
+        if hasattr(self.model, "input_size"):
+            try:
+                input_size = self.model.input_size
+                if isinstance(input_size, (list, tuple)) and len(input_size) == 2:
+                    if image.shape[2:] != tuple(input_size):
+                        logger.info(
+                            f"Resizing image from {image.shape[2:]} to {input_size}"
+                        )
+                        import torch.nn.functional as F
+
+                        image = F.interpolate(
+                            image, size=input_size, mode="bilinear", align_corners=False
+                        )
+            except Exception as e:
+                logger.warning(f"Error resizing image: {e}")
+
+        # Normalize if requested
+        if normalize:
+            if image.max() > 1.0:
+                image = image / 255.0
+
+            mean = self.mean.to(image.device)
+            std = self.std.to(image.device)
+
+            image = (image - mean) / std
+
+        return image
+
+    def get_attention_maps(
+        self, image_input: Union[str, torch.Tensor]
+    ) -> Dict[str, torch.Tensor]:
+        """
+        Get attention maps from the model for the given input image.
+
+        Args:
+            image_input: Input image (path or tensor)
+
+        Returns:
+            Dictionary of attention maps by layer name
+        """
+        # Convert file path to tensor if needed
+        if isinstance(image_input, str):
+            from PIL import Image
+            from torchvision import transforms
+
+            img = Image.open(image_input).convert("RGB")
+            transform = transforms.Compose(
+                [
+                    transforms.Resize(224),
+                    transforms.ToTensor(),
+                ]
+            )
+            image = transform(img).unsqueeze(0)
+        else:
+            image = image_input
+
+        # Ensure image is preprocessed
+        image = self.preprocess_image(image)
+
+        # Get attention maps from the model
+        with torch.no_grad():
+            # Forward pass
+            _ = self.model(image)
+
+            # Check if model has a get_attention_maps method
+            if hasattr(self.model, "get_attention_maps"):
+                attention_maps = self.model.get_attention_maps()
+            # Try backbone if available
+            elif hasattr(self.model, "backbone") and hasattr(
+                self.model.backbone, "get_attention_maps"
+            ):
+                attention_maps = self.model.backbone.get_attention_maps()
+            else:
+                logger.error("Model does not support attention map extraction")
+                return {}
+
+        return attention_maps

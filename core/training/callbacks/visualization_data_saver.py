@@ -15,6 +15,7 @@ from typing import Any, Dict, Union
 
 import numpy as np
 import torch
+import torch.nn as nn
 
 from core.training.callbacks.base import Callback
 from utils.logger import get_logger
@@ -138,14 +139,104 @@ class VisualizationDataSaver(Callback):
             if hasattr(model, "norm"):
                 logger.info("Using norm layer for feature extraction")
                 model.norm.register_forward_hook(hook_fn)
-        elif self.model_type.lower() == "cbam":
-            # For CBAM models, try to get the layer after attention
-            if hasattr(model, "avgpool"):
-                logger.info("Using avgpool layer for feature extraction")
-                model.avgpool.register_forward_hook(hook_fn)
-            elif hasattr(model, "backbone") and hasattr(model.backbone, "avgpool"):
-                logger.info("Using backbone.avgpool layer for feature extraction")
-                model.backbone.avgpool.register_forward_hook(hook_fn)
+        elif self.model_type.lower() in ["cbam", "cbam_only_resnet18"]:
+            # For CBAM models, try to extract features from various points
+            if hasattr(model, "backbone"):
+                # Try the feature layers or avgpool in the backbone
+                if hasattr(model.backbone, "avgpool"):
+                    logger.info("Using backbone.avgpool layer for feature extraction")
+                    model.backbone.avgpool.register_forward_hook(hook_fn)
+                elif hasattr(model.backbone, "layer4"):
+                    logger.info("Using backbone.layer4 for feature extraction")
+                    model.backbone.layer4.register_forward_hook(hook_fn)
+                elif hasattr(model.backbone, "features") and callable(
+                    getattr(model.backbone, "features", None)
+                ):
+                    logger.info("Using backbone.features method for feature extraction")
+                    # This is a safe way to check if a method exists and is callable
+                    # We'll hook the return of the features method
+                    # Note: This won't work with standard register_forward_hook
+                    # We'd need a custom method to capture the output of this function
+                    try:
+                        # Alternative approach: directly register a hook on the last layer
+                        if hasattr(model.backbone, "layer4") and hasattr(
+                            model.backbone.layer4, "register_forward_hook"
+                        ):
+                            logger.info(
+                                "Using backbone.layer4[-1] for feature extraction"
+                            )
+                            if (
+                                isinstance(model.backbone.layer4, nn.Sequential)
+                                and len(model.backbone.layer4) > 0
+                            ):
+                                model.backbone.layer4[-1].register_forward_hook(hook_fn)
+                            else:
+                                logger.warning(
+                                    "backbone.layer4 is not a nn.Sequential or is empty"
+                                )
+                    except Exception as e:
+                        logger.error(f"Error setting up feature hook: {e}")
+            else:
+                # Try direct access to layers
+                if hasattr(model, "avgpool"):
+                    logger.info("Using model avgpool for feature extraction")
+                    model.avgpool.register_forward_hook(hook_fn)
+                elif hasattr(model, "layer4"):
+                    logger.info("Using model layer4 for feature extraction")
+                    if (
+                        isinstance(model.layer4, nn.Sequential)
+                        and len(model.layer4) > 0
+                    ):
+                        model.layer4[-1].register_forward_hook(hook_fn)
+                    else:
+                        model.layer4.register_forward_hook(hook_fn)
+
+            # If we still don't have a hook, try the head
+            if hasattr(model, "head") and hasattr(model.head, "register_forward_hook"):
+                if isinstance(model.head, nn.Sequential) and len(model.head) > 0:
+                    # Get the first layer of the head for features
+                    logger.info("Using head[0] for feature extraction")
+                    model.head[0].register_forward_hook(hook_fn)
+                else:
+                    logger.info("Using head for feature extraction")
+                    model.head.register_forward_hook(hook_fn)
+
+        # If we couldn't hook a specific layer, try a more generic approach
+        if not features:
+            logger.warning("No specific layer found for hooks, trying generic approach")
+            # Find the last convolutional layer or linear layer before the final classifier
+            visited_modules = set()
+
+            def find_feature_layer(m, prefix=""):
+                if id(m) in visited_modules:
+                    return None
+                visited_modules.add(id(m))
+
+                # Look for likely feature extraction points
+                if isinstance(m, (nn.AdaptiveAvgPool2d, nn.AvgPool2d)):
+                    logger.info(f"Found pooling layer: {prefix}")
+                    return m
+                elif isinstance(m, nn.Linear) and not hasattr(m, "is_classifier"):
+                    # Assume first linear layer is for feature transform
+                    logger.info(f"Found linear layer: {prefix}")
+                    return m
+
+                # Recurse into children to find a suitable layer
+                for name, child in m.named_children():
+                    child_path = f"{prefix}.{name}" if prefix else name
+                    result = find_feature_layer(child, child_path)
+                    if result is not None:
+                        return result
+                return None
+
+            feature_layer = find_feature_layer(model)
+            if feature_layer is not None:
+                logger.info(
+                    f"Using generic feature layer: {type(feature_layer).__name__}"
+                )
+                feature_layer.register_forward_hook(hook_fn)
+            else:
+                logger.error("Could not find any suitable layer for feature extraction")
 
         return features
 
