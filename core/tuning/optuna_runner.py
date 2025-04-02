@@ -10,7 +10,7 @@ from core.data import PlantDiseaseDataModule
 from core.models import get_model_class
 from core.training import train_model
 from utils.logger import get_logger
-from utils.seed import set_seed
+from utils.set_manual_seed import set_manual_seed
 
 # Import suggestion functions
 from .search_space import (  # import others...
@@ -60,7 +60,7 @@ def objective(trial: optuna.trial.Trial) -> float:
         cfg.paths.logs_dir = str(trial_dir / "logs")
 
         # Set seed for reproducibility within the trial (can use trial number)
-        set_seed(cfg.seed + trial_num)
+        set_manual_seed(cfg.seed + trial_num)
 
         logger.info(f"--- Starting Optuna Trial {trial_num} ---")
         logger.info(f"Trial directory: {trial_dir}")

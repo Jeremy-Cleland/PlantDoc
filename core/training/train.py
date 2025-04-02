@@ -313,13 +313,18 @@ class Trainer:
             "config": self.cfg,
             "experiment_dir": self.experiment_dir,
             "total_epochs": self.epochs,
+            "trainer": self,  # Add the trainer itself to the context
         }
         for cb in self.callbacks:
             if hasattr(cb, "set_trainer_context"):
                 cb.set_trainer_context(context)
             else:
                 for key, value in context.items():
-                    if hasattr(cb, key) and getattr(cb, key) is None:
+                    # Always set config regardless of current value to ensure it's passed
+                    if key == "config":
+                        setattr(cb, key, value)
+                    # For other attributes, only set if they're None
+                    elif hasattr(cb, key) and getattr(cb, key) is None:
                         setattr(cb, key, value)
 
     def _setup_mixed_precision(self):

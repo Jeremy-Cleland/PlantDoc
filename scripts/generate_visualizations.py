@@ -35,6 +35,7 @@ def generate_all_visualizations(
     skip_attention: bool = False,
     skip_shap: bool = False,
     force: bool = False,
+    theme: str = "plantdoc",  # Use a plantdoc theme for all visualizations
 ):
     """
     Generate all visualizations for a trained model.

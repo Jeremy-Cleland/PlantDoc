@@ -225,8 +225,8 @@ class CBAMVisualizer:
         output_dir: Optional[Union[str, Path]] = None,
         layer_filter: Optional[str] = None,
         alpha: float = 0.5,
-        colormap: str = "viridis",
-        figsize: Tuple[int, int] = (16, 12),
+        colormap: str = "YlOrRd",
+        figsize: Tuple[int, int] = (12, 12),
     ) -> Dict[str, plt.Figure]:
         """
         Visualize attention maps for an input image.
@@ -277,35 +277,91 @@ class CBAMVisualizer:
                 sorted_indices = np.argsort(channel_weights)[::-1]  # Descending order
                 sorted_weights = channel_weights[sorted_indices]
 
-                # Create bar chart figure
+                # Create bar chart figure with PlantDoc theme
+                plt.style.use('default')
                 fig, ax = plt.subplots(figsize=(12, 8))
-                ax.bar(
+                fig.patch.set_facecolor('#f8f9fa')  # Light background
+                
+                # Format the name for better readability
+                formatted_name = name.replace('backbone.backbone.', '')
+                formatted_name = formatted_name.replace('_channel', '')
+                formatted_name = formatted_name.replace('_', ' ')
+                
+                # Create a more visually appealing bar chart
+                bars = ax.bar(
                     range(len(sorted_weights)),
                     sorted_weights,
                     color=plt.cm.get_cmap(colormap)(
                         np.linspace(0, 1, len(sorted_weights))
                     ),
+                    width=0.8,  # Slightly thinner bars
+                    edgecolor='white',  # White edges for better separation
+                    linewidth=0.5
                 )
-                ax.set_xlabel("Channel Index (sorted by attention weight)")
-                ax.set_ylabel("Attention Weight")
-                ax.set_title(f"Channel Attention Weights: {name}")
+                
+                # Add a light grid for better readability
+                ax.grid(True, axis='y', linestyle='--', alpha=0.3)
+                
+                # Style the chart
+                ax.set_xlabel("Channel Index (sorted by attention weight)", fontsize=12, fontweight='medium')
+                ax.set_ylabel("Attention Weight", fontsize=12, fontweight='medium')
+                ax.set_title(f"Channel Attention Weights: {formatted_name}", 
+                            fontsize=16, pad=20, fontweight='bold', color='#2e7d32')
+                
+                # Add a subtitle
+                plt.figtext(0.5, 0.91, "Features the model emphasizes for classification", 
+                          ha='center', fontsize=12, color='#1b5e20')
+                
+                # Improve axes appearance
+                ax.spines['top'].set_visible(False)
+                ax.spines['right'].set_visible(False)
+                ax.spines['left'].set_linewidth(0.5)
+                ax.spines['bottom'].set_linewidth(0.5)
+                
+                # Adjust layout
+                plt.tight_layout()
+                plt.subplots_adjust(top=0.85)  # Make room for title
 
-                # Save figure
+                # Save figure with high resolution
                 if output_dir:
                     fig.savefig(
-                        output_dir / f"{name}_channel_weights.png", bbox_inches="tight"
+                        output_dir / f"{name}_channel_weights.png", 
+                        bbox_inches="tight",
+                        dpi=300,
+                        facecolor=fig.get_facecolor()
                     )
 
                 figures[f"{name}_weights"] = fig
 
                 # Create a figure showing the effect of channel attention on features
                 # This is a simplified approximation since we don't have direct access to feature maps
+                plt.style.use('default')
                 fig, axes = plt.subplots(1, 2, figsize=figsize)
+                fig.patch.set_facecolor('#f8f9fa')  # Light background
+                
+                # Format the name for better readability
+                formatted_name = name.replace('backbone.backbone.', '')
+                formatted_name = formatted_name.replace('_channel', '')
+                formatted_name = formatted_name.replace('_', ' ')
+                
+                # Add main title
+                fig.suptitle(f"Channel Attention Visualization: {formatted_name}", 
+                            fontsize=18, fontweight='bold', color='#2e7d32', y=0.98)
+                
+                # Add subtitle
+                plt.figtext(0.5, 0.94, "Effect of attention on feature channels", 
+                          ha='center', fontsize=14, color='#1b5e20')
 
-                # Original image
+                # Original image with enhanced presentation
                 axes[0].imshow(original_image)
-                axes[0].set_title("Original Image")
+                axes[0].set_title("Original Image", fontsize=14, pad=10, fontweight='medium', color='#2e7d32')
                 axes[0].axis("off")
+                
+                # Add borders to axes
+                for spine in axes[0].spines.values():
+                    spine.set_visible(True)
+                    spine.set_color('#dddddd')
+                    spine.set_linewidth(1)
 
                 # Create a visualization of channel attention effect
                 # This is an approximation since we don't have intermediate feature maps
@@ -316,29 +372,45 @@ class CBAMVisualizer:
                 num_vis_channels = min(3, len(channel_weights))
                 channel_attention_vis = np.zeros_like(original_image, dtype=float)
 
+                # Apply a more visually appealing effect
                 for i in range(num_vis_channels):
                     if i < 3:  # Only process RGB channels for visualization
+                        # Enhance the effect with a higher contrast
+                        weight = channel_weights[i] * 1.5  # Boost effect
                         channel_attention_vis[:, :, i] = (
-                            channel_weights[i] * original_image[:, :, i]
+                            weight * original_image[:, :, i]
                         )
 
-                # Normalize
+                # Normalize with improved contrast
                 if channel_attention_vis.max() > 0:
                     channel_attention_vis = (
                         channel_attention_vis / channel_attention_vis.max()
                     )
+                    # Apply a slight gamma correction for better visualization
+                    channel_attention_vis = np.power(channel_attention_vis, 0.8)
 
-                # Show channel attention visualization
+                # Show channel attention visualization with enhanced presentation
                 axes[1].imshow(channel_attention_vis)
-                axes[1].set_title("Channel Attention Effect (RGB approx)")
+                axes[1].set_title("Channel Attention Effect", fontsize=14, pad=10, fontweight='medium', color='#2e7d32')
                 axes[1].axis("off")
+                
+                # Add borders to axes
+                for spine in axes[1].spines.values():
+                    spine.set_visible(True)
+                    spine.set_color('#dddddd')
+                    spine.set_linewidth(1)
 
-                plt.tight_layout()
+                # Improve layout
+                plt.tight_layout(pad=3.0, h_pad=3.0, w_pad=3.0)
+                plt.subplots_adjust(top=0.88)  # Adjust for title
 
-                # Save figure
+                # Save figure with high resolution
                 if output_dir:
                     fig.savefig(
-                        output_dir / f"{name}_channel_effect.png", bbox_inches="tight"
+                        output_dir / f"{name}_channel_effect.png", 
+                        bbox_inches="tight",
+                        dpi=300,
+                        facecolor=fig.get_facecolor()
                     )
 
                 figures[f"{name}_effect"] = fig
@@ -395,27 +467,50 @@ class CBAMVisualizer:
         ]
 
         if spatial_maps:
-            # Determine grid size
+            # Set theme and styling
+            plt.style.use('default')
+            
+            # Determine grid size - make it more square and consistent
             n = len(spatial_maps)
-            nrows = int(np.ceil(np.sqrt(n + 1)))  # +1 for the original image
-            ncols = int(np.ceil((n + 1) / nrows))
+            nrows = 3  # Fixed number of rows for more consistent layout
+            ncols = 3  # Fixed number of columns
 
-            # Create figure
-            fig, axes = plt.subplots(nrows, ncols, figsize=(ncols * 4, nrows * 4))
-
-            # Flatten axes array (handles the case when nrows or ncols is 1)
-            if nrows * ncols == 1:
-                axes = np.array([axes])
-            axes = axes.flatten()
-
-            # Original image
-            axes[0].imshow(original_image)
-            axes[0].set_title("Original Image")
-            axes[0].axis("off")
-
-            # Spatial attention maps
-            for i, (name, attention_map) in enumerate(spatial_maps, 1):
-                if i < len(axes):
+            # Create figure with PlantDoc theme
+            fig = plt.figure(figsize=(15, 15))
+            fig.patch.set_facecolor('#f8f9fa')  # Light background
+            
+            # Main title
+            fig.suptitle("Attention Overlays", fontsize=22, fontweight='bold', color='#2e7d32')
+            # Subtitle
+            plt.figtext(0.5, 0.92, "Areas the model focuses on for classification", 
+                       ha='center', fontsize=14, color='#1b5e20')
+            
+            # Generate the subplot layout
+            grid = plt.GridSpec(nrows, ncols, figure=fig, wspace=0.2, hspace=0.4)
+            
+            # Original image - make it larger and centered in the first row
+            ax_original = fig.add_subplot(grid[0, 0])
+            ax_original.imshow(original_image)
+            ax_original.set_title("Original Image", fontsize=16, pad=10, fontweight='medium', color='#2e7d32')
+            ax_original.axis("off")
+            
+            # Add borders to axes
+            for spine in ax_original.spines.values():
+                spine.set_visible(True)
+                spine.set_color('#dddddd')
+                spine.set_linewidth(1)
+            
+            # Spatial attention maps in a consistent grid
+            for i, (name, attention_map) in enumerate(spatial_maps):
+                if i < nrows * ncols - 1:  # Leave space for the original image
+                    # Calculate position (skip the position of the original image if needed)
+                    pos = i + 1
+                    row = pos // ncols
+                    col = pos % ncols
+                    
+                    # Create subplot
+                    ax = fig.add_subplot(grid[row, col])
+                    
                     # Resize to match input size for visualization
                     spatial_map = F.interpolate(
                         attention_map,
@@ -425,31 +520,47 @@ class CBAMVisualizer:
                     )
                     spatial_map = spatial_map.squeeze().cpu().numpy()
 
-                    # Apply colormap
+                    # Apply colormap with enhanced contrast
                     cmap = plt.get_cmap(colormap)
                     heatmap = cmap(spatial_map)[:, :, :3]
 
-                    # Apply alpha blending
+                    # Apply alpha blending with more pronounced overlay
                     overlaid_image = (
                         original_image * (1 - alpha) + heatmap * 255 * alpha
                     )
                     overlaid_image = np.clip(overlaid_image, 0, 255).astype(np.uint8)
 
-                    # Show overlay
-                    axes[i].imshow(overlaid_image)
-                    axes[i].set_title(name.split("_spatial")[0])
-                    axes[i].axis("off")
+                    # Show overlay with improved title
+                    ax.imshow(overlaid_image)
+                    layer_name = name.split("_spatial")[0]
+                    # Make the title more readable by formatting it
+                    formatted_name = layer_name.replace('backbone.backbone.', '').replace('_', ' ')
+                    ax.set_title(f"{formatted_name}\nOverlay", fontsize=14, pad=10, fontweight='medium', color='#2e7d32')
+                    ax.axis("off")
+                    
+                    # Add borders to axes
+                    for spine in ax.spines.values():
+                        spine.set_visible(True)
+                        spine.set_color('#dddddd')
+                        spine.set_linewidth(1)
 
             # Turn off any unused axes
-            for i in range(len(spatial_maps) + 1, len(axes)):
-                axes[i].axis("off")
+            for i in range(len(spatial_maps) + 1, nrows * ncols):
+                row = i // ncols
+                col = i % ncols
+                ax = fig.add_subplot(grid[row, col])
+                ax.axis("off")
 
-            plt.tight_layout()
+            plt.tight_layout(pad=3.0, h_pad=3.0, w_pad=3.0)
+            plt.subplots_adjust(top=0.88)  # Adjust for the title
 
-            # Save figure
+            # Save figure with high resolution
             if output_dir:
                 fig.savefig(
-                    output_dir / "all_spatial_attention_maps.png", bbox_inches="tight"
+                    output_dir / "all_spatial_attention_maps.png", 
+                    bbox_inches="tight", 
+                    dpi=300,
+                    facecolor=fig.get_facecolor()
                 )
 
             figures["all_spatial"] = fig
@@ -568,6 +679,7 @@ def run_cbam_attention_visualization(
     num_samples: int = 5,
     output_dir: Optional[Union[str, Path]] = None,
     class_names: Optional[List[str]] = None,
+    create_combined_visualization: bool = True,
 ) -> None:
     """
     Run CBAM attention visualization for multiple samples from a dataset.

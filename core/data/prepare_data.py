@@ -594,7 +594,7 @@ def run_analysis(cfg: DictConfig) -> Tuple[Optional[pd.DataFrame], Dict[str, Any
         bar_colors = theme.get(
             "bar_colors", ["#a78bfa", "#22d3ee", "#34d399", "#d62728", "#e27c7c"]
         )
-        cmap = theme.get("cmap", "viridis")
+        cmap = theme.get("cmap", "YlOrRd")
 
         # Set up dark theme
         plt.rcParams.update(
@@ -1099,7 +1099,7 @@ def run_visualization(cfg: DictConfig):
     bar_colors = theme.get(
         "bar_colors", ["#a78bfa", "#22d3ee", "#34d399", "#d62728", "#e27c7c"]
     )
-    cmap = theme.get("cmap", "viridis")
+    cmap = theme.get("cmap", "YlOrRd")
 
     # Set up dark theme
     plt.rcParams.update(
@@ -1387,9 +1387,9 @@ def create_tsne_viz(
 
     plt.figure(figsize=(14, 10))
 
-    # Use provided colors or generate using viridis
+    # Use provided colors or generate using YlOrRd
     if bar_colors is None or len(bar_colors) < len(unique_classes):
-        colors = sns.color_palette("viridis", len(unique_classes))
+        colors = sns.color_palette("YlOrRd", len(unique_classes))
     else:
         # Cycle through provided colors if needed
         colors = []
@@ -1485,7 +1485,7 @@ def create_similarity_matrix_viz(
     bg_color: str = "#121212",
     text_color: str = "#f5f5f5",
     grid_color: str = "#404040",
-    cmap: str = "viridis",
+    cmap: str = "YlOrRd",
 ):
     """Internal helper to create similarity matrix plot."""
     class_features = {}

@@ -17,6 +17,7 @@ from core.training.callbacks import (
     LearningRateSchedulerCallback,
     MetricsLogger,
     ModelCheckpoint,
+    SHAPCallback,
     SWACallback,
     VisualizationDataSaver,
 )
@@ -285,6 +286,21 @@ def get_callbacks(
             adjust_frequency=adapt_config.get("adjust_frequency", 5),
         )
         callbacks.append(adaptive_callback)
+
+    # Add SHAP callback
+    if hasattr(callback_config, "shap") and callback_config.shap.enabled:
+        logger.info("Adding SHAP callback")
+        shap_config = callback_config.shap
+
+        # Create the callback with settings from config
+        shap_callback = SHAPCallback(
+            num_samples=shap_config.get("num_samples", 10),
+            compare_with_gradcam=shap_config.get("compare_with_gradcam", True),
+            num_background_samples=shap_config.get("num_background_samples", 50),
+            output_subdir=shap_config.get("output_subdir", "shap_analysis"),
+            dataset_split=shap_config.get("dataset_split", "test"),
+        )
+        callbacks.append(shap_callback)
 
     # Add Visualization Data Saver callback
     if (

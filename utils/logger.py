@@ -40,7 +40,7 @@ class ImmediateFileHandler(logging.FileHandler):
             stream = self.stream
             stream.write(msg + self.terminator)
             self.flush()
-        except Exception as e:
+        except Exception:
             self.handleError(record)
 
     def close(self):

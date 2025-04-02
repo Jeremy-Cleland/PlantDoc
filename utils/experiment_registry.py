@@ -99,14 +99,52 @@ def register_experiment(
     # Convert experiment_dir to string if it's a Path
     experiment_dir_str = str(experiment_dir)
 
-    # Create experiment info
+    # Extract more comprehensive information from params
+    full_params = params or {}
+
+    # Create experiment info with enhanced details
     experiment = {
         "model_name": model_name,
         "version": version,
         "experiment_dir": experiment_dir_str,
         "created_at": datetime.now().isoformat(),
-        "params": params or {},
+        "params": full_params,
         "description": description or f"Training run for {model_name} v{version}",
+        "status": "running",
+        "training": {
+            "epochs": full_params.get("epochs", None),
+            "batch_size": full_params.get("batch_size", None),
+            "learning_rate": full_params.get("learning_rate", None),
+            "optimizer": (
+                full_params.get("optimizer", {}).get("name", None)
+                if isinstance(full_params.get("optimizer", {}), dict)
+                else None
+            ),
+            "loss": (
+                full_params.get("loss", {}).get("name", None)
+                if isinstance(full_params.get("loss", {}), dict)
+                else None
+            ),
+            "started_at": datetime.now().isoformat(),
+            "completed_at": None,
+            "duration_seconds": None,
+        },
+        "performance": {
+            "best_epoch": None,
+            "val_loss": None,
+            "val_accuracy": None,
+            "val_precision": None,
+            "val_recall": None,
+            "val_f1": None,
+        },
+        "hardware": {
+            "device": full_params.get("device", None),
+            "precision": full_params.get("precision", None),
+        },
+        "dataset": {
+            "name": full_params.get("dataset_name", None),
+            "num_classes": full_params.get("num_classes", None),
+        },
     }
 
     # Add to registry
@@ -119,6 +157,86 @@ def register_experiment(
         f"Registered experiment: {model_name} v{version} in {experiment_dir_str}"
     )
     return experiment
+
+
+def update_experiment_info(
+    experiment_dir: Union[str, Path], results: Dict, status: str = "completed"
+) -> Dict:
+    """
+    Update experiment information with training results.
+
+    Args:
+        experiment_dir: Path to the experiment directory
+        results: Dictionary containing training results
+        status: Status of the experiment (completed, failed, etc.)
+
+    Returns:
+        Updated experiment info
+    """
+    registry = load_registry()
+    experiment_dir_str = str(experiment_dir)
+
+    # Find the experiment in the registry
+    for exp in registry.get("experiments", []):
+        if exp.get("experiment_dir") == experiment_dir_str:
+            # Update status
+            exp["status"] = status
+
+            # Update training information
+            if "training" not in exp:
+                exp["training"] = {}
+
+            exp["training"]["completed_at"] = datetime.now().isoformat()
+
+            # Calculate duration if possible
+            if "started_at" in exp["training"]:
+                try:
+                    start_time = datetime.fromisoformat(exp["training"]["started_at"])
+                    end_time = datetime.fromisoformat(exp["training"]["completed_at"])
+                    duration = (end_time - start_time).total_seconds()
+                    exp["training"]["duration_seconds"] = duration
+                except Exception as e:
+                    logger.warning(f"Could not calculate training duration: {e}")
+
+            # Update performance metrics
+            if "performance" not in exp:
+                exp["performance"] = {}
+
+            # Extract performance metrics from results
+            performance = exp["performance"]
+            performance["best_epoch"] = results.get("best_epoch")
+            performance["val_loss"] = results.get("best_val_loss") or results.get(
+                "val_loss"
+            )
+            performance["val_accuracy"] = results.get("best_val_acc") or results.get(
+                "val_accuracy"
+            )
+            performance["val_precision"] = results.get("val_precision")
+            performance["val_recall"] = results.get("val_recall")
+            performance["val_f1"] = results.get("val_f1")
+
+            # Add additional metrics if provided
+            for k, v in results.items():
+                if k not in [
+                    "best_epoch",
+                    "best_val_loss",
+                    "best_val_acc",
+                    "val_accuracy",
+                    "val_precision",
+                    "val_recall",
+                    "val_f1",
+                ]:
+                    if k.startswith("val_"):
+                        performance[k] = v
+
+            # Save registry
+            save_registry(registry)
+
+            logger.info(f"Updated experiment info for {experiment_dir_str}")
+            return exp
+
+    logger.warning(f"Experiment not found in registry: {experiment_dir_str}")
+    return {}
 
 
 def load_registry() -> Dict:

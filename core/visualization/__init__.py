@@ -25,6 +25,7 @@ from .base_visualization import (
 )
 from .visualization import (
     create_analysis_dashboard,
+    create_augmentation_grid,
     create_classification_examples_grid,
     create_image_grid,
     plot_class_performance,
@@ -67,6 +68,7 @@ __all__ = [
     "plot_training_time",
     # Enhanced visualization functions
     "create_analysis_dashboard",
+    "create_augmentation_grid",
     "create_classification_examples_grid",
     "create_image_grid",
     "plot_class_performance",

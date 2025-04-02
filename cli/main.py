@@ -18,6 +18,7 @@ from utils.config_utils import load_config
 from utils.experiment_registry import (
     get_next_version,
     register_experiment,
+    update_experiment_info,
 )
 from utils.logger import configure_logging, get_logger, log_execution_params
 from utils.mps_utils import set_manual_seed
@@ -194,6 +195,35 @@ def train(
     logger.info(
         f"Training completed. Best validation accuracy: {results['best_val_acc']:.4f}"
     )
+
+    # Update experiment registry with results
+    try:
+        experiment_dir = cfg.paths.get(
+            "experiment_dir", f"outputs/{versioned_experiment_name}"
+        )
+
+        # Prepare results for registry update
+        registry_results = {
+            "best_epoch": results.get("best_epoch"),
+            "best_val_loss": results.get("best_val_loss"),
+            "best_val_acc": results.get("best_val_acc"),
+            "total_time": results.get("total_time"),
+            "val_precision": results.get("val_precision", None),
+            "val_recall": results.get("val_recall", None),
+            "val_f1": results.get("val_f1", None),
+        }
+
+        # Add history metrics if available
+        if "history" in results:
+            for key, values in results["history"].items():
+                if key.startswith("val_") and key not in registry_results:
+                    registry_results[key] = values[-1] if values else None
+
+        # Update the registry
+        update_experiment_info(experiment_dir, registry_results)
+        logger.info("Updated experiment registry with training results")
+    except Exception as e:
+        logger.error(f"Failed to update experiment registry: {e}", exc_info=True)
 
     # Always generate plots and report regardless of config settings
     try:

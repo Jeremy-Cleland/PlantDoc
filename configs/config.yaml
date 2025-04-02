@@ -361,6 +361,15 @@ callbacks:
     enabled: true
     n_samples: 10  # Number of sample images to visualize for attention maps
     
+  # SHAP analysis
+  shap:
+    enabled: true  # Enable SHAP callback
+    num_samples: 10  # Number of samples to analyze
+    compare_with_gradcam: true  # Compare with GradCAM
+    num_background_samples: 50  # Background samples for SHAP
+    output_subdir: "shap_analysis"  # Output subdirectory
+    dataset_split: "test"  # Dataset split to use
+    
   # Confidence monitoring
   confidence_monitor:
     enabled: true
@@ -400,6 +409,14 @@ evaluation:
     num_samples: 10
     target_layers: ["layer4"]
     output_dir: "outputs/visualizations/interpretability"  # Added output directory
+    # SHAP configuration in evaluation module
+    shap:
+      enabled: true
+      num_samples: 10
+      compare_with_gradcam: true
+      num_background_samples: 50
+      output_subdir: "shap_analysis"
+      dataset_split: "test"
 
 # Prepare data configuration
 prepare_data:
@@ -434,7 +451,7 @@ prepare_data:
     grid_color: "#404040"
     main_color: "#34d399"
     bar_colors: ["#a78bfa", "#22d3ee", "#34d399", "#d62728", "#e27c7c"]
-    cmap: "viridis"
+    cmap: "YlOrRd"
   
   # Analysis plots configuration
   figures_and_plots:

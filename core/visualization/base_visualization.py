@@ -24,7 +24,7 @@ DEFAULT_THEME = {
     "grid_color": "#404040",
     "main_color": "#34d399",
     "bar_colors": ["#a78bfa", "#22d3ee", "#34d399", "#d62728", "#e27c7c"],
-    "cmap": "viridis",
+    "cmap": "YlOrRd",
 }
 
 
@@ -69,12 +69,12 @@ def apply_dark_theme(theme: Optional[Dict] = None) -> None:
 def plot_training_history(
     history: Dict[str, List[float]],
     output_path: Optional[Union[str, Path]] = None,
-    figsize: Tuple[int, int] = (12, 10),
+    figsize: Tuple[int, int] = (14, 8),
     metrics: Optional[List[str]] = None,
     theme: Optional[Dict] = None,
 ) -> Figure:
     """
-    Plot training and validation metrics history.
+    Plot training and validation metrics history in a single plot.
 
     Args:
         history: Dictionary with metrics history
@@ -87,6 +87,7 @@ def plot_training_history(
         Matplotlib figure
     """
     # Apply theme
+    theme = theme or DEFAULT_THEME
     apply_dark_theme(theme)
 
     metrics = metrics or ["loss", "accuracy"]
@@ -104,53 +105,67 @@ def plot_training_history(
         logger.warning("No metrics found in history to plot")
         return None
 
-    # Create figure with subplots for each metric
-    fig, axes = plt.subplots(len(present_metrics), 1, figsize=figsize, sharex=True)
+    # Create figure with a single plot for all metrics
+    fig, ax = plt.subplots(figsize=figsize, facecolor=theme["background_color"])
+    ax.set_facecolor(theme["background_color"])
 
-    # If only one metric, ensure axes is a list
-    if len(present_metrics) == 1:
-        axes = [axes]
-
-    theme = theme or DEFAULT_THEME
-    main_color = theme["main_color"]
     bar_colors = theme["bar_colors"]
+    linestyles = ["-", "--"]  # Solid for train, dashed for validation
 
+    # Line metrics
     for i, metric in enumerate(present_metrics):
-        ax = axes[i]
+        base_color = bar_colors[i % len(bar_colors)]
 
         # Train metric
         train_key = metric
         if train_key in history:
+            epochs = list(range(1, len(history[train_key]) + 1))
             ax.plot(
+                epochs,
                 history[train_key],
                 marker="o",
                 markersize=4,
                 linestyle="-",
+                linewidth=2,
                 label=f"Train {metric.capitalize()}",
-                color=bar_colors[0],
+                color=base_color,
             )
 
         # Validation metric
         val_key = f"val_{metric}"
         if val_key in history:
+            epochs = list(range(1, len(history[val_key]) + 1))
             ax.plot(
+                epochs,
                 history[val_key],
                 marker="s",
                 markersize=4,
                 linestyle="--",
+                linewidth=2,
                 label=f"Val {metric.capitalize()}",
-                color=bar_colors[1],
+                color=base_color,
+                alpha=0.7,
             )
 
-        # Add title, labels, legend
-        ax.set_title(f"{metric.capitalize()} vs. Epoch", color=theme["text_color"])
-        ax.set_ylabel(metric.capitalize(), color=theme["text_color"])
-        ax.legend(loc="best")
-        ax.grid(True, alpha=0.3, color=theme["grid_color"])
-        ax.tick_params(colors=theme["text_color"])
+    # Add title, labels, legend
+    ax.set_title("Training Metrics", fontsize=16, color=theme["text_color"])
+    ax.set_xlabel("Epoch", fontsize=14, color=theme["text_color"])
+    ax.set_ylabel("Metric Value", fontsize=14, color=theme["text_color"])
 
-    # Add epoch label to bottom subplot
-    axes[-1].set_xlabel("Epoch", color=theme["text_color"])
+    # Create a more visible and organized legend
+    legend = ax.legend(
+        loc="best",
+        fontsize=12,
+        frameon=True,
+        facecolor=theme["background_color"],
+        edgecolor=theme["grid_color"],
+    )
+    for text in legend.get_texts():
+        text.set_color(theme["text_color"])
+
+    # Add grid
+    ax.grid(True, alpha=0.3, color=theme["grid_color"])
+    ax.tick_params(colors=theme["text_color"], labelsize=12)
 
     plt.tight_layout()
 
@@ -160,7 +175,7 @@ def plot_training_history(
         ensure_dir(output_path.parent)
         plt.savefig(
             output_path,
-            dpi=300,
+            dpi=400,
             bbox_inches="tight",
             facecolor=theme["background_color"],
         )
@@ -283,7 +298,7 @@ def plot_confusion_matrix(
         ensure_dir(output_path.parent)
         plt.savefig(
             output_path,
-            dpi=300,
+            dpi=400,
             bbox_inches="tight",
             facecolor=theme["background_color"],
         )
@@ -355,7 +370,7 @@ def plot_class_metrics(
             ensure_dir(output_path.parent)
             plt.savefig(
                 output_path,
-                dpi=300,
+                dpi=400,
                 bbox_inches="tight",
                 facecolor=theme["background_color"],
             )
@@ -413,7 +428,7 @@ def plot_class_metrics(
         ensure_dir(output_path.parent)
         plt.savefig(
             output_path,
-            dpi=300,
+            dpi=400,
             bbox_inches="tight",
             facecolor=theme["background_color"],
         )
@@ -485,7 +500,7 @@ def plot_training_time(
         ensure_dir(output_path.parent)
         plt.savefig(
             output_path,
-            dpi=300,
+            dpi=400,
             bbox_inches="tight",
             facecolor=theme["background_color"],
         )
@@ -581,7 +596,7 @@ def plot_model_comparison(
         ensure_dir(output_path.parent)
         plt.savefig(
             output_path,
-            dpi=300,
+            dpi=400,
             bbox_inches="tight",
             facecolor=theme["background_color"],
         )
@@ -649,7 +664,7 @@ def plot_learning_rate(
         ensure_dir(output_path.parent)
         plt.savefig(
             output_path,
-            dpi=300,
+            dpi=400,
             bbox_inches="tight",
             facecolor=theme["background_color"],
         )

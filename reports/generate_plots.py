@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import Dict, List, Optional, Union
 
 import numpy as np
-import PIL.Image
 from omegaconf import OmegaConf
 
 from core.visualization.base_visualization import (
@@ -24,6 +23,7 @@ from utils.paths import ensure_dir
 # Import enhanced visualization functions
 try:
     from core.visualization.visualization import (
+        create_augmentation_grid,
         create_classification_examples_grid,
         plot_categorical,
         plot_class_performance,
@@ -67,61 +67,48 @@ def load_json(file_path: Union[str, Path]) -> Dict:
         return {}
 
 
-def load_history(experiment_dir: Union[str, Path]) -> Dict[str, List[float]]:
+def load_history(experiment_dir: Union[str, Path]) -> Dict:
     """
-    Load training history from an experiment directory.
+    Load training history from JSON file.
 
     Args:
         experiment_dir: Path to experiment directory
 
     Returns:
-        Dictionary of training history
+        Dictionary with training history data
     """
-    history_path = Path(experiment_dir) / "history.json"
+    # First check in metrics directory
+    metrics_dir = Path(experiment_dir) / "metrics"
+    history_path = metrics_dir / "history.json"
+
+    # Fall back to main directory
+    if not history_path.exists():
+        history_path = Path(experiment_dir) / "history.json"
 
     if not history_path.exists():
-        # Try metrics_logger.jsonl or other possibilities
-        logger_path = Path(experiment_dir) / "metrics_logger.jsonl"
-        if logger_path.exists():
-            try:
-                # Load JSONL file (one JSON object per line)
-                with open(logger_path) as f:
-                    lines = f.readlines()
-
-                history = {}
-                for line in lines:
-                    try:
-                        entry = json.loads(line.strip())
-                        for key, value in entry.items():
-                            if isinstance(value, (int, float)):
-                                if key not in history:
-                                    history[key] = []
-                                history[key].append(value)
-                    except:
-                        pass
-
-                return history
-            except Exception as e:
-                logger.error(f"Failed to load metrics logger from {logger_path}: {e}")
-                return {}
-        else:
-            logger.warning(f"No history file found in {experiment_dir}")
-            return {}
+        logger.warning(f"No history file found in {experiment_dir}")
+        return {}
 
     return load_json(history_path)
 
 
 def load_metrics(experiment_dir: Union[str, Path]) -> Dict:
     """
-    Load metrics from an experiment directory.
+    Load evaluation metrics from JSON file.
 
     Args:
         experiment_dir: Path to experiment directory
 
     Returns:
-        Dictionary of metrics
+        Dictionary with metrics data
     """
-    metrics_path = Path(experiment_dir) / "metrics.json"
+    # First check in metrics directory
+    metrics_dir = Path(experiment_dir) / "metrics"
+    metrics_path = metrics_dir / "metrics.json"
+
+    # Fall back to main directory
+    if not metrics_path.exists():
+        metrics_path = Path(experiment_dir) / "metrics.json"
 
     if not metrics_path.exists():
         logger.warning(f"No metrics file found in {experiment_dir}")
@@ -305,7 +292,7 @@ def plot_confusion_matrix_from_file(
             output_path=output_path,
             normalize=True,
             theme=theme,
-            cmap="viridis",
+            cmap="YlOrRd",
             title="Confusion Matrix",
         )
     else:
@@ -471,6 +458,8 @@ def generate_plots_for_report(
     scores_path = experiment_dir / "scores.npy"
     test_images_path = experiment_dir / "test_images.npy"
     augmentation_examples_path = experiment_dir / "augmentation_examples"
+    attention_visualizations_path = experiment_dir / "attention_visualizations"
+    shap_visualizations_path = experiment_dir / "shap_visualizations"
 
     has_predictions = predictions_path.exists()
     has_features = features_path.exists()
@@ -480,6 +469,47 @@ def generate_plots_for_report(
     has_augmentation_examples = (
         augmentation_examples_path.exists() and augmentation_examples_path.is_dir()
     )
+    has_attention_visualizations = (
+        attention_visualizations_path.exists()
+        and attention_visualizations_path.is_dir()
+    )
+    has_shap_visualizations = (
+        shap_visualizations_path.exists() and shap_visualizations_path.is_dir()
+    )
+
+    # Check for SHAP visualizations
+    shap_plots = []
+    shap_dir = experiment_dir / "shap_visualizations"
+    shap_output_dir = output_dir / "shap"
+
+    if shap_dir.exists() and any(shap_dir.glob("*.png")):
+        # Create output directory for SHAP visualizations
+        ensure_dir(shap_output_dir)
+
+        # Only copy files that are actual SHAP visualizations (not regular plots)
+        real_shap_patterns = [
+            "shap_summary.png",
+            "shap_example_*.png",
+            "shap_class_*.png",
+            "shap_feature_*.png",
+            "shap_explanation_*.png",
+        ]
+
+        # Copy only SHAP visualization files that match the pattern
+        import shutil
+
+        for pattern in real_shap_patterns:
+            for shap_file in shap_dir.glob(pattern):
+                shutil.copy2(shap_file, shap_output_dir / shap_file.name)
+                shap_plots.append(
+                    str((shap_output_dir / shap_file.name).relative_to(output_dir))
+                )
+                logger.info(f"Copied SHAP visualization: {shap_file.name}")
+
+        if shap_plots:
+            logger.info(f"Found {len(shap_plots)} SHAP visualizations")
+        else:
+            logger.info("No matching SHAP visualizations found")
 
     # Load these files if they exist
     predictions = np.load(predictions_path) if has_predictions else None
@@ -488,19 +518,36 @@ def generate_plots_for_report(
     scores = np.load(scores_path) if has_scores else None
     test_images = np.load(test_images_path) if has_test_images else None
 
-    # Load visualization theme
+    # Load theme from config
     theme = load_visualization_theme(experiment_dir)
 
-    # Plot training history
+    # Always generate basic plots
     if history:
+        # Plot training history
         plot_training_history_from_file(
             history=history,
             output_path=output_dir / "training_history.png",
             theme=theme,
         )
 
-    # Plot confusion matrix
-    if cm is not None and class_names:
+        # Plot training time if available
+        if "epoch_times" in history:
+            plot_training_time_from_history(
+                history=history,
+                output_path=output_dir / "training_time.png",
+                theme=theme,
+            )
+
+        # Plot learning rate if available
+        if "learning_rate" in history:
+            plot_learning_rate_from_history(
+                history=history,
+                output_path=output_dir / "learning_rate.png",
+                theme=theme,
+            )
+
+    # Plot confusion matrix if available
+    if cm is not None and len(class_names) > 0:
         plot_confusion_matrix_from_file(
             cm=cm,
             class_names=class_names,
@@ -508,16 +555,8 @@ def generate_plots_for_report(
             theme=theme,
         )
 
-    # Plot training time
-    if history and ("time" in history or "train_time" in history):
-        plot_training_time_from_history(
-            history=history,
-            output_path=output_dir / "training_time.png",
-            theme=theme,
-        )
-
-    # Plot class metrics
-    if metrics and class_names:
+    # Plot class metrics if available
+    if metrics and "class_metrics" in metrics and len(class_names) > 0:
         plot_class_metrics_from_metrics(
             metrics=metrics,
             class_names=class_names,
@@ -525,39 +564,20 @@ def generate_plots_for_report(
             theme=theme,
         )
 
-    # Plot learning rate
-    if history and ("lr" in history or "learning_rate" in history):
-        plot_learning_rate_from_history(
-            history=history,
-            output_path=output_dir / "learning_rate.png",
+        # Generate performance by class bar chart
+        plot_class_performance(
+            metrics=metrics["class_metrics"],
+            class_names=class_names,
+            output_path=output_dir / "class_performance_bars.png",
             theme=theme,
         )
 
-    # Enhanced visualizations if data is available
+    # Enhanced visualizations if library is available
     if ENHANCED_VISUALIZATION_AVAILABLE:
-        # Class performance bar chart
-        if metrics and class_names:
-            # Prepare class metrics dictionary
-            class_metrics = {}
-            for class_name in class_names:
-                class_key = class_name.replace(" ", "_")
-                class_metrics[class_name] = {}
-                for metric in ["precision", "recall", "f1"]:
-                    metric_key = f"class_{class_key}_{metric}"
-                    if metric_key in metrics:
-                        class_metrics[class_name][metric] = metrics[metric_key]
+        logger.info("Using enhanced visualization")
 
-            # Plot horizontal bar chart
-            plot_class_performance(
-                metrics=class_metrics,
-                class_names=class_names,
-                output_path=output_dir / "class_performance_bars.png",
-                theme=theme,
-            )
-
-        # ROC and PR curves
-        if has_scores and has_true_labels and len(class_names) > 0:
-            # Plot ROC curves
+        # ROC curves
+        if has_true_labels and has_scores and len(class_names) > 0:
             plot_roc_curve(
                 y_true=true_labels,
                 y_scores=scores,
@@ -566,55 +586,14 @@ def generate_plots_for_report(
                 theme=theme,
             )
 
-            # Plot precision-recall curves
+        # Precision-Recall curves
+        if has_true_labels and has_scores and len(class_names) > 0:
             plot_precision_recall_curve(
                 y_true=true_labels,
                 y_scores=scores,
                 class_names=class_names,
                 output_path=output_dir / "precision_recall_curves.png",
                 theme=theme,
-            )
-
-        # Feature space visualization if features are available
-        if has_features and has_true_labels and len(class_names) > 0:
-            # Generate t-SNE visualization
-            plot_tsne_visualization(
-                features=features,
-                labels=(
-                    np.argmax(true_labels, axis=1)
-                    if true_labels.ndim > 1
-                    else true_labels
-                ),
-                class_names=class_names,
-                output_path=output_dir / "tsne_visualization.png",
-                theme=theme,
-            )
-
-            # Generate UMAP visualization
-            plot_umap_visualization(
-                features=features,
-                labels=(
-                    np.argmax(true_labels, axis=1)
-                    if true_labels.ndim > 1
-                    else true_labels
-                ),
-                class_names=class_names,
-                output_path=output_dir / "umap_visualization.png",
-                theme=theme,
-            )
-
-            # Generate 2D feature space visualization using PCA
-            plot_feature_space(
-                features=features,
-                labels=(
-                    np.argmax(true_labels, axis=1)
-                    if true_labels.ndim > 1
-                    else true_labels
-                ),
-                class_names=class_names,
-                output_path=output_dir / "feature_space_visualization.png",
-                theme=theme,
-                reduction_method="pca",  # Use PCA for dimensionality reduction
             )
 
         # Prediction confidence analysis if predictions are available
@@ -696,71 +675,95 @@ def generate_plots_for_report(
             except Exception as e:
                 logger.error(f"Failed to generate classification examples grid: {e}")
 
-        # Augmentation visualization if augmentation examples are available
-        if has_augmentation_examples:
+        # Augmentation visualization using the new function
+        if has_test_images:
             try:
-                # Find all image files in the augmentation examples directory
-                image_files = list(augmentation_examples_path.glob("*.png")) + list(
-                    augmentation_examples_path.glob("*.jpg")
-                )
+                # Select a sample image from the test set
+                sample_idx = np.random.randint(0, len(test_images))
+                original_img = test_images[sample_idx]
 
-                if image_files:
-                    # Choose a random image to use as the original
-                    original_img_path = image_files[0]
+                # Create augmentation examples
+                augmented_images = []
+                augmentation_names = [
+                    "Horizontal Flip",
+                    "Vertical Flip",
+                    "Rotation (30°)",
+                    "Brightness +30%",
+                    "Contrast +30%",
+                    "Crop & Resize",
+                    "Blur",
+                    "Color Jitter",
+                ]
 
-                    # Load original image
-                    original_img = np.array(PIL.Image.open(original_img_path))
+                # Apply some basic augmentations using PIL
+                import PIL.Image
+                from PIL import ImageEnhance, ImageFilter
 
-                    # Create a simple augmentation function for demonstration
-                    # In a real scenario, this would use the actual augmentation pipeline
-                    def demo_augmentation(img):
-                        # Simple augmentations for demonstration
-                        aug_type = np.random.choice(
-                            ["rotate", "flip", "brightness", "crop", "shift"]
-                        )
-
-                        if aug_type == "rotate":
-                            # Rotate by a random angle
-                            angle = np.random.randint(-30, 30)
-                            return np.array(PIL.Image.fromarray(img).rotate(angle))
-                        elif aug_type == "flip":
-                            # Horizontal flip
-                            return np.flip(img, axis=1)
-                        elif aug_type == "brightness":
-                            # Adjust brightness
-                            factor = np.random.uniform(0.7, 1.3)
-                            return np.clip(img * factor, 0, 255).astype(np.uint8)
-                        elif aug_type == "crop":
-                            # Random crop and resize
-                            h, w = img.shape[:2]
-                            crop_h = int(h * np.random.uniform(0.8, 0.9))
-                            crop_w = int(w * np.random.uniform(0.8, 0.9))
-                            top = np.random.randint(0, h - crop_h)
-                            left = np.random.randint(0, w - crop_w)
-                            cropped = img[top : top + crop_h, left : left + crop_w]
-                            return np.array(PIL.Image.fromarray(cropped).resize((w, h)))
-                        else:  # shift
-                            # Random shift
-                            h, w = img.shape[:2]
-                            shift_h = np.random.randint(-h // 8, h // 8)
-                            shift_w = np.random.randint(-w // 8, w // 8)
-                            img_pil = PIL.Image.fromarray(img)
-                            return np.array(
-                                PIL.Image.fromarray(np.zeros_like(img)).paste(
-                                    img_pil, (shift_w, shift_h)
-                                )
-                            )
-
-                    # Create augmentation visualization
-                    visualize_augmentations(
-                        image=original_img,
-                        augmentation_fn=demo_augmentation,
-                        output_path=output_dir / "augmentation_visualization.png",
-                        theme=theme,
-                        n_augmentations=8,
-                        title="Data Augmentation Examples",
+                # Convert to PIL image for easier manipulation
+                if original_img.dtype == np.float32 or original_img.max() <= 1.0:
+                    original_img_pil = PIL.Image.fromarray(
+                        (original_img * 255).astype(np.uint8)
                     )
-                    logger.info("Generated augmentation visualization")
+                else:
+                    original_img_pil = PIL.Image.fromarray(
+                        original_img.astype(np.uint8)
+                    )
+
+                # Create augmented versions
+                # 1. Horizontal Flip
+                h_flip = np.array(original_img_pil.transpose(PIL.Image.FLIP_LEFT_RIGHT))
+                augmented_images.append(h_flip)
+
+                # 2. Vertical Flip
+                v_flip = np.array(original_img_pil.transpose(PIL.Image.FLIP_TOP_BOTTOM))
+                augmented_images.append(v_flip)
+
+                # 3. Rotation
+                rotated = np.array(original_img_pil.rotate(30))
+                augmented_images.append(rotated)
+
+                # 4. Brightness enhancement
+                bright = np.array(
+                    ImageEnhance.Brightness(original_img_pil).enhance(1.3)
+                )
+                augmented_images.append(bright)
+
+                # 5. Contrast enhancement
+                contrast = np.array(
+                    ImageEnhance.Contrast(original_img_pil).enhance(1.3)
+                )
+                augmented_images.append(contrast)
+
+                # 6. Random crop and resize
+                width, height = original_img_pil.size
+                left = width // 4
+                top = height // 4
+                right = 3 * width // 4
+                bottom = 3 * height // 4
+                cropped = original_img_pil.crop((left, top, right, bottom))
+                resized = np.array(cropped.resize((width, height)))
+                augmented_images.append(resized)
+
+                # 7. Blur
+                blurred = np.array(
+                    original_img_pil.filter(ImageFilter.GaussianBlur(radius=2))
+                )
+                augmented_images.append(blurred)
+
+                # 8. Color jitter (adjust color balance)
+                color = np.array(ImageEnhance.Color(original_img_pil).enhance(1.5))
+                augmented_images.append(color)
+
+                # Create grid visualization
+                create_augmentation_grid(
+                    original_image=original_img,
+                    augmented_images=augmented_images,
+                    augmentation_names=augmentation_names,
+                    output_path=output_dir / "augmentation.png",
+                    theme=theme,
+                    title="Data Augmentation Examples",
+                )
+                logger.info("Generated augmentation visualization grid")
             except Exception as e:
                 logger.error(f"Failed to generate augmentation visualization: {e}")
 
@@ -788,9 +791,13 @@ def main():
     # Resolve experiment directory
     experiment_dir = Path(args.experiment)
     if not experiment_dir.is_absolute():
-        # Try to find in outputs directory
-        outputs_dir = Path(__file__).parents[2] / "outputs"
-        experiment_dir = outputs_dir / experiment_dir
+        # If path is relative, it's expected to be relative to the current directory
+        experiment_dir = Path.cwd() / experiment_dir
+
+    # Make sure the directory exists
+    if not experiment_dir.exists():
+        logger.error(f"Experiment directory {experiment_dir} does not exist")
+        return
 
     # Generate plots
     generate_plots_for_report(

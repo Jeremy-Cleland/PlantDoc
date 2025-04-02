@@ -22,7 +22,7 @@ logger = get_logger(__name__)
 def create_augmentation_grid(
     image_path: str,
     output_path: Path,
-    figsize=(16, 9),
+    figsize=(15, 15),
 ):
     """
     Generate and save a grid of augmentation examples for a single image.
@@ -59,24 +59,44 @@ def create_augmentation_grid(
             ),
         ]
 
-        # Create figure
+        # Create figure with consistent square grid
         rows = 3
         cols = 3
         fig, axes = plt.subplots(rows, cols, figsize=figsize)
-        fig.suptitle("Data Augmentation Examples", fontsize=16)
+        
+        # Set a PlantDoc theme with green styling
+        plt.style.use('default')
+        fig.patch.set_facecolor('#f8f9fa')  # Light background
+        fig.suptitle("Data Augmentation Examples", fontsize=22, fontweight='bold', color='#2e7d32')
+        
+        # Add a subtitle
+        plt.figtext(0.5, 0.92, "Training techniques to improve model generalization", 
+                   ha='center', fontsize=14, color='#1b5e20')
 
         # Add each augmentation to the grid
         for i, (name, aug_img) in enumerate(augmentations):
             if i < rows * cols:
                 row = i // cols
                 col = i % cols
-                axes[row, col].imshow(aug_img)
-                axes[row, col].set_title(name)
-                axes[row, col].axis("off")
+                
+                # Create subplot with consistent aspect ratio
+                ax = axes[row, col]
+                ax.imshow(aug_img)
+                ax.set_title(name, fontsize=14, pad=10, fontweight='medium', color='#2e7d32')
+                ax.axis("off")
+                
+                # Add a subtle border around each image
+                for spine in ax.spines.values():
+                    spine.set_visible(True)
+                    spine.set_color('#dddddd')
+                    spine.set_linewidth(1)
 
-        # Save figure
-        plt.tight_layout()
-        plt.savefig(output_path, dpi=300, bbox_inches="tight")
+        # Ensure layout is tight but with consistent spacing
+        plt.tight_layout(pad=3.0, h_pad=3.0, w_pad=3.0)
+        plt.subplots_adjust(top=0.88)  # Adjust to make room for title
+        
+        # Save figure with high resolution
+        plt.savefig(output_path, dpi=300, bbox_inches="tight", facecolor=fig.get_facecolor())
         plt.close()
 
         logger.info(f"Created augmentation grid: {output_path}")

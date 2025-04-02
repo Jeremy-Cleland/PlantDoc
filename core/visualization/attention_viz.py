@@ -40,7 +40,7 @@ def _to_numpy(tensor: torch.Tensor) -> np.ndarray:
 def plot_attention_heatmap(
     attention_map: torch.Tensor,
     title: str = "Attention Map",
-    cmap: str = "viridis",
+    cmap: str = "YlOrRd",
     colorbar: bool = True,
     ax: Optional[plt.Axes] = None,
     figsize: Tuple[int, int] = (8, 6),
@@ -88,7 +88,7 @@ def visualize_attention_maps(
     attention_maps: Dict[str, torch.Tensor],
     layer_names: Optional[List[str]] = None,
     figsize: Tuple[int, int] = (15, 10),
-    cmap: str = "viridis",
+    cmap: str = "YlOrRd",
     output_path: Optional[str] = None,
     suptitle: str = "CBAM Attention Maps",
 ) -> plt.Figure:
@@ -267,7 +267,7 @@ def visualize_layer_activations(
     layer_name: str,
     num_filters: int = 16,
     figsize: Tuple[int, int] = (12, 8),
-    cmap: str = "viridis",
+    cmap: str = "YlOrRd",
     output_path: Optional[str] = None,
 ) -> plt.Figure:
     """
@@ -384,7 +384,7 @@ def plot_attention_comparison(
     """
     num_images = len(images)
     if titles is None:
-        titles = [f"Image {i+1}" for i in range(num_images)]
+        titles = [f"Image {i + 1}" for i in range(num_images)]
 
     fig, axes = plt.subplots(num_images, 3, figsize=figsize)
 
@@ -418,7 +418,7 @@ def plot_attention_comparison(
             axes[i, 1].set_title("Channel Attention")
         else:
             # If it's 2D, display as image
-            axes[i, 1].imshow(ch_map, cmap="viridis")
+            axes[i, 1].imshow(ch_map, cmap="YlOrRd")
             axes[i, 1].set_title("Channel Attention")
             axes[i, 1].axis("off")
 
@@ -455,6 +455,7 @@ def generate_attention_report(
     layer_names: Optional[List[str]] = None,
     title_prefix: str = "CBAM Attention",
     resize_image: bool = True,
+    filename_prefix: Optional[str] = None,
 ) -> str:
     """
     Generate a comprehensive attention visualization report.
@@ -466,6 +467,7 @@ def generate_attention_report(
         layer_names: Optional list of layer names to visualize
         title_prefix: Prefix for the report title
         resize_image: Whether to resize the input image to match model input size
+        filename_prefix: Optional prefix for generated filenames
 
     Returns:
         Path to the report HTML file
@@ -527,7 +529,11 @@ def generate_attention_report(
 
     # Create HTML report
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    report_file = output_dir / f"attention_report_{timestamp}.html"
+    # Use filename_prefix if provided
+    if filename_prefix:
+        report_file = output_dir / f"{filename_prefix}_attention_report.html"
+    else:
+        report_file = output_dir / f"attention_report_{timestamp}.html"
 
     with open(report_file, "w") as f:
         f.write(f"<html>\n<head>\n<title>{title_prefix} Report</title>\n")
@@ -554,7 +560,11 @@ def generate_attention_report(
         f.write("<h2>Input Image</h2>\n")
 
         # Save and display original image
-        img_path = output_dir / "input_image.png"
+        image_name = "input_image.png"
+        if filename_prefix:
+            image_name = f"{filename_prefix}_input_image.png"
+        img_path = output_dir / image_name
+
         plt.figure(figsize=(8, 8))
         img_np = _to_numpy(image)
         if img_np.shape[0] == 3:  # CHW format
@@ -579,7 +589,11 @@ def generate_attention_report(
 
         # Channel attention overview
         if channel_maps:
-            ch_path = output_dir / "channel_attention_overview.png"
+            ch_name = "channel_attention_overview.png"
+            if filename_prefix:
+                ch_name = f"{filename_prefix}_channel_attention_overview.png"
+            ch_path = output_dir / ch_name
+
             visualize_attention_maps(
                 channel_maps,
                 figsize=(15, 10),
@@ -594,7 +608,11 @@ def generate_attention_report(
 
         # Spatial attention overview
         if spatial_maps:
-            sp_path = output_dir / "spatial_attention_overview.png"
+            sp_name = "spatial_attention_overview.png"
+            if filename_prefix:
+                sp_name = f"{filename_prefix}_spatial_attention_overview.png"
+            sp_path = output_dir / sp_name
+
             visualize_attention_maps(
                 spatial_maps,
                 figsize=(15, 10),
@@ -635,7 +653,13 @@ def generate_attention_report(
 
                 if ch_key in layer_ch_maps and sp_key in layer_sp_maps:
                     # Create overlay visualization
-                    overlay_path = output_dir / f"{layer}_block{block_idx}_overlay.png"
+                    overlay_name = f"{layer}_block{block_idx}_overlay.png"
+                    if filename_prefix:
+                        overlay_name = (
+                            f"{filename_prefix}_{layer}_block{block_idx}_overlay.png"
+                        )
+                    overlay_path = output_dir / overlay_name
+
                     visualize_attention_overlay(
                         image=img_np,
                         attention_map=layer_sp_maps[sp_key][0],  # First item in batch
@@ -685,7 +709,11 @@ def generate_attention_report(
                         sp_maps_to_compare.append(attention_maps[sp_key][0])
 
             if layers_to_compare:
-                comparison_path = output_dir / "layer_comparison.png"
+                comparison_name = "layer_comparison.png"
+                if filename_prefix:
+                    comparison_name = f"{filename_prefix}_layer_comparison.png"
+                comparison_path = output_dir / comparison_name
+
                 # Create copies of the input image for each layer
                 images = [image.clone() for _ in range(len(layers_to_compare))]
 

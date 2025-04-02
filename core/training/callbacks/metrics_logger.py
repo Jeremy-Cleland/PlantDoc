@@ -48,6 +48,7 @@ class MetricsLogger(Callback):
         self.overwrite = overwrite
         self.experiment_dir = Path(experiment_dir) if experiment_dir else None
         self.class_names = class_names
+        self.config = None  # Initialize config attribute to None
 
         # Validate format
         if self.save_format not in ["json", "jsonl", "csv"]:
@@ -71,6 +72,168 @@ class MetricsLogger(Callback):
             f"format='{self.save_format}', "
             f"overwrite={self.overwrite}"
         )
+
+    def set_trainer_context(self, context: Dict[str, Any]) -> None:
+        """
+        Set context from the trainer. Provides access to model, optimizer, etc.
+        
+        Args:
+            context: Dictionary containing training context information
+        """
+        if "config" in context:
+            self.config = context["config"]
+            logger.info("MetricsLogger received config from trainer context")
+        if "experiment_dir" in context and context["experiment_dir"] is not None:
+            self.experiment_dir = Path(context["experiment_dir"])
+            logger.info(f"MetricsLogger received experiment_dir: {self.experiment_dir}")
+            
+    def on_train_begin(self, logs: Optional[Dict[str, Any]] = None) -> None:
+        """
+        Extract training parameters from config and save to a file.
+        This runs once at the beginning of training.
+        """
+        # Check if we have access to the config
+        if not hasattr(self, "config"):
+            logger.warning(
+                "No config attribute found in MetricsLogger. Cannot extract training parameters."
+            )
+            return
+            
+        if self.config is None:
+            logger.warning(
+                "Config attribute exists but is None in MetricsLogger. Cannot extract training parameters."
+            )
+            return
+
+        try:
+            # Extract config
+            cfg = self.config
+
+            # Extract relevant training parameters
+            training_params = {}
+
+            # Model parameters
+            if "model" in cfg:
+                training_params["model"] = {
+                    "name": cfg.model.get("name", "unknown"),
+                    "num_classes": cfg.model.get("num_classes", 0),
+                    "pretrained": cfg.model.get("pretrained", False),
+                    "input_size": cfg.model.get("input_size", [224, 224]),
+                }
+
+                # Optional model parameters
+                for param in ["head_type", "hidden_dim", "dropout_rate", "backbone"]:
+                    if param in cfg.model:
+                        training_params["model"][param] = cfg.model[param]
+
+            # Training parameters
+            if "training" in cfg:
+                training_params["training"] = {
+                    "epochs": cfg.training.get("epochs", 0),
+                    "batch_size": cfg.training.get("batch_size", 0),
+                }
+
+                # Optional training parameters
+                for param in [
+                    "learning_rate",
+                    "weight_decay",
+                    "use_mixed_precision",
+                    "gradient_clip_val",
+                    "precision",
+                ]:
+                    if param in cfg.training:
+                        training_params["training"][param] = cfg.training[param]
+
+            # Optimizer parameters
+            if "optimizer" in cfg:
+                training_params["optimizer"] = {
+                    "name": cfg.optimizer.get("name", "adam"),
+                }
+
+                # Optional optimizer parameters
+                for param in ["lr", "weight_decay", "momentum", "beta1", "beta2"]:
+                    if param in cfg.optimizer:
+                        training_params["optimizer"][param] = cfg.optimizer[param]
+
+            # Scheduler parameters
+            if "scheduler" in cfg:
+                training_params["scheduler"] = {
+                    "name": cfg.scheduler.get("name", "none"),
+                }
+
+                # Optional scheduler parameters
+                for param in [
+                    "monitor",
+                    "factor",
+                    "patience",
+                    "min_lr",
+                    "step_size",
+                    "gamma",
+                ]:
+                    if param in cfg.scheduler:
+                        training_params["scheduler"][param] = cfg.scheduler[param]
+
+            # Loss parameters
+            if "loss" in cfg:
+                training_params["loss"] = {
+                    "name": cfg.loss.get("name", "cross_entropy"),
+                }
+
+                # Optional loss parameters
+                for param in ["components", "weights"]:
+                    if param in cfg.loss:
+                        training_params["loss"][param] = cfg.loss[param]
+
+            # Data parameters
+            if "data" in cfg:
+                training_params["data"] = {}
+
+                if "train_val_test_split" in cfg.data:
+                    training_params["data"][
+                        "train_val_test_split"
+                    ] = cfg.data.train_val_test_split
+
+            # Preprocessing parameters
+            if "preprocessing" in cfg:
+                training_params["data"]["preprocessing"] = {}
+                for param in ["resize", "center_crop", "normalize"]:
+                    if param in cfg.preprocessing:
+                        training_params["data"]["preprocessing"][param] = (
+                            cfg.preprocessing[param]
+                        )
+
+            # Augmentation parameters
+            if "augmentation" in cfg and "train" in cfg.augmentation:
+                training_params["data"]["augmentation"] = {}
+                for param in ["rand_augment", "cutmix", "mixup"]:
+                    if param in cfg.augmentation.train:
+                        training_params["data"]["augmentation"][param] = (
+                            cfg.augmentation.train[param]
+                        )
+
+            # Save to file
+            output_path = self.metrics_dir / "training_params.json"
+            # Also save to experiment_dir if it exists
+            exp_output_path = (
+                self.experiment_dir / "metrics" / "training_params.json"
+                if self.experiment_dir
+                else None
+            )
+
+            # Save the file
+            with open(output_path, "w") as f:
+                json.dump(training_params, f, indent=4)
+            logger.info(f"Saved training parameters to {output_path}")
+
+            # Also save to experiment_dir if it exists
+            if exp_output_path:
+                os.makedirs(exp_output_path.parent, exist_ok=True)
+                with open(exp_output_path, "w") as f:
+                    json.dump(training_params, f, indent=4)
+                logger.info(f"Saved training parameters to {exp_output_path}")
+
+        except Exception as e:
+            logger.error(f"Error extracting and saving training parameters: {e}")
 
     def _get_filepath(self) -> Path:
         """Get the full path to the metrics file with appropriate extension."""

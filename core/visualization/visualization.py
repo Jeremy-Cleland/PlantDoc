@@ -13,7 +13,12 @@ import umap
 from matplotlib.figure import Figure
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
-from sklearn.metrics import auc, precision_recall_curve, roc_curve
+from sklearn.metrics import (
+    auc,
+    average_precision_score,
+    precision_recall_curve,
+    roc_curve,
+)
 
 # Import from base_visualization instead of utils.visualization to avoid circular import
 from utils.logger import get_logger
@@ -30,7 +35,7 @@ def plot_enhanced_confusion_matrix(
     output_path: Optional[Union[str, Path]] = None,
     figsize: Tuple[int, int] = (14, 12),
     normalize: bool = True,
-    cmap: str = "viridis",
+    cmap: str = "YlOrRd",  # Changed from viridis to YlOrRd
     title: str = "Confusion Matrix",
     theme: Optional[Dict] = None,
 ) -> Figure:
@@ -43,7 +48,7 @@ def plot_enhanced_confusion_matrix(
         output_path: Path to save the figure
         figsize: Figure size
         normalize: Whether to normalize by row
-        cmap: Colormap (defaults to viridis)
+        cmap: Colormap (defaults to YlOrRd)
         title: Plot title
         theme: Theme settings to apply (uses DEFAULT_THEME if None)
 
@@ -66,8 +71,28 @@ def plot_enhanced_confusion_matrix(
     fig, ax = plt.subplots(figsize=figsize, facecolor="black")
     ax.set_facecolor("black")
 
-    # Plot heatmap
-    im = ax.imshow(cm_norm, cmap=cmap, aspect="auto", interpolation="nearest")
+    # Create custom colormap with black at value 0
+    from matplotlib.colors import LinearSegmentedColormap
+
+    # Get the colormap and modify it to have black at the bottom
+    base_cmap = plt.cm.get_cmap(cmap)
+    colors = base_cmap(np.linspace(0, 1, 256))
+
+    # Set first color to black for values = 0
+    colors[0] = [0, 0, 0, 1]  # black
+
+    # Create new colormap
+    custom_cmap = LinearSegmentedColormap.from_list("custom_cmap", colors)
+
+    # Plot heatmap with custom colormap
+    im = ax.imshow(
+        cm_norm,
+        cmap=custom_cmap,
+        aspect="auto",
+        interpolation="nearest",
+        vmin=0,
+        vmax=1,
+    )
 
     # Add colorbar to the right with appropriate styles
     cbar = ax.figure.colorbar(im, ax=ax, pad=0.01)
@@ -93,13 +118,18 @@ def plot_enhanced_confusion_matrix(
     ax.spines["bottom"].set_visible(False)
     ax.spines["left"].set_visible(False)
 
+    # Add grid lines to better delineate cells
+    ax.set_xticks(np.arange(-0.5, len(class_names)), minor=True)
+    ax.set_yticks(np.arange(-0.5, len(class_names)), minor=True)
+    ax.grid(which="minor", color="black", linestyle="-", linewidth=1)
+
     # Save figure if output path provided
     if output_path:
         output_path = Path(output_path)
         ensure_dir(output_path.parent)
         plt.savefig(
             output_path,
-            dpi=300,
+            dpi=400,
             bbox_inches="tight",
             facecolor="black",
             transparent=False,
@@ -114,15 +144,15 @@ def plot_precision_recall_curve(
     y_scores: np.ndarray,
     class_names: List[str],
     output_path: Optional[Union[str, Path]] = None,
-    figsize: Tuple[int, int] = (12, 8),
+    figsize: Tuple[int, int] = (14, 10),  # Larger figure
     theme: Optional[Dict] = None,
 ) -> Figure:
     """
-    Generate precision-recall curves for each class.
+    Plot precision-recall curves for multi-class classification.
 
     Args:
-        y_true: One-hot encoded true labels
-        y_scores: Model prediction scores
+        y_true: One-hot encoded true labels or class indices
+        y_scores: Predicted scores/probabilities
         class_names: List of class names
         output_path: Path to save the figure
         figsize: Figure size
@@ -135,70 +165,177 @@ def plot_precision_recall_curve(
     theme = theme or DEFAULT_THEME
     apply_dark_theme(theme)
 
-    # Create figure
-    fig, ax = plt.subplots(figsize=figsize, facecolor=theme["background_color"])
-    ax.set_facecolor(theme["background_color"])
+    # Create figure with two subplots: main PR and zoomed PR
+    fig, (ax1, ax2) = plt.subplots(
+        1,
+        2,
+        figsize=figsize,
+        facecolor=theme["background_color"],
+        gridspec_kw={"width_ratios": [2, 1]},
+    )
 
-    # Compute micro-average PR curve
-    precision = {}
-    recall = {}
-    avg_precision = {}
+    # Set background color for both axes
+    ax1.set_facecolor(theme["background_color"])
+    ax2.set_facecolor(theme["background_color"])
 
-    # For each class
-    for i, class_name in enumerate(class_names):
-        precision[i], recall[i], _ = precision_recall_curve(
-            y_true[:, i], y_scores[:, i]
+    # Convert to class indices if needed
+    if y_true.ndim > 1 and y_true.shape[1] > 1:  # One-hot encoded
+        y_true_indices = np.argmax(y_true, axis=1)
+    else:
+        y_true_indices = y_true.flatten()
+
+    # Get unique classes
+    unique_classes = np.unique(y_true_indices)
+
+    # Colors for lines
+    color_map = plt.cm.get_cmap("tab20", len(unique_classes))
+
+    # Store average precision scores for display
+    avg_precisions = {}
+
+    # Determine how many classes to show individually (to avoid clutter)
+    max_visible_classes = min(10, len(unique_classes))
+
+    # Find classes with highest average precision for display
+    all_ap_scores = []
+
+    # Calculate PR curve for each class
+    for i, class_idx in enumerate(unique_classes):
+        # Convert to binary classification problem (one-vs-rest)
+        binary_y_true = (y_true_indices == class_idx).astype(int)
+
+        # Get scores for this class
+        if y_scores.ndim > 1 and y_scores.shape[1] > 1:
+            class_scores = y_scores[:, class_idx]
+        else:
+            class_scores = y_scores
+
+        # Calculate precision and recall
+        precision, recall, _ = precision_recall_curve(binary_y_true, class_scores)
+
+        # Calculate average precision
+        ap = average_precision_score(binary_y_true, class_scores)
+
+        # Store for sorting
+        all_ap_scores.append((class_idx, ap))
+        avg_precisions[class_idx] = ap
+
+    # Sort classes by AP score and get top classes
+    all_ap_scores.sort(key=lambda x: x[1], reverse=True)
+    top_classes = [idx for idx, _ in all_ap_scores[:max_visible_classes]]
+
+    # Plot PR curve for each of the top classes
+    for i, class_idx in enumerate(top_classes):
+        # Convert to binary classification problem (one-vs-rest)
+        binary_y_true = (y_true_indices == class_idx).astype(int)
+
+        # Get scores for this class
+        if y_scores.ndim > 1 and y_scores.shape[1] > 1:
+            class_scores = y_scores[:, class_idx]
+        else:
+            class_scores = y_scores
+
+        # Calculate precision and recall
+        precision, recall, _ = precision_recall_curve(binary_y_true, class_scores)
+
+        # Get AP score from stored values
+        ap = avg_precisions[class_idx]
+
+        # Get class name (handling index errors)
+        if class_idx < len(class_names):
+            class_name = class_names[class_idx]
+        else:
+            class_name = f"Class {class_idx}"
+
+        # Plot precision-recall curve on main plot
+        ax1.plot(
+            recall,
+            precision,
+            lw=2,
+            alpha=0.8,
+            color=color_map(i),
+            label=f"{class_name} (AP: {ap:.2f})",
         )
 
-        # Plot curve for this class
-        ax.plot(
-            recall[i],
-            precision[i],
+        # Also plot on zoomed plot
+        ax2.plot(
+            recall,
+            precision,
             lw=2,
-            label=f"{class_name} (AP: {np.mean(precision[i]):.2f})",
-            alpha=0.5,
+            alpha=0.8,
+            color=color_map(i),
         )
 
     # Calculate micro-average precision-recall curve
-    precision["micro"], recall["micro"], _ = precision_recall_curve(
-        y_true.ravel(), y_scores.ravel()
+    if y_scores.ndim > 1 and y_scores.shape[1] > 1:
+        # For multi-class, convert to one-hot
+        y_true_bin = np.zeros_like(y_scores)
+        for i in range(len(y_true_indices)):
+            if y_true_indices[i] < y_true_bin.shape[1]:
+                y_true_bin[i, y_true_indices[i]] = 1
+
+        # Calculate micro-average
+        precision_micro, recall_micro, _ = precision_recall_curve(
+            y_true_bin.ravel(), y_scores.ravel()
+        )
+        ap_micro = average_precision_score(y_true_bin, y_scores, average="micro")
+
+        # Plot micro-average curve with thicker line on both plots
+        ax1.plot(
+            recall_micro,
+            precision_micro,
+            color="gold",
+            lw=3,
+            alpha=1.0,
+            label=f"Micro-average (AP: {ap_micro:.2f})",
+        )
+
+        ax2.plot(
+            recall_micro,
+            precision_micro,
+            color="gold",
+            lw=3,
+            alpha=1.0,
+        )
+
+    # Set axis range for main plot
+    ax1.set_xlim([0.0, 1.0])
+    ax1.set_ylim([0.0, 1.05])
+
+    # Set zoomed region on second plot (0.8-1.0 Recall, 0.8-1.0 Precision)
+    ax2.set_xlim([0.8, 1.0])
+    ax2.set_ylim([0.8, 1.02])
+
+    # Set title and labels
+    ax1.set_title("Precision-Recall Curves", fontsize=16, color=theme["text_color"])
+    ax1.set_xlabel("Recall", fontsize=14, color=theme["text_color"])
+    ax1.set_ylabel("Precision", fontsize=14, color=theme["text_color"])
+
+    ax2.set_title(
+        "Zoomed PR (High Performance)", fontsize=16, color=theme["text_color"]
     )
+    ax2.set_xlabel("Recall", fontsize=14, color=theme["text_color"])
+    ax2.set_ylabel("Precision", fontsize=14, color=theme["text_color"])
 
-    # Plot micro-average curve
-    ax.plot(
-        recall["micro"],
-        precision["micro"],
-        lw=3,
-        label=f"Micro-average (AP: {np.mean(precision['micro']):.2f})",
-        color=theme["main_color"],
-        linestyle="-",
-    )
+    # Add grid to both plots
+    ax1.grid(True, linestyle="--", alpha=0.3, color=theme["grid_color"])
+    ax2.grid(True, linestyle="--", alpha=0.3, color=theme["grid_color"])
 
-    # Add reference line
-    ax.plot([0, 1], [0.5, 0.5], linestyle="--", color="gray", alpha=0.5)
+    # Customize tick colors
+    ax1.tick_params(colors=theme["text_color"], labelsize=12)
+    ax2.tick_params(colors=theme["text_color"], labelsize=12)
 
-    # Set axis labels and title
-    ax.set_xlabel("Recall", color=theme["text_color"])
-    ax.set_ylabel("Precision", color=theme["text_color"])
-    ax.set_title("Precision-Recall Curves", color=theme["text_color"])
-
-    # Set axis ranges
-    ax.set_xlim([0.0, 1.0])
-    ax.set_ylim([0.0, 1.05])
-
-    # Add legend
-    ax.legend(
-        loc="best",
+    # Create legend box outside the plot
+    legend = ax1.legend(
+        loc="center left",
+        bbox_to_anchor=(1, 0.5),
         frameon=True,
         facecolor=theme["background_color"],
         edgecolor=theme["grid_color"],
+        fontsize=10,
     )
-
-    # Add grid
-    ax.grid(True, linestyle="--", alpha=0.6, color=theme["grid_color"])
-
-    # Customize tick colors
-    ax.tick_params(colors=theme["text_color"])
+    for text in legend.get_texts():
+        text.set_color(theme["text_color"])
 
     plt.tight_layout()
 
@@ -208,7 +345,7 @@ def plot_precision_recall_curve(
         ensure_dir(output_path.parent)
         plt.savefig(
             output_path,
-            dpi=300,
+            dpi=400,
             bbox_inches="tight",
             facecolor=theme["background_color"],
         )
@@ -222,15 +359,15 @@ def plot_roc_curve(
     y_scores: np.ndarray,
     class_names: List[str],
     output_path: Optional[Union[str, Path]] = None,
-    figsize: Tuple[int, int] = (12, 8),
+    figsize: Tuple[int, int] = (14, 10),  # Larger figure
     theme: Optional[Dict] = None,
 ) -> Figure:
     """
-    Generate ROC curves for each class.
+    Generate ROC curves for multi-class classification.
 
     Args:
-        y_true: One-hot encoded true labels
-        y_scores: Model prediction scores
+        y_true: One-hot encoded true labels or class indices
+        y_scores: Predicted scores/probabilities
         class_names: List of class names
         output_path: Path to save the figure
         figsize: Figure size
@@ -243,68 +380,211 @@ def plot_roc_curve(
     theme = theme or DEFAULT_THEME
     apply_dark_theme(theme)
 
-    # Create figure
-    fig, ax = plt.subplots(figsize=figsize, facecolor=theme["background_color"])
-    ax.set_facecolor(theme["background_color"])
-
-    # Calculate ROC curves for each class
-    fpr = {}
-    tpr = {}
-    roc_auc = {}
-
-    # For each class
-    for i, class_name in enumerate(class_names):
-        fpr[i], tpr[i], _ = roc_curve(y_true[:, i], y_scores[:, i])
-        roc_auc[i] = auc(fpr[i], tpr[i])
-
-        # Plot curve for this class
-        ax.plot(
-            fpr[i],
-            tpr[i],
-            lw=2,
-            label=f"{class_name} (AUC: {roc_auc[i]:.2f})",
-            alpha=0.5,
-        )
-
-    # Compute micro-average ROC curve and ROC area
-    fpr["micro"], tpr["micro"], _ = roc_curve(y_true.ravel(), y_scores.ravel())
-    roc_auc["micro"] = auc(fpr["micro"], tpr["micro"])
-
-    # Plot micro-average ROC curve
-    ax.plot(
-        fpr["micro"],
-        tpr["micro"],
-        lw=3,
-        label=f"Micro-average (AUC: {roc_auc['micro']:.2f})",
-        color=theme["main_color"],
-        linestyle="-",
+    # Create figure with two subplots: main ROC and zoomed ROC
+    fig, (ax1, ax2) = plt.subplots(
+        1,
+        2,
+        figsize=figsize,
+        facecolor=theme["background_color"],
+        gridspec_kw={"width_ratios": [2, 1]},
     )
 
-    # Plot diagonal reference line
-    ax.plot([0, 1], [0, 1], "k--", lw=2, alpha=0.3)
+    # Set background color for both axes
+    ax1.set_facecolor(theme["background_color"])
+    ax2.set_facecolor(theme["background_color"])
 
-    # Set axis labels and title
-    ax.set_xlabel("False Positive Rate", color=theme["text_color"])
-    ax.set_ylabel("True Positive Rate", color=theme["text_color"])
-    ax.set_title("ROC Curves", color=theme["text_color"])
+    # Convert to class indices if needed
+    if y_true.ndim > 1 and y_true.shape[1] > 1:  # One-hot encoded
+        y_true_indices = np.argmax(y_true, axis=1)
+    else:
+        y_true_indices = y_true.flatten()
 
-    # Set axis ranges
-    ax.set_xlim([-0.01, 1.01])
-    ax.set_ylim([-0.01, 1.01])
+    # Get unique classes
+    unique_classes = np.unique(y_true_indices)
 
-    # Add legend
-    ax.legend(
-        loc="lower right",
+    # Colors for lines
+    color_map = plt.cm.get_cmap("tab20", len(unique_classes))
+
+    # Store AUC scores for display
+    auc_scores = {}
+
+    # Determine how many classes to show individually (to avoid clutter)
+    max_visible_classes = min(10, len(unique_classes))
+
+    # Find classes with highest AUC for display
+    all_auc_scores = []
+
+    # Calculate ROC curve for each class
+    for i, class_idx in enumerate(unique_classes):
+        # Convert to binary classification problem (one-vs-rest)
+        binary_y_true = (y_true_indices == class_idx).astype(int)
+
+        # Get scores for this class
+        if y_scores.ndim > 1 and y_scores.shape[1] > 1:
+            class_scores = y_scores[:, class_idx]
+        else:
+            class_scores = y_scores
+
+        # Calculate false positive rate and true positive rate
+        fpr, tpr, _ = roc_curve(binary_y_true, class_scores)
+
+        # Calculate AUC
+        roc_auc = auc(fpr, tpr)
+
+        # Store for sorting
+        all_auc_scores.append((class_idx, roc_auc))
+        auc_scores[class_idx] = roc_auc
+
+    # Sort classes by AUC score and get top classes
+    all_auc_scores.sort(key=lambda x: x[1], reverse=True)
+    top_classes = [idx for idx, _ in all_auc_scores[:max_visible_classes]]
+
+    # Plot ROC curve for each of the top classes
+    for i, class_idx in enumerate(top_classes):
+        # Convert to binary classification problem (one-vs-rest)
+        binary_y_true = (y_true_indices == class_idx).astype(int)
+
+        # Get scores for this class
+        if y_scores.ndim > 1 and y_scores.shape[1] > 1:
+            class_scores = y_scores[:, class_idx]
+        else:
+            class_scores = y_scores
+
+        # Calculate FPR and TPR
+        fpr, tpr, _ = roc_curve(binary_y_true, class_scores)
+
+        # Get AUC score from stored values
+        roc_auc = auc_scores[class_idx]
+
+        # Get class name (handling index errors)
+        if class_idx < len(class_names):
+            class_name = class_names[class_idx]
+        else:
+            class_name = f"Class {class_idx}"
+
+        # Plot ROC curve on main plot
+        ax1.plot(
+            fpr,
+            tpr,
+            lw=2,
+            alpha=0.8,
+            color=color_map(i),
+            label=f"{class_name} (AUC: {roc_auc:.2f})",
+        )
+
+        # Also plot on zoomed plot
+        ax2.plot(
+            fpr,
+            tpr,
+            lw=2,
+            alpha=0.8,
+            color=color_map(i),
+        )
+
+    # Calculate micro-average ROC curve
+    if y_scores.ndim > 1 and y_scores.shape[1] > 1:
+        # For multi-class, convert to one-hot
+        y_true_bin = np.zeros_like(y_scores)
+        for i in range(len(y_true_indices)):
+            if y_true_indices[i] < y_true_bin.shape[1]:
+                y_true_bin[i, y_true_indices[i]] = 1
+
+        # Calculate micro-average
+        fpr_micro, tpr_micro, _ = roc_curve(y_true_bin.ravel(), y_scores.ravel())
+        auc_micro = auc(fpr_micro, tpr_micro)
+
+        # Plot micro-average curve with thicker line on both plots
+        ax1.plot(
+            fpr_micro,
+            tpr_micro,
+            color="gold",
+            lw=3,
+            alpha=1.0,
+            label=f"Micro-average (AUC: {auc_micro:.2f})",
+        )
+
+        ax2.plot(
+            fpr_micro,
+            tpr_micro,
+            color="gold",
+            lw=3,
+            alpha=1.0,
+        )
+
+    # Plot diagonal reference line on both plots
+    ax1.plot(
+        [0, 1],
+        [0, 1],
+        "#888888",
+        linestyle="--",
+        lw=2,
+        alpha=0.5,
+        label="Random classifier",
+    )
+
+    ax2.plot(
+        [0, 1],
+        [0, 1],
+        "#888888",
+        linestyle="--",
+        lw=2,
+        alpha=0.5,
+    )
+
+    # Set axis range for main plot
+    ax1.set_xlim([-0.01, 1.01])
+    ax1.set_ylim([-0.01, 1.01])
+
+    # Set zoomed region on second plot (0-0.2 FPR, 0.8-1.0 TPR)
+    ax2.set_xlim([-0.01, 0.2])
+    ax2.set_ylim([0.8, 1.01])
+
+    # Set title and labels
+    ax1.set_title("ROC Curves", fontsize=16, color=theme["text_color"])
+    ax1.set_xlabel("False Positive Rate", fontsize=14, color=theme["text_color"])
+    ax1.set_ylabel("True Positive Rate", fontsize=14, color=theme["text_color"])
+
+    ax2.set_title(
+        "Zoomed ROC (High Performance)", fontsize=16, color=theme["text_color"]
+    )
+    ax2.set_xlabel("False Positive Rate", fontsize=14, color=theme["text_color"])
+    ax2.set_ylabel("True Positive Rate", fontsize=14, color=theme["text_color"])
+
+    # Add grid to both plots
+    ax1.grid(True, linestyle="--", alpha=0.3, color=theme["grid_color"])
+    ax2.grid(True, linestyle="--", alpha=0.3, color=theme["grid_color"])
+
+    # Customize tick colors for both plots
+    ax1.tick_params(colors=theme["text_color"], labelsize=12)
+    ax2.tick_params(colors=theme["text_color"], labelsize=12)
+
+    # Show the zoomed region on the main plot
+    from matplotlib.patches import Rectangle
+
+    ax1.add_patch(
+        Rectangle(
+            (0, 0.8),
+            0.2,
+            0.2,
+            fill=False,
+            edgecolor="white",
+            linestyle=":",
+            linewidth=1.5,
+        )
+    )
+
+    # Create legend at the bottom
+    legend = ax1.legend(
+        loc="center left",
+        bbox_to_anchor=(0.5, -0.15),
         frameon=True,
         facecolor=theme["background_color"],
         edgecolor=theme["grid_color"],
+        fontsize=10,
+        ncol=2,
     )
-
-    # Add grid
-    ax.grid(True, linestyle="--", alpha=0.6, color=theme["grid_color"])
-
-    # Customize tick colors
-    ax.tick_params(colors=theme["text_color"])
+    for text in legend.get_texts():
+        text.set_color(theme["text_color"])
 
     plt.tight_layout()
 
@@ -314,7 +594,7 @@ def plot_roc_curve(
         ensure_dir(output_path.parent)
         plt.savefig(
             output_path,
-            dpi=300,
+            dpi=400,
             bbox_inches="tight",
             facecolor=theme["background_color"],
         )
@@ -423,7 +703,7 @@ def plot_feature_space(
         ensure_dir(output_path.parent)
         plt.savefig(
             output_path,
-            dpi=300,
+            dpi=400,
             bbox_inches="tight",
             facecolor=theme["background_color"],
         )
@@ -547,9 +827,9 @@ def plot_histogram(
     )
 
     # Set title and labels
-    ax.set_title(title, color=theme["text_color"])
-    ax.set_xlabel(xlabel, color=theme["text_color"])
-    ax.set_ylabel(ylabel, color=theme["text_color"])
+    ax.set_title(title, color=theme["text_color"], fontsize=14)
+    ax.set_xlabel(xlabel, color=theme["text_color"], fontsize=12)
+    ax.set_ylabel(ylabel, color=theme["text_color"], fontsize=12)
 
     # Add grid
     ax.grid(True, linestyle="--", alpha=0.3, color=theme["grid_color"])
@@ -557,7 +837,7 @@ def plot_histogram(
     # Customize tick colors
     ax.tick_params(colors=theme["text_color"])
 
-    # Add mean line
+    # Add mean line with more visible text
     mean_val = np.mean(data)
     ax.axvline(
         mean_val,
@@ -567,23 +847,29 @@ def plot_histogram(
         label=f"Mean: {mean_val:.2f}",
     )
 
-    # Add median line
+    # Add median line with more visible text
     median_val = np.median(data)
     ax.axvline(
         median_val,
-        color=theme["bar_colors"][3],
-        linestyle=":",
+        color=theme["bar_colors"][1],
+        linestyle="-.",
         linewidth=2,
         label=f"Median: {median_val:.2f}",
     )
 
-    # Add legend
-    ax.legend(
+    # Customize legend to make text more visible
+    legend = ax.legend(
+        loc="upper right",
         frameon=True,
         facecolor=theme["background_color"],
         edgecolor=theme["grid_color"],
-        loc="best",
     )
+
+    # Increase legend text size and brightness for better visibility
+    for text in legend.get_texts():
+        text.set_color("#FFFFFF")  # Bright white for legend text
+        text.set_fontweight("bold")
+        text.set_fontsize(12)
 
     plt.tight_layout()
 
@@ -593,7 +879,7 @@ def plot_histogram(
         ensure_dir(output_path.parent)
         plt.savefig(
             output_path,
-            dpi=300,
+            dpi=400,
             bbox_inches="tight",
             facecolor=theme["background_color"],
         )
@@ -695,7 +981,7 @@ def plot_distribution(
         ensure_dir(output_path.parent)
         plt.savefig(
             output_path,
-            dpi=300,
+            dpi=400,
             bbox_inches="tight",
             facecolor=theme["background_color"],
         )
@@ -708,7 +994,7 @@ def plot_class_performance(
     metrics: Dict[str, Dict[str, float]],
     class_names: List[str],
     output_path: Optional[Union[str, Path]] = None,
-    figsize: Tuple[int, int] = (14, 10),
+    figsize: Tuple[int, int] = (14, 12),  # Increased height
     metrics_to_plot: List[str] = ["precision", "recall", "f1"],
     sort_by: str = "f1",
     theme: Optional[Dict] = None,
@@ -769,11 +1055,11 @@ def plot_class_performance(
     # Set class as index
     df = df.set_index("Class")
 
-    # Create figure
+    # Create figure with more height to accommodate classes
     fig, ax = plt.subplots(figsize=figsize, facecolor=theme["background_color"])
     ax.set_facecolor(theme["background_color"])
 
-    # Plot horizontal bars
+    # Plot horizontal bars with smaller height to fit more classes
     df.plot(
         kind="barh",
         ax=ax,
@@ -781,7 +1067,7 @@ def plot_class_performance(
             theme["bar_colors"][i % len(theme["bar_colors"])]
             for i in range(len(metrics_to_plot))
         ],
-        width=0.8,
+        width=0.7,  # Reduced width to create more space between bars
         alpha=0.8,
         edgecolor=theme["background_color"],
     )
@@ -796,6 +1082,12 @@ def plot_class_performance(
 
     # Customize tick colors
     ax.tick_params(colors=theme["text_color"])
+
+    # Reduce font size of the y-axis labels to make them more compact
+    ax.tick_params(axis="y", labelsize=8)
+
+    # Adjust bottom margin to ensure visibility of bottom classes
+    plt.subplots_adjust(bottom=0.15, top=0.95)
 
     # Customize legend
     legend = ax.legend(
@@ -818,7 +1110,7 @@ def plot_class_performance(
         ensure_dir(output_path.parent)
         plt.savefig(
             output_path,
-            dpi=300,
+            dpi=400,
             bbox_inches="tight",
             facecolor=theme["background_color"],
         )
@@ -958,7 +1250,7 @@ def plot_confidence_distribution(
         ensure_dir(output_path.parent)
         plt.savefig(
             output_path,
-            dpi=300,
+            dpi=400,
             bbox_inches="tight",
             facecolor=theme["background_color"],
         )
@@ -1159,7 +1451,7 @@ def create_classification_examples_grid(
         ensure_dir(output_path.parent)
         plt.savefig(
             output_path,
-            dpi=300,
+            dpi=400,
             bbox_inches="tight",
             facecolor=theme["background_color"],
         )
@@ -1297,7 +1589,7 @@ def visualize_augmentations(
         ensure_dir(output_path.parent)
         plt.savefig(
             output_path,
-            dpi=300,
+            dpi=400,
             bbox_inches="tight",
             facecolor=theme["background_color"],
         )
@@ -1406,7 +1698,7 @@ def plot_scatter(
         ensure_dir(output_path.parent)
         plt.savefig(
             output_path,
-            dpi=300,
+            dpi=400,
             bbox_inches="tight",
             facecolor=theme["background_color"],
         )
@@ -1555,7 +1847,7 @@ def plot_training_curves(
         ensure_dir(output_path.parent)
         plt.savefig(
             output_path,
-            dpi=300,
+            dpi=400,
             bbox_inches="tight",
             facecolor=theme["background_color"],
         )
@@ -1675,7 +1967,7 @@ def plot_training_time_analysis(
         ensure_dir(output_path.parent)
         plt.savefig(
             output_path,
-            dpi=300,
+            dpi=400,
             bbox_inches="tight",
             facecolor=theme["background_color"],
         )
@@ -1789,7 +2081,7 @@ def create_image_grid(
         ensure_dir(output_path.parent)
         plt.savefig(
             output_path,
-            dpi=300,
+            dpi=400,
             bbox_inches="tight",
             facecolor=theme["background_color"],
         )
@@ -1996,7 +2288,7 @@ def create_analysis_dashboard(
         ensure_dir(output_path.parent)
         plt.savefig(
             output_path,
-            dpi=300,
+            dpi=400,
             bbox_inches="tight",
             facecolor=theme["background_color"],
         )
@@ -2148,7 +2440,7 @@ def plot_hierarchical_clustering(
         ensure_dir(output_path.parent)
         plt.savefig(
             output_path,
-            dpi=300,
+            dpi=400,
             bbox_inches="tight",
             facecolor=theme["background_color"],
         )
@@ -2290,7 +2582,7 @@ def plot_similarity_matrix(
         ensure_dir(output_path.parent)
         plt.savefig(
             output_path,
-            dpi=300,
+            dpi=400,
             bbox_inches="tight",
             facecolor=theme["background_color"],
         )
@@ -2303,7 +2595,7 @@ def plot_categorical(
     data: np.ndarray,
     categories: List[str],
     output_path: Optional[Union[str, Path]] = None,
-    figsize: Tuple[int, int] = (12, 8),
+    figsize: Tuple[int, int] = (16, 12),  # Increased size
     title: str = "Category Counts",
     xlabel: str = "Category",
     ylabel: str = "Count",
@@ -2409,10 +2701,111 @@ def plot_categorical(
         ensure_dir(output_path.parent)
         plt.savefig(
             output_path,
-            dpi=300,
+            dpi=400,
             bbox_inches="tight",
             facecolor=theme["background_color"],
         )
         logger.info(f"Saved categorical plot to {output_path}")
+
+    return fig
+
+
+"""
+Augmentation grid visualization for data augmentation examples.
+"""
+
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple, Union
+
+import numpy as np
+from matplotlib.figure import Figure
+
+# Import from visualization module
+from core.visualization.base_visualization import DEFAULT_THEME, apply_dark_theme
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
+
+def create_augmentation_grid(
+    original_image: np.ndarray,
+    augmented_images: List[np.ndarray],
+    augmentation_names: List[str],
+    output_path: Optional[Union[str, Path]] = None,
+    figsize: Tuple[int, int] = (16, 10),
+    title: str = "Data Augmentation Examples",
+    theme: Optional[Dict] = None,
+) -> Figure:
+    """
+    Create a grid visualization of augmentation examples.
+
+    Args:
+        original_image: Original input image
+        augmented_images: List of augmented versions of the image
+        augmentation_names: List of names for each augmentation
+        output_path: Path to save the figure
+        figsize: Figure size
+        title: Plot title
+        theme: Theme settings to apply (uses DEFAULT_THEME if None)
+
+    Returns:
+        Matplotlib figure
+    """
+    # Apply theme
+    theme = theme or DEFAULT_THEME
+    apply_dark_theme(theme)
+
+    # Ensure we have same number of images and names
+    n_augmentations = min(len(augmented_images), len(augmentation_names))
+
+    # Calculate grid dimensions - original image in center of top row, then a grid of augmentations
+    rows = int(np.ceil((n_augmentations + 1) / 3)) + 1
+    cols = 3
+
+    # Create figure
+    fig = plt.figure(figsize=figsize, facecolor=theme["background_color"])
+
+    # Create top row for original image
+    ax_orig = fig.add_subplot(rows, cols, 2)  # Center of top row
+    ax_orig.imshow(original_image)
+    ax_orig.set_title("Original Image", color=theme["text_color"], fontsize=12)
+    ax_orig.axis("off")
+
+    # Hide other axes in the top row
+    for i in [1, 3]:
+        ax = fig.add_subplot(rows, cols, i)
+        ax.axis("off")
+        ax.set_facecolor(theme["background_color"])
+
+    # Plot each augmented image
+    for i in range(n_augmentations):
+        ax = fig.add_subplot(rows, cols, i + cols + 1)  # Start from second row
+
+        # Display image
+        ax.imshow(augmented_images[i])
+
+        # Add title
+        ax.set_title(augmentation_names[i], color=theme["text_color"], fontsize=10)
+
+        # Remove axis ticks
+        ax.axis("off")
+
+    # Add main title
+    plt.suptitle(title, fontsize=16, color=theme["text_color"], y=0.98)
+
+    # Adjust spacing
+    plt.subplots_adjust(wspace=0.1, hspace=0.3)
+
+    # Save figure if output path provided
+    if output_path:
+        output_path = Path(output_path)
+        ensure_dir(output_path.parent)
+        plt.savefig(
+            output_path,
+            dpi=400,
+            bbox_inches="tight",
+            facecolor=theme["background_color"],
+        )
+        logger.info(f"Saved augmentation grid to {output_path}")
 
     return fig

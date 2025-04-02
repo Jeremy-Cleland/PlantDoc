@@ -594,24 +594,34 @@
               <i class="fas fa-chart-area"></i>
               <a href="#training" class="nav-link">Training Metrics</a>
             </li>
-            <li class="nav-item" data-section="confusion">
-              <i class="fas fa-table"></i>
-              <a href="#confusion" class="nav-link">Confusion Matrix</a>
+            <li class="nav-item">
+              <i class="fas fa-chart-bar"></i>
+              <a href="#confusion-matrix" class="nav-link">Confusion Matrix</a>
             </li>
             <li class="nav-item" data-section="time">
               <i class="fas fa-clock"></i>
               <a href="#time" class="nav-link">Training Time</a>
             </li>
-            {% if 'plots/roc_curves.png' in available_plots %}
-            <li class="nav-item" data-section="roc-curves">
+            <li class="nav-item">
               <i class="fas fa-chart-line"></i>
               <a href="#roc-curves" class="nav-link">ROC Curves</a>
             </li>
+            {% if shap_plots %}
+            <li class="nav-item">
+              <i class="fas fa-lightbulb"></i>
+              <a href="#shap-explanations" class="nav-link">SHAP Explanations</a>
+            </li>
             {% endif %}
-            {% if 'plots/precision_recall_curves.png' in available_plots %}
-            <li class="nav-item" data-section="pr-curves">
-              <i class="fas fa-chart-line"></i>
-              <a href="#pr-curves" class="nav-link">PR Curves</a>
+            {% if attention_plots %}
+            <li class="nav-item">
+              <i class="fas fa-eye"></i>
+              <a href="#attention-visualizations" class="nav-link">Attention Maps</a>
+            </li>
+            {% endif %}
+            {% if augmentation_plots %}
+            <li class="nav-item">
+              <i class="fas fa-random"></i>
+              <a href="#data-augmentation" class="nav-link">Data Augmentation</a>
             </li>
             {% endif %}
           </ul>
@@ -741,6 +751,106 @@
             </div>
           </div>
 
+          <!-- Class Performance -->
+          {% if 'plots/class_performance_bars.png' in available_plots %}
+          <div class="chart-section">
+            <div class="section-header">
+              <h2 class="section-title">Class Performance</h2>
+            </div>
+            <div class="chart-content">
+              <img
+                src="{{ plots_dir }}/class_performance_bars.png"
+                alt="Class Performance Bar Chart"
+                class="chart-image"
+              />
+              <p class="chart-caption">
+                Bar chart showing the performance metrics for each class.
+              </p>
+            </div>
+          </div>
+          {% endif %}
+
+          <!-- SHAP Visualizations -->
+          {% if shap_plots %}
+          <div id="shap-explanations" class="chart-section">
+            <div class="section-header">
+              <h2 class="section-title">SHAP Explanations</h2>
+            </div>
+            <div class="chart-content">
+              <p class="chart-caption" style="margin-top: 0; margin-bottom: 1rem;">
+                SHAP (SHapley Additive exPlanations) values help explain the model's predictions by showing how each feature contributes to pushing the output from the baseline to the actual prediction.
+              </p>
+              
+              {% for shap_plot in shap_plots %}
+              <div style="margin-bottom: 2rem;">
+                <img 
+                  src="{{ shap_plot }}"
+                  alt="SHAP Visualization"
+                  class="chart-image"
+                />
+                <p class="chart-caption">
+                  {{ shap_plot.split('/')[-1].replace('.png', '').replace('_', ' ').title() }}
+                </p>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+          {% endif %}
+
+          <!-- Attention Visualizations -->
+          {% if attention_plots %}
+          <div id="attention-visualizations" class="chart-section">
+            <div class="section-header">
+              <h2 class="section-title">Attention Visualizations</h2>
+            </div>
+            <div class="chart-content">
+              <p class="chart-caption" style="margin-top: 0; margin-bottom: 1rem;">
+                Attention maps show which regions of the input the model focuses on when making predictions. This helps understand what visual patterns the model considers important.
+              </p>
+              
+              {% for attention_plot in attention_plots %}
+              <div style="margin-bottom: 2rem;">
+                <img 
+                  src="{{ attention_plot }}"
+                  alt="Attention Visualization"
+                  class="chart-image"
+                />
+                <p class="chart-caption">
+                  {{ attention_plot.split('/')[-1].replace('.png', '').replace('_', ' ').title() }}
+                </p>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+          {% endif %}
+
+          <!-- Augmentation Examples -->
+          {% if augmentation_plots %}
+          <div id="data-augmentation" class="chart-section">
+            <div class="section-header">
+              <h2 class="section-title">Data Augmentation Examples</h2>
+            </div>
+            <div class="chart-content">
+              <p class="chart-caption" style="margin-top: 0; margin-bottom: 1rem;">
+                Data augmentation techniques used during training to improve model generalization. These transformations artificially expand the training set and help the model learn invariant features.
+              </p>
+              
+              {% for aug_plot in augmentation_plots %}
+              <div style="margin-bottom: 2rem;">
+                <img 
+                  src="{{ aug_plot }}"
+                  alt="Augmentation Examples"
+                  class="chart-image"
+                />
+                <p class="chart-caption">
+                  {{ aug_plot.split('/')[-1].replace('.png', '').replace('_', ' ').title() }}
+                </p>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+          {% endif %}
+
           <!-- Model Configuration -->
           <section class="analysis-section" id="configuration">
             <div class="analysis-header">
@@ -835,19 +945,10 @@
           </section>
 
           <!-- Confusion Matrix -->
-          <section class="chart-section" id="confusion">
+          {% if 'plots/confusion_matrix.png' in available_plots %}
+          <div id="confusion-matrix" class="chart-section">
             <div class="section-header">
               <h2 class="section-title">Confusion Matrix</h2>
-              <div class="section-actions">
-                <button class="btn btn-outline">
-                  <i class="fas fa-download"></i>
-                  <span>Export</span>
-                </button>
-                <button class="btn btn-outline">
-                  <i class="fas fa-expand"></i>
-                  <span>Fullscreen</span>
-                </button>
-              </div>
             </div>
             <div class="chart-content">
               <img
@@ -862,7 +963,8 @@
                 </p>
               </div>
             </div>
-          </section>
+          </div>
+          {% endif %}
 
           <!-- Training Time Analysis -->
           <section class="chart-section" id="time">
@@ -894,21 +996,11 @@
             </div>
           </section>
 
-          <!-- ROC Curves (if available) -->
+          <!-- ROC Curves -->
           {% if 'plots/roc_curves.png' in available_plots %}
-          <section class="chart-section" id="roc-curves">
+          <div id="roc-curves" class="chart-section">
             <div class="section-header">
               <h2 class="section-title">ROC Curves</h2>
-              <div class="section-actions">
-                <button class="btn btn-outline">
-                  <i class="fas fa-download"></i>
-                  <span>Export</span>
-                </button>
-                <button class="btn btn-outline">
-                  <i class="fas fa-expand"></i>
-                  <span>Fullscreen</span>
-                </button>
-              </div>
             </div>
             <div class="chart-content">
               <img
@@ -922,7 +1014,7 @@
                 </p>
               </div>
             </div>
-          </section>
+          </div>
           {% endif %}
           
           <!-- Precision-Recall Curves (if available) -->

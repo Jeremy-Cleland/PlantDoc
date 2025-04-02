@@ -67,6 +67,24 @@ def load_metrics(metrics_path: Union[str, Path]) -> Dict[str, Any]:
         return {}
 
 
+def load_json(json_path: Union[str, Path]) -> Dict[str, Any]:
+    """
+    Load data from a JSON file.
+
+    Args:
+        json_path: Path to JSON file
+
+    Returns:
+        Dictionary of data
+    """
+    try:
+        with open(json_path) as f:
+            return json.load(f)
+    except Exception as e:
+        logger.error(f"Failed to load data from {json_path}: {e}")
+        return {}
+
+
 def load_config(config_path: Union[str, Path]) -> Dict[str, Any]:
     """
     Load configuration from a YAML file.
@@ -314,6 +332,12 @@ def generate_report(
     """
     experiment_dir = Path(experiment_dir)
 
+    if not experiment_dir.is_absolute():
+        # Use the current working directory
+        experiment_dir = Path.cwd() / experiment_dir
+
+    logger.info(f"Using experiment directory: {experiment_dir}")
+
     if not experiment_dir.exists():
         logger.error(f"Experiment directory {experiment_dir} does not exist")
         return
@@ -339,20 +363,69 @@ def generate_report(
         for plot_file in plots_dir.glob("*.png"):
             available_plots.append(str(plot_file.relative_to(output_dir)))
 
+    # Check for SHAP visualizations
+    shap_plots = []
+    shap_dir = plots_dir / "shap"
+    if shap_dir.exists():
+        for shap_file in shap_dir.glob("*.png"):
+            shap_plots.append(str(shap_file.relative_to(output_dir)))
+        logger.info(f"Found {len(shap_plots)} SHAP visualizations")
+
+    # Check for attention visualizations
+    attention_plots = []
+    attention_dir = experiment_dir / "attention_visualizations"
+    if attention_dir.exists():
+        for attention_file in attention_dir.glob("*.png"):
+            # Copy attention files to plots directory
+            attention_output_dir = plots_dir / "attention"
+            ensure_dir(attention_output_dir)
+            import shutil
+
+            shutil.copy2(attention_file, attention_output_dir / attention_file.name)
+            attention_plots.append(
+                str(
+                    (attention_output_dir / attention_file.name).relative_to(output_dir)
+                )
+            )
+        logger.info(f"Found {len(attention_plots)} attention visualizations")
+
+    # Check for augmentation examples
+    augmentation_plots = []
+    augmentation_dir = experiment_dir / "augmentation_examples"
+    if augmentation_dir.exists():
+        for aug_file in augmentation_dir.glob("*.png"):
+            # Copy augmentation files to plots directory
+            aug_output_dir = plots_dir / "augmentation"
+            ensure_dir(aug_output_dir)
+            import shutil
+
+            shutil.copy2(aug_file, aug_output_dir / aug_file.name)
+            augmentation_plots.append(
+                str((aug_output_dir / aug_file.name).relative_to(output_dir))
+            )
+        logger.info(f"Found {len(augmentation_plots)} augmentation examples")
+
     # Load data
     metrics_path = experiment_dir / "metrics.json"
     training_metrics_path = experiment_dir / "metrics" / "training_metrics.json"
+    training_params_path = experiment_dir / "metrics" / "training_params.json"
     config_path = experiment_dir / "config.yaml"
     history_path = experiment_dir / "history.json"
     class_names_path = experiment_dir / "class_names.txt"
     model_path = experiment_dir / "checkpoints" / "best_model.pth"
 
     metrics = load_metrics(metrics_path)
+    training_metrics = load_json(training_metrics_path)
+    training_params = load_json(training_params_path)
+    config = load_config(config_path)
+    history = load_history(history_path)
+    class_names = load_class_names(class_names_path)
+    model_info = get_model_info(model_path)
 
     # Check for training_metrics.json and merge with existing metrics if found
     if training_metrics_path.exists():
         logger.info(f"Found training metrics at {training_metrics_path}")
-        training_metrics = load_metrics(training_metrics_path)
+        training_metrics = load_json(training_metrics_path)
 
         # Merge detailed training metrics with main metrics
         # Training metrics may have more detailed information or per-epoch data
@@ -364,22 +437,44 @@ def generate_report(
             }
         )
 
-    config = load_config(config_path)
-    history = load_history(history_path)
-    class_names = load_class_names(class_names_path)
-    model_info = get_model_info(model_path)
+    # Try to get information about the model checkpoint
+    model_size = None
+    checkpoint_size = None
+    if model_path.exists():
+        try:
+            checkpoint_size = model_path.stat().st_size / (1024 * 1024)  # Convert to MB
+        except Exception:
+            pass
+
+        # If model size is not available from the checkpoint, we can try to reconstruct it
+        try:
+            import torch
+
+            model = torch.load(model_path, map_location=torch.device("cpu"))
+            model_size = sum(p.numel() for p in model.parameters() if p.requires_grad)
+        except Exception:
+            pass
 
     # Create context for template
     context = {
+        "title": f"Training Report: {experiment_dir.name}",
         "experiment_name": experiment_dir.name,
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "metrics": metrics,
+        "training_metrics": training_metrics,
         "config": config,
-        "model_info": model_info,
+        "history": history,
         "class_names": class_names,
+        "model_info": model_info,
         "class_performance": get_class_performance(metrics, class_names),
         "plots_dir": "plots",  # Relative path from output_dir
         "available_plots": available_plots,  # List of available plot files
+        "shap_plots": shap_plots,  # List of SHAP visualizations
+        "attention_plots": attention_plots,  # List of attention visualizations
+        "augmentation_plots": augmentation_plots,  # List of augmentation examples
+        "training_params": training_params,
+        "model_size": model_size,
+        "checkpoint_size": checkpoint_size,
     }
 
     # Add history data if available
@@ -448,18 +543,9 @@ def main():
 
     args = parser.parse_args()
 
-    # Resolve experiment directory
-    experiment_dir = Path(args.experiment)
-    if not experiment_dir.is_absolute():
-        # Try to find in outputs directory
-        outputs_dir = Path(__file__).parents[1] / "outputs"
-        if not outputs_dir.exists():
-            outputs_dir = Path.cwd() / "outputs"
-        experiment_dir = outputs_dir / experiment_dir
-
     # Generate report
     generate_report(
-        experiment_dir=experiment_dir,
+        experiment_dir=args.experiment,
         output_dir=args.output,
         template_name=args.template,
         generate_plots=not args.no_plots,

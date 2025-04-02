@@ -92,10 +92,6 @@ def _configure_experiment_paths(config: DictConfig) -> DictConfig:
     config.paths.metrics_dir = str(experiment_dir / "metrics")
     Path(config.paths.metrics_dir).mkdir(parents=True, exist_ok=True)
 
-    # Visualization directory
-    config.paths.visualization_dir = str(experiment_dir / "visualization")
-    Path(config.paths.visualization_dir).mkdir(parents=True, exist_ok=True)
-
     # Reports directory
     config.paths.report_dir = str(experiment_dir / "reports")
     Path(config.paths.report_dir).mkdir(parents=True, exist_ok=True)

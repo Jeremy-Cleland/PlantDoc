@@ -13,6 +13,7 @@ from .gradcam_callback import GradCAMCallback
 from .lr_scheduler import LearningRateSchedulerCallback
 from .metrics_logger import MetricsLogger
 from .model_checkpoint import ModelCheckpoint
+from .shap_callback import SHAPCallback
 from .swa import SWACallback
 from .visualization_data_saver import VisualizationDataSaver
 
@@ -27,4 +28,5 @@ __all__ = [
     "SWACallback",
     "AdaptiveWeightAdjustmentCallback",
     "VisualizationDataSaver",
+    "SHAPCallback",
 ]
