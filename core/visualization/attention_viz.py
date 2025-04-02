@@ -1074,12 +1074,12 @@ class CBAMVisualizer:
 
             # Check if model has a get_attention_maps method
             if hasattr(self.model, "get_attention_maps"):
-                attention_maps = self.model.get_attention_maps()
+                attention_maps = self.model.get_attention_maps(image)
             # Try backbone if available
             elif hasattr(self.model, "backbone") and hasattr(
                 self.model.backbone, "get_attention_maps"
             ):
-                attention_maps = self.model.backbone.get_attention_maps()
+                attention_maps = self.model.backbone.get_attention_maps(image)
             else:
                 logger.error("Model does not support attention map extraction")
                 return {}
