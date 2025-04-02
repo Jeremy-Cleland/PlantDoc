@@ -135,8 +135,24 @@ class SHAPInterpreter:
             ):
                 logger.info("Using DeepExplainer for ResNet-based architecture")
                 # Need to modify the model to accept tensor inputs for DeepExplainer
+                # Convert background data to float32 to ensure compatibility
+                if isinstance(background_data, torch.Tensor):
+                    background_data = background_data.float()
+
+                # Wrap model to handle input format issues
+                def model_wrapper(x):
+                    # Ensure input is processed correctly
+                    if isinstance(x, np.ndarray):
+                        x = torch.tensor(x, dtype=torch.float32, device=self.device)
+                    elif isinstance(x, torch.Tensor):
+                        x = x.float()  # Ensure float type
+
+                    # Forward pass
+                    return self.model(x)
+
+                # Create explainer with the wrapped model
                 self.explainer = shap.DeepExplainer(
-                    model=self.model, data=background_data
+                    model=model_wrapper, data=background_data
                 )
             else:
                 logger.info("Using KernelExplainer as fallback")
@@ -297,14 +313,14 @@ class SHAPInterpreter:
         except Exception as e:
             logger.error(f"Error in get_shap_values: {e}", exc_info=True)
             raise
-            
+
     def _prepare_input(self, image_input):
         """
         Prepare image input for SHAP analysis.
-        
+
         Args:
             image_input: Image tensor, PIL Image, or path to image
-            
+
         Returns:
             Tuple of (input_tensor, original_image)
         """
@@ -312,29 +328,31 @@ class SHAPInterpreter:
         import torch
         from PIL import Image
         from torchvision import transforms
-        
+
         # If image_input is a string, assume it's a file path
         if isinstance(image_input, str):
             try:
                 # Load image and convert to RGB
-                original_image = Image.open(image_input).convert('RGB')
-                
+                original_image = Image.open(image_input).convert("RGB")
+
                 # Create transform with normalization
-                transform = transforms.Compose([
-                    transforms.Resize(self.input_size),
-                    transforms.ToTensor(),
-                    transforms.Normalize(mean=self.mean, std=self.std)
-                ])
-                
+                transform = transforms.Compose(
+                    [
+                        transforms.Resize(self.input_size),
+                        transforms.ToTensor(),
+                        transforms.Normalize(mean=self.mean, std=self.std),
+                    ]
+                )
+
                 # Apply transform and add batch dimension
                 input_tensor = transform(original_image).unsqueeze(0)
-                
+
                 return input_tensor, original_image
-                
+
             except Exception as e:
                 logger.error(f"Error loading image from path: {e}")
                 raise ValueError(f"Could not load image from path: {image_input}")
-        
+
         # If image_input is a tensor
         elif isinstance(image_input, torch.Tensor):
             # Handle batch dimension
@@ -342,11 +360,11 @@ class SHAPInterpreter:
                 input_tensor = image_input.unsqueeze(0)
             else:
                 input_tensor = image_input
-                
+
             # Convert to numpy for visualization
             if input_tensor.shape[1] == 3:  # CHW format
                 img_np = input_tensor[0].permute(1, 2, 0).cpu().numpy()
-                
+
                 # Denormalize if needed
                 if img_np.max() <= 1.0:
                     # Handle normalization
@@ -354,32 +372,36 @@ class SHAPInterpreter:
                     std = np.array(self.std).reshape(1, 1, 3)
                     img_np = img_np * std + mean
                     img_np = np.clip(img_np * 255, 0, 255).astype(np.uint8)
-                    
+
                 original_image = Image.fromarray(img_np)
             else:
                 # Fallback if format is unknown
                 original_image = Image.fromarray(
-                    np.zeros((self.input_size[0], self.input_size[1], 3), dtype=np.uint8)
+                    np.zeros(
+                        (self.input_size[0], self.input_size[1], 3), dtype=np.uint8
+                    )
                 )
-                
+
             return input_tensor, original_image
-            
+
         # If image_input is a PIL Image
-        elif hasattr(image_input, 'convert'):  # PIL Image
+        elif hasattr(image_input, "convert"):  # PIL Image
             original_image = image_input
-            
+
             # Create transform with normalization
-            transform = transforms.Compose([
-                transforms.Resize(self.input_size),
-                transforms.ToTensor(),
-                transforms.Normalize(mean=self.mean, std=self.std)
-            ])
-            
+            transform = transforms.Compose(
+                [
+                    transforms.Resize(self.input_size),
+                    transforms.ToTensor(),
+                    transforms.Normalize(mean=self.mean, std=self.std),
+                ]
+            )
+
             # Apply transform and add batch dimension
             input_tensor = transform(original_image).unsqueeze(0)
-            
+
             return input_tensor, original_image
-            
+
         else:
             raise ValueError(f"Unsupported image input type: {type(image_input)}")
 
@@ -413,7 +435,7 @@ class SHAPInterpreter:
             # Run model to get target class if not provided
             if target_class is None:
                 with torch.no_grad():
-                    outputs = self.model(input_tensor.to(self.device))
+                    outputs = self.model(input_tensor)
                     target_class = outputs.argmax(dim=1).item()
 
             # Get class name if available
@@ -1379,9 +1401,9 @@ class ShapInterpreter:
 
         # Set output directory
         if output_dir is None:
-            self.output_dir = Path("outputs/shap_visualizations")
+            self.output_dir = Path("outputs/reports/plots/shap_analysis")
         else:
-            self.output_dir = Path(output_dir) / "shap_visualizations"
+            self.output_dir = Path(output_dir) / "reports" / "plots" / "shap_analysis"
 
         ensure_dir(self.output_dir)
         logger.info(f"SHAP visualizations will be saved to {self.output_dir}")

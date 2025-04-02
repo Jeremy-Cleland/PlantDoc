@@ -70,7 +70,7 @@ class MetricsLogger(Callback):
         self.overwrite = overwrite
         self.experiment_dir = Path(experiment_dir) if experiment_dir else None
         self.class_names = class_names
-        self.config = None  # Initialize config attribute to None
+        self.config = None
 
         # Validate format
         if self.save_format not in ["json", "jsonl", "csv"]:
@@ -472,6 +472,10 @@ class MetricsLogger(Callback):
             metrics_dir = self.experiment_dir / "metrics"
             ensure_dir(metrics_dir)
 
+            # Create evaluation_artifacts directory in root experiment dir
+            evaluation_artifacts_dir = self.experiment_dir / "evaluation_artifacts"
+            ensure_dir(evaluation_artifacts_dir)
+
             # Process class metrics if present
             class_metrics = {}
             if (
@@ -543,9 +547,21 @@ class MetricsLogger(Callback):
                 confusion_matrix = _convert_omegaconf_to_python(
                     final_metrics["confusion_matrix"]
                 )
-                cm_path = metrics_dir / "evaluation_artifacts" / "confusion_matrix.npy"
+
+                # Save to the correct location: directly in evaluation_artifacts
+                cm_path = evaluation_artifacts_dir / "confusion_matrix.npy"
                 np.save(cm_path, np.array(confusion_matrix))
                 logger.info(f"Saved confusion matrix to {cm_path}")
+
+                # Also save a copy in the legacy location for backward compatibility
+                legacy_cm_path = (
+                    metrics_dir / "evaluation_artifacts" / "confusion_matrix.npy"
+                )
+                ensure_dir(metrics_dir / "evaluation_artifacts")
+                np.save(legacy_cm_path, np.array(confusion_matrix))
+                logger.info(
+                    f"Also saved confusion matrix to legacy location {legacy_cm_path} for backward compatibility"
+                )
 
         except Exception as e:
             import traceback

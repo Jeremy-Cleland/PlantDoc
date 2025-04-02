@@ -207,20 +207,32 @@ class VisualizationDataSaver(Callback):
             logger.warning("Model or validation dataloader not available")
             return
 
-        # Create evaluation_artifacts directory
+        # Create evaluation_artifacts directory directly in experiment_dir
         artifacts_dir = self.experiment_dir / "evaluation_artifacts"
         ensure_dir(artifacts_dir)
+
+        # For backward compatibility, also ensure metrics/evaluation_artifacts exists
+        metrics_artifacts_dir = self.experiment_dir / "metrics" / "evaluation_artifacts"
+        ensure_dir(metrics_artifacts_dir)
+
+        # Helper function to save artifacts with backward compatibility
+        def save_artifact(name, data):
+            # Primary location (correct one)
+            primary_path = artifacts_dir / f"{name}.npy"
+            np.save(primary_path, data)
+
+            # Legacy location (for backward compatibility)
+            legacy_path = metrics_artifacts_dir / f"{name}.npy"
+            np.save(legacy_path, data)
+
+            logger.info(f"Saved {name} to {primary_path} and legacy location")
+            return primary_path
 
         # Save predictions and targets if available from logs
         if self.val_outputs is not None and self.val_targets is not None:
             # Get predictions from outputs
             outputs = self.val_outputs
             targets = self.val_targets
-
-            # Convert to numpy and save"
-            predictions_path = artifacts_dir / "predictions.npy"
-            true_labels_path = artifacts_dir / "true_labels.npy"
-            scores_path = artifacts_dir / "scores.npy"
 
             # Convert to numpy with appropriate format
             if isinstance(outputs, torch.Tensor):
@@ -247,17 +259,18 @@ class VisualizationDataSaver(Callback):
                 return
 
             # Save the files
-            np.save(predictions_path, predictions)
-            np.save(true_labels_path, true_labels)
-            np.save(scores_path, scores)
-            
+            save_artifact("predictions", predictions)
+            save_artifact("true_labels", true_labels)
+            save_artifact("scores", scores)
+
             # Also save a subset of true labels that matches test_images size
             # This prevents the size mismatch warning in generate_plots.py
-            subset_labels_path = artifacts_dir / "subset_true_labels.npy"
             subset_size = min(self.num_test_images, len(true_labels))
             if len(true_labels) > subset_size:
-                np.save(subset_labels_path, true_labels[:subset_size])
-                logger.info(f"Saved subset of true labels ({subset_size}) to match test_images size")
+                save_artifact("subset_true_labels", true_labels[:subset_size])
+                logger.info(
+                    f"Saved subset of true labels ({subset_size}) to match test_images size"
+                )
 
             logger.info(
                 f"Saved predictions, true labels, and scores for {len(predictions)} samples"
@@ -311,25 +324,7 @@ class VisualizationDataSaver(Callback):
                         outputs = torch.cat(all_outputs, dim=0)
                         targets = torch.cat(all_targets, dim=0)
 
-                        # Save the predictions
-                        predictions_path = (
-                            self.experiment_dir
-                            / "evaluation_artifacts"
-                            / "predictions.npy"
-                        )
-                        true_labels_path = (
-                            self.experiment_dir
-                            / "evaluation_artifacts"
-                            / "true_labels.npy"
-                        )
-                        scores_path = (
-                            self.experiment_dir / "evaluation_artifacts" / "scores.npy"
-                        )
-
-                        # Ensure the directory exists
-                        artifacts_dir = self.experiment_dir / "evaluation_artifacts"
-                        ensure_dir(artifacts_dir)
-
+                        # Save using the helper function
                         scores = outputs.numpy()
                         predictions = np.argmax(scores, axis=1)
 
@@ -345,17 +340,20 @@ class VisualizationDataSaver(Callback):
                             ] = 1
                             true_labels = true_labels_onehot
 
-                        # Save files
-                        np.save(predictions_path, predictions)
-                        np.save(true_labels_path, true_labels)
-                        np.save(scores_path, scores)
-                        
+                        # Save files using the helper function
+                        save_artifact("predictions", predictions)
+                        save_artifact("true_labels", true_labels)
+                        save_artifact("scores", scores)
+
                         # Also save a subset of true labels that matches test_images size
-                        subset_labels_path = artifacts_dir / "subset_true_labels.npy"
                         subset_size = min(self.num_test_images, len(true_labels))
                         if len(true_labels) > subset_size:
-                            np.save(subset_labels_path, true_labels[:subset_size])
-                            logger.info(f"Saved subset of true labels ({subset_size}) to match test_images size")
+                            save_artifact(
+                                "subset_true_labels", true_labels[:subset_size]
+                            )
+                            logger.info(
+                                f"Saved subset of true labels ({subset_size}) to match test_images size"
+                            )
 
                         logger.info(
                             f"Saved predictions, true labels, and scores for {len(predictions)} samples from manual pass"
@@ -382,24 +380,30 @@ class VisualizationDataSaver(Callback):
                     batch_processed = False
                     batch_count = 0
                     max_batches = 5  # Process up to 5 batches to get more features
-                    
+
                     # Calculate how many samples we need to match true_labels
-                    true_labels_path = self.experiment_dir / "evaluation_artifacts" / "true_labels.npy"
+                    true_labels_path = (
+                        self.experiment_dir / "evaluation_artifacts" / "true_labels.npy"
+                    )
                     required_samples = 0
                     if true_labels_path.exists():
                         try:
                             true_labels = np.load(true_labels_path)
                             required_samples = len(true_labels)
-                            logger.info(f"Need to extract features for {required_samples} samples to match true_labels")
+                            logger.info(
+                                f"Need to extract features for {required_samples} samples to match true_labels"
+                            )
                         except Exception as e:
-                            logger.warning(f"Couldn't load true_labels for size matching: {e}")
-                    
+                            logger.warning(
+                                f"Couldn't load true_labels for size matching: {e}"
+                            )
+
                     collected_samples = 0
-                    
+
                     for batch in val_loader:
                         if batch_count >= max_batches:
                             break
-                            
+
                         try:
                             if isinstance(batch, (list, tuple)) and len(batch) >= 2:
                                 inputs, _ = batch[0], batch[1]
@@ -415,7 +419,7 @@ class VisualizationDataSaver(Callback):
                             batch_size = len(inputs)
                             collected_samples += batch_size
                             logger.info(
-                                f"Processing batch {batch_count+1} with {batch_size} inputs on device {device}"
+                                f"Processing batch {batch_count + 1} with {batch_size} inputs on device {device}"
                             )
 
                             # Forward pass
@@ -425,11 +429,18 @@ class VisualizationDataSaver(Callback):
 
                             # Check if we got features
                             if features_list and len(features_list) > 0:
-                                logger.info(f"Successfully extracted features from batch {batch_count}")
-                                
+                                logger.info(
+                                    f"Successfully extracted features from batch {batch_count}"
+                                )
+
                                 # If we have enough samples to match true_labels
-                                if required_samples > 0 and collected_samples >= required_samples:
-                                    logger.info(f"Collected enough samples ({collected_samples}) to match true_labels ({required_samples})")
+                                if (
+                                    required_samples > 0
+                                    and collected_samples >= required_samples
+                                ):
+                                    logger.info(
+                                        f"Collected enough samples ({collected_samples}) to match true_labels ({required_samples})"
+                                    )
                                     break
                             else:
                                 logger.warning(
@@ -446,7 +457,9 @@ class VisualizationDataSaver(Callback):
                             "No batches were successfully processed for feature extraction"
                         )
                     else:
-                        logger.info(f"Processed {batch_count} batches with approx. {collected_samples} samples for feature extraction")
+                        logger.info(
+                            f"Processed {batch_count} batches with approx. {collected_samples} samples for feature extraction"
+                        )
 
                 # Process and save features if available
                 if features_list and len(features_list) > 0:
@@ -454,17 +467,8 @@ class VisualizationDataSaver(Callback):
                     features = features_list[0]
                     if features.shape[0] > 0:
                         # Save features to numpy file
-                        features_path = (
-                            self.experiment_dir
-                            / "evaluation_artifacts"
-                            / "features.npy"
-                        )
-
-                        # Ensure directory exists
-                        artifacts_dir = self.experiment_dir / "evaluation_artifacts"
-                        ensure_dir(artifacts_dir)
-
-                        np.save(features_path, features.cpu().numpy())
+                        save_artifact("features", features.cpu().numpy())
+                        logger.info(f"Features shape: {features.shape}")
                     else:
                         logger.warning("No features extracted from the model")
                 else:
@@ -523,16 +527,8 @@ class VisualizationDataSaver(Callback):
                     test_images = np.array(test_images)
                     test_labels = np.array(test_labels)
 
-                    # Save the test images and labels
-                    test_images_path = (
-                        self.experiment_dir / "evaluation_artifacts" / "test_images.npy"
-                    )
-
-                    # Ensure the directory exists
-                    artifacts_dir = self.experiment_dir / "evaluation_artifacts"
-                    ensure_dir(artifacts_dir)
-
-                    np.save(test_images_path, test_images)
+                    # Save the test images and labels using the helper function
+                    save_artifact("test_images", test_images)
                     logger.info(
                         f"Saved {len(test_images)} test images for visualization"
                     )

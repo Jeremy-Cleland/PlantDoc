@@ -75,7 +75,7 @@ data:
 
 # DataLoader configuration
 loader:
-  batch_size: 512 # Reduced from 128 for better stability and memory usage
+  batch_size: 128 # Reduced from 128 for better stability and memory usage
   num_workers: 6 # Adjusted based on typical hardware constraints
   pin_memory: false
   drop_last: false
@@ -258,8 +258,8 @@ scheduler:
 
 # Training configuration
 training:
-  epochs: 6
-  batch_size: 512 
+  epochs: 10
+  batch_size: 128 
   learning_rate: 0.001  # Simplified from scientific notation
   weight_decay: 2e-5  # Simplified from scientific notation
   deterministic: true

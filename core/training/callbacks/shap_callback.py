@@ -57,32 +57,36 @@ class SHAPCallback(Callback):
         self.enabled = enabled
         self.output_dir = output_dir
         self.current_epoch = 0
+        self.experiment_dir = None
 
-        logger.info(
-            f"Initialized SHAP callback: samples={num_samples}, "
-            f"background_samples={num_background_samples}, "
-            f"dataset={dataset_split}"
+        logger.info(  # Use the correctly initialized logger
+            f"Initialized SHAP callback: samples={self.num_samples}, "
+            f"background_samples={self.num_background_samples}, "
+            f"dataset={self.dataset_split}"
         )
 
     def on_train_begin(self, logs: Optional[Dict[str, Any]] = None) -> None:
         """Called at the beginning of training."""
-        pass
+        if logs and "experiment_dir" in logs:
+            self.experiment_dir = logs["experiment_dir"]
+            logger.info(
+                f"SHAP callback will save results to {self.experiment_dir}/{self.output_subdir}"
+            )
 
-    def on_epoch_begin(self, epoch: int, logs: Optional[Dict[str, Any]] = None) -> None:
-        """Called at the beginning of each epoch."""
-        self.current_epoch = epoch
+    def _get_output_dir(self, logs: Optional[Dict[str, Any]] = None) -> str:
+        """Get the output directory for SHAP analysis."""
+        if self.output_dir is not None:
+            return self.output_dir
 
-    def on_epoch_end(self, epoch: int, logs: Optional[Dict[str, Any]] = None) -> None:
-        """Called at the end of each epoch."""
-        self.current_epoch = epoch
+        # Use experiment_dir if available
+        if self.experiment_dir is not None:
+            # Changed to use reports/plots directory structure
+            return os.path.join(
+                self.experiment_dir, "reports", "plots", self.output_subdir
+            )
 
-    def on_batch_begin(self, batch: int, logs: Optional[Dict[str, Any]] = None) -> None:
-        """Called at the beginning of each batch."""
-        pass
-
-    def on_batch_end(self, batch: int, logs: Optional[Dict[str, Any]] = None) -> None:
-        """Called at the end of each batch."""
-        pass
+        # Fallback - use current working directory
+        return os.path.join(os.getcwd(), self.output_subdir)
 
     def on_train_end(self, logs: Optional[Dict[str, Any]] = None) -> None:
         """
@@ -91,6 +95,10 @@ class SHAPCallback(Callback):
         Args:
             logs: Dictionary containing training information including model and data
         """
+        if not self.enabled:
+            logger.info("SHAP callback is disabled, skipping analysis")
+            return
+
         if logs is None:
             logger.warning("No logs provided to on_train_end, skipping SHAP analysis")
             return
@@ -101,11 +109,6 @@ class SHAPCallback(Callback):
             logger.error("No model found in logs for SHAP analysis")
             return
 
-        # In the training script, the data_module might not be directly passed to logs
-        # We need to extract the relevant part containing dataloaders
-        experiment_dir = logs.get("experiment_dir", "")
-        if isinstance(experiment_dir, Path):
-            experiment_dir = str(experiment_dir)
         try:
             logger.info("Running SHAP analysis at the end of training...")
 
@@ -171,12 +174,36 @@ class SHAPCallback(Callback):
                         )
 
             if dataloader is None:
+                # Try to create a small dataset from a sample batch
+                try:
+                    # Look for any input tensor data in logs to create a small dataset
+                    if "sample_batch" in logs:
+                        batch = logs["sample_batch"]
+                        if isinstance(batch, (tuple, list)) and len(batch) >= 2:
+                            x, y = batch[0], batch[1]
+
+                            # Create a small dataset if we have tensors
+                            if isinstance(x, torch.Tensor) and isinstance(
+                                y, torch.Tensor
+                            ):
+                                dataset = TensorDataset(x, y)
+                                dataloader = DataLoader(
+                                    dataset, batch_size=16, shuffle=False
+                                )
+                                logger.info(
+                                    f"Created dataloader from sample batch for SHAP analysis"
+                                )
+                except Exception as e:
+                    logger.warning(f"Could not create dataloader from sample: {e}")
+
+            if dataloader is None:
                 logger.error("No dataloader available for SHAP analysis, aborting")
                 return
 
             # Create output directory
-            output_dir = os.path.join(experiment_dir, self.output_subdir)
-            Path(output_dir).mkdir(parents=True, exist_ok=True)
+            output_dir = self._get_output_dir(logs)
+            ensure_dir(output_dir)
+            logger.info(f"SHAP results will be saved to: {output_dir}")
 
             # Try to get class names from various sources
             class_names = None
@@ -205,6 +232,46 @@ class SHAPCallback(Callback):
                 logger.warning(
                     "No class names found for SHAP analysis, visualization may be less interpretable"
                 )
+
+            # Ensure input format is correct
+            logger.info("Checking input tensor format before SHAP analysis...")
+            try:
+                dataloader_iter = iter(dataloader)
+                sample_batch = next(dataloader_iter)
+
+                # Verify data format and shapes
+                if isinstance(sample_batch, (tuple, list)) and len(sample_batch) >= 2:
+                    x_sample, y_sample = sample_batch[0], sample_batch[1]
+                    logger.info(
+                        f"Input tensor shape: {x_sample.shape}, dtype: {x_sample.dtype}"
+                    )
+                    logger.info(
+                        f"Target tensor shape: {y_sample.shape}, dtype: {y_sample.dtype}"
+                    )
+                elif isinstance(sample_batch, dict):
+                    x_keys = [
+                        k
+                        for k in sample_batch.keys()
+                        if k in ("input", "x", "image", "images")
+                    ]
+                    y_keys = [
+                        k
+                        for k in sample_batch.keys()
+                        if k in ("target", "y", "label", "labels")
+                    ]
+
+                    if x_keys and y_keys:
+                        x_sample = sample_batch[x_keys[0]]
+                        y_sample = sample_batch[y_keys[0]]
+                        logger.info(
+                            f"Input tensor shape: {x_sample.shape}, dtype: {x_sample.dtype}"
+                        )
+                        logger.info(
+                            f"Target tensor shape: {y_sample.shape}, dtype: {y_sample.dtype}"
+                        )
+
+            except Exception as e:
+                logger.warning(f"Could not check input format: {e}")
 
             # Run SHAP evaluation
             results = evaluate_with_shap(
@@ -259,14 +326,10 @@ class SHAPCallback(Callback):
 
         logger.info(f"Running SHAP analysis at epoch {current_epoch}")
 
-        # Create output directory
-        if self.output_dir is None:
-            # Try to get experiment_dir from logs
-            experiment_dir = (
-                logs.get("experiment_dir", "./outputs") if logs else "./outputs"
-            )
-            self.output_dir = Path(experiment_dir) / self.output_subdir
-        ensure_dir(self.output_dir)
+        # Get output directory
+        output_dir = self._get_output_dir(logs)
+        ensure_dir(output_dir)
+        logger.info(f"SHAP results will be saved to: {output_dir}")
 
         # Try to use provided val_loader
         dataloader = val_loader
@@ -358,18 +421,58 @@ class SHAPCallback(Callback):
         model.eval()
 
         try:
+            # Ensure input format is correct
+            logger.info("Checking input tensor format before SHAP analysis...")
+            try:
+                dataloader_iter = iter(dataloader)
+                sample_batch = next(dataloader_iter)
+
+                # Verify data format and shapes
+                if isinstance(sample_batch, (tuple, list)) and len(sample_batch) >= 2:
+                    x_sample, y_sample = sample_batch[0], sample_batch[1]
+                    logger.info(
+                        f"Input tensor shape: {x_sample.shape}, dtype: {x_sample.dtype}"
+                    )
+                    logger.info(
+                        f"Target tensor shape: {y_sample.shape}, dtype: {y_sample.dtype}"
+                    )
+                elif isinstance(sample_batch, dict):
+                    x_keys = [
+                        k
+                        for k in sample_batch.keys()
+                        if k in ("input", "x", "image", "images")
+                    ]
+                    y_keys = [
+                        k
+                        for k in sample_batch.keys()
+                        if k in ("target", "y", "label", "labels")
+                    ]
+
+                    if x_keys and y_keys:
+                        x_sample = sample_batch[x_keys[0]]
+                        y_sample = sample_batch[y_keys[0]]
+                        logger.info(
+                            f"Input tensor shape: {x_sample.shape}, dtype: {x_sample.dtype}"
+                        )
+                        logger.info(
+                            f"Target tensor shape: {y_sample.shape}, dtype: {y_sample.dtype}"
+                        )
+
+            except Exception as e:
+                logger.warning(f"Could not check input format: {e}")
+
             # Run SHAP evaluation
             results = evaluate_with_shap(
                 model=model,
                 data_loader=dataloader,
                 num_samples=self.num_samples,
-                output_dir=self.output_dir,
+                output_dir=output_dir,
                 class_names=class_names,
                 num_background_samples=self.num_background_samples,
                 compare_with_gradcam=self.compare_with_gradcam,
             )
 
-            logger.info(f"SHAP analysis complete. Results saved to {self.output_dir}")
+            logger.info(f"SHAP analysis complete. Results saved to {output_dir}")
             return results
         except Exception as e:
             logger.error(f"Error in SHAP validation analysis: {e}", exc_info=True)

@@ -5,7 +5,7 @@ Generate plots for training reports.
 import argparse
 import json
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -30,7 +30,6 @@ try:
         plot_categorical,
         plot_class_performance,
         plot_confidence_distribution,
-        plot_distribution,
         plot_enhanced_confusion_matrix,
         plot_feature_space,
         plot_histogram,
@@ -79,19 +78,19 @@ def load_history(experiment_dir: Union[str, Path]) -> Dict:
     Returns:
         Dictionary with training history data
     """
-    # First check in metrics directory
-    metrics_dir = Path(experiment_dir) / "metrics"
-    history_path = metrics_dir / "history.json"
+    # Try multiple possible locations in order
+    possible_paths = [
+        Path(experiment_dir) / "metrics" / "history.json",
+        Path(experiment_dir) / "history.json",
+    ]
 
-    # Fall back to main directory
-    if not history_path.exists():
-        history_path = Path(experiment_dir) / "history.json"
+    for history_path in possible_paths:
+        if history_path.exists():
+            logger.info(f"Found history file at {history_path}")
+            return load_json(history_path)
 
-    if not history_path.exists():
-        logger.warning(f"No history file found in {experiment_dir}")
-        return {}
-
-    return load_json(history_path)
+    logger.warning(f"No history file found in {experiment_dir}")
+    return {}
 
 
 def load_metrics(experiment_dir: Union[str, Path]) -> Dict:
@@ -104,19 +103,19 @@ def load_metrics(experiment_dir: Union[str, Path]) -> Dict:
     Returns:
         Dictionary with metrics data
     """
-    # First check in metrics directory
-    metrics_dir = Path(experiment_dir) / "metrics"
-    metrics_path = metrics_dir / "metrics.json"
+    # Try multiple possible locations in order
+    possible_paths = [
+        Path(experiment_dir) / "metrics" / "metrics.json",
+        Path(experiment_dir) / "metrics.json",
+    ]
 
-    # Fall back to main directory
-    if not metrics_path.exists():
-        metrics_path = Path(experiment_dir) / "metrics.json"
+    for metrics_path in possible_paths:
+        if metrics_path.exists():
+            logger.info(f"Found metrics file at {metrics_path}")
+            return load_json(metrics_path)
 
-    if not metrics_path.exists():
-        logger.warning(f"No metrics file found in {experiment_dir}")
-        return {}
-
-    return load_json(metrics_path)
+    logger.warning(f"No metrics file found in {experiment_dir}")
+    return {}
 
 
 def load_confusion_matrix(experiment_dir: Union[str, Path]) -> Optional[np.ndarray]:
@@ -134,15 +133,18 @@ def load_confusion_matrix(experiment_dir: Union[str, Path]) -> Optional[np.ndarr
     # Try different possible locations for the confusion matrix
     possible_paths = [
         experiment_dir / "evaluation_artifacts" / "confusion_matrix.npy",
-        experiment_dir / "metrics" / "confusion_matrix.npy",
     ]
 
-    for cm_path in possible_paths:
-        if cm_path.exists():
+    # Log all paths being checked
+    logger.info(f"Looking for confusion matrix in the following locations:")
+    for path in possible_paths:
+        logger.info(f"  - {path}")
+        if path.exists():
+            logger.info(f"Found confusion matrix at {path}")
             try:
-                return np.load(cm_path)
+                return np.load(path)
             except Exception as e:
-                logger.error(f"Failed to load confusion matrix from {cm_path}: {e}")
+                logger.error(f"Failed to load confusion matrix from {path}: {e}")
 
     # If we get here, no valid confusion matrix was found
     logger.warning(f"No confusion matrix file found in {experiment_dir}")
@@ -439,90 +441,128 @@ def plot_top_misclassifications(
     theme: Optional[Dict] = None,
 ) -> None:
     """
-    Plot the top misclassified examples with their predicted and actual labels.
+    Plot top misclassifications with highest confidence.
 
     Args:
         images: Array of images
-        true_labels: Array of true labels (indices)
-        predictions: Array of predicted labels (indices)
+        true_labels: Array of true labels (either class indices or one-hot encoded)
+        predictions: Array of model predictions (logits or probabilities)
         class_names: List of class names
-        misclassified_indices: Indices of misclassified examples
-        output_path: Path to save the figure
-        max_examples: Maximum number of examples to show
-        theme: Visualization theme
+        misclassified_indices: Array of indices of misclassified examples
+        output_path: Path to save the plot
+        max_examples: Maximum number of examples to display
+        theme: Visualization theme configuration
     """
+    import matplotlib.gridspec as gridspec
+    import matplotlib.pyplot as plt
+
+    # Apply theme
+    apply_theme(theme)
+
+    # Convert labels to indices if one-hot encoded
+    if true_labels.ndim > 1:
+        true_indices = np.argmax(true_labels, axis=1)
+    else:
+        true_indices = true_labels
+
+    # Convert predictions to indices and confidences
+    if predictions.ndim > 1:
+        pred_indices = np.argmax(predictions, axis=1)
+        confidences = np.max(predictions, axis=1)
+    else:
+        pred_indices = np.round(predictions).astype(int)
+        confidences = np.abs(predictions - 0.5) + 0.5  # Convert to confidence
+
+    # Check if we have any misclassified samples
     if len(misclassified_indices) == 0:
         logger.warning("No misclassified examples to visualize")
         return
 
-    # Ensure we don't try to display more examples than we have
-    num_examples = min(max_examples, len(misclassified_indices))
+    # Get misclassification confidence
+    misclassified_confidences = confidences[misclassified_indices]
 
-    # Apply theme if provided
-    if theme:
-        apply_theme(theme)
+    # Sort by confidence (high to low)
+    sorted_indices = np.argsort(-misclassified_confidences)
+    top_indices = sorted_indices[:max_examples]
+
+    # Get actual indices in the original data
+    top_misclassified = misclassified_indices[top_indices]
+
+    # Determine grid size
+    n_examples = min(len(top_misclassified), max_examples)
+
+    # Calculate grid dimensions
+    cols = min(5, n_examples)
+    rows = (n_examples + cols - 1) // cols
 
     # Create figure
-    fig, axes = plt.subplots(
-        4, 5, figsize=(15, 12), subplot_kw={"xticks": [], "yticks": []}
-    )
-    axes = axes.flatten()
+    fig = plt.figure(figsize=(cols * 3, rows * 3))
 
-    # Set dark background
-    fig.patch.set_facecolor("#121212")
-    for ax in axes:
-        ax.set_facecolor("#1e1e1e")
+    # Create gridspec for better control over spacing
+    gs = gridspec.GridSpec(rows, cols, figure=fig, wspace=0.1, hspace=0.3)
 
     # Plot each misclassified example
-    for i in range(num_examples):
-        if i >= len(axes):
+    for i, idx in enumerate(top_misclassified):
+        if i >= max_examples:
             break
 
-        idx = misclassified_indices[i]
-        img = images[idx]
-        true_label = true_labels[idx]
-        pred_label = predictions[idx]
+        try:
+            # Get image and labels
+            image = images[idx]
 
-        # Convert index to actual class name
-        true_class = (
-            class_names[true_label]
-            if true_label < len(class_names)
-            else f"Unknown {true_label}"
-        )
-        pred_class = (
-            class_names[pred_label]
-            if pred_label < len(class_names)
-            else f"Unknown {pred_label}"
-        )
+            # Normalize image to consistent format
+            image = normalize_image_for_display(image)
 
-        # Prepare image for display
-        if img.shape[0] == 3 and len(img.shape) == 3:  # If in CHW format
-            img = np.transpose(img, (1, 2, 0))  # Convert to HWC for display
+            true_idx = true_indices[idx]
+            pred_idx = pred_indices[idx]
+            conf = confidences[idx]
 
-        # Display image
-        axes[i].imshow(img)
+            # Get class names
+            true_name = (
+                class_names[true_idx]
+                if true_idx < len(class_names)
+                else f"Class {true_idx}"
+            )
+            pred_name = (
+                class_names[pred_idx]
+                if pred_idx < len(class_names)
+                else f"Class {pred_idx}"
+            )
 
-        # Add title with true and predicted labels
-        title = f"True: {true_class}\nPred: {pred_class}"
-        axes[i].set_title(title, color="white", fontsize=9)
+            # Create subplot
+            ax = fig.add_subplot(gs[i])
 
-        # Add red border for emphasis
-        for spine in axes[i].spines.values():
-            spine.set_visible(True)
-            spine.set_color("red")
-            spine.set_linewidth(2)
+            # Display image
+            ax.imshow(image)
 
-    # Hide unused axes
-    for i in range(num_examples, len(axes)):
-        axes[i].axis("off")
+            # Add labels
+            ax.set_title(
+                f"True: {true_name}\nPred: {pred_name}\nConf: {conf:.2f}",
+                fontsize=8,
+                pad=2,
+            )
 
-    plt.suptitle("Top Misclassified Examples", color="white", fontsize=16)
+            # Remove axes
+            ax.axis("off")
+        except Exception as e:
+            logger.error(f"Error plotting misclassified example {idx}: {e}")
+            # Create empty subplot
+            ax = fig.add_subplot(gs[i])
+            ax.text(
+                0.5,
+                0.5,
+                "Error loading image",
+                horizontalalignment="center",
+                verticalalignment="center",
+            )
+            ax.axis("off")
+
+    plt.suptitle("Top Misclassifications", fontsize=16)
     plt.tight_layout()
-
-    # Save figure
-    plt.savefig(output_path, dpi=300, bbox_inches="tight", facecolor="#121212")
+    plt.savefig(output_path, dpi=300, bbox_inches="tight")
     plt.close()
-    logger.info(f"Saved top misclassifications plot to {output_path}")
+
+    logger.info(f"Top misclassifications plot saved to {output_path}")
 
 
 def plot_class_difficulties(
@@ -891,11 +931,22 @@ def plot_attention_maps(
     output_dir = Path(output_path).parent
     ensure_dir(output_dir)
 
-    # Extract data
+    # Extract data - check if we have the expected keys
+    if not all(
+        k in attention_data for k in ["attention_maps", "true_labels", "pred_labels"]
+    ):
+        logger.error(
+            f"Missing required keys in attention_data: {attention_data.keys()}"
+        )
+        return
+
     attention_maps = attention_data["attention_maps"]
     true_labels = attention_data["true_labels"]
     pred_labels = attention_data["pred_labels"]
-    confidences = attention_data["confidences"]
+    confidences = attention_data.get("confidences", np.ones_like(true_labels))
+
+    # Get original images if available
+    original_images = attention_data.get("original_images", None)
 
     # Determine number of samples to visualize
     num_samples = min(max_samples, len(attention_maps))
@@ -908,129 +959,142 @@ def plot_attention_maps(
 
     # Create subplots for each sample
     for i in range(num_samples):
-        attention_map = attention_maps[i]
-        true_label = true_labels[i]
-        pred_label = pred_labels[i]
-        confidence = confidences[i]
+        try:
+            attention_map = attention_maps[i]
+            true_label = true_labels[i]
+            pred_label = pred_labels[i]
+            confidence = confidences[i] if i < len(confidences) else 1.0
 
-        # Get class names
-        true_name = label_names.get(true_label, f"Class {true_label}")
-        pred_name = label_names.get(pred_label, f"Class {pred_label}")
+            # Get class names
+            true_name = label_names.get(true_label, f"Class {true_label}")
+            pred_name = label_names.get(pred_label, f"Class {pred_label}")
 
-        # Determine if prediction was correct
-        is_correct = true_label == pred_label
-        title_color = "green" if is_correct else "red"
+            # Determine if prediction was correct
+            is_correct = true_label == pred_label
+            title_color = "green" if is_correct else "red"
 
-        # Create figure with two subplots side by side
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
+            # Create figure with two subplots side by side
+            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
 
-        # Reshape attention map if needed
-        if attention_map.ndim > 2:
-            # For multi-channel attention maps, take average across channels
-            if attention_map.shape[0] in (1, 3):  # Channel-first format
-                attention_map = np.mean(attention_map, axis=0)
-            else:
-                attention_map = np.mean(attention_map, axis=-1)
+            # Reshape attention map if needed
+            if attention_map.ndim > 2:
+                # For multi-channel attention maps, take average across channels
+                if attention_map.shape[0] in (1, 3):  # Channel-first format
+                    attention_map = np.mean(attention_map, axis=0)
+                else:
+                    attention_map = np.mean(attention_map, axis=-1)
 
-        # Normalize attention map for visualization
-        norm = Normalize(vmin=np.min(attention_map), vmax=np.max(attention_map))
+            # Normalize attention map for visualization
+            norm = Normalize(vmin=np.min(attention_map), vmax=np.max(attention_map))
 
-        # Plot heatmap
-        im = ax1.imshow(attention_map, cmap="viridis")
-        ax1.set_title("Attention Map")
-        ax1.axis("off")
-        fig.colorbar(im, ax=ax1, fraction=0.046, pad=0.04)
+            # Plot heatmap
+            im = ax1.imshow(attention_map, cmap="viridis")
+            ax1.set_title("Attention Map")
+            ax1.axis("off")
+            fig.colorbar(im, ax=ax1, fraction=0.046, pad=0.04)
 
-        # Plot 3D surface
-        from mpl_toolkits.mplot3d import Axes3D
+            # Plot 3D surface
+            from mpl_toolkits.mplot3d import Axes3D
 
-        ax2 = fig.add_subplot(1, 2, 2, projection="3d")
+            ax2 = fig.add_subplot(1, 2, 2, projection="3d")
 
-        # Create meshgrid for 3D plot
-        h, w = attention_map.shape
-        y, x = np.mgrid[0:h, 0:w]
+            # Create meshgrid for 3D plot
+            h, w = attention_map.shape
+            y, x = np.mgrid[0:h, 0:w]
 
-        # Plot the surface
-        surf = ax2.plot_surface(
-            x,
-            y,
-            attention_map,
-            cmap="viridis",
-            linewidth=0,
-            antialiased=True,
-            rcount=100,
-            ccount=100,
-        )
+            # Plot the surface
+            surf = ax2.plot_surface(
+                x,
+                y,
+                attention_map,
+                cmap="viridis",
+                linewidth=0,
+                antialiased=True,
+                rcount=100,
+                ccount=100,
+            )
 
-        ax2.set_title("3D Attention Surface")
+            ax2.set_title("3D Attention Surface")
 
-        # Add colorbar
-        fig.colorbar(surf, ax=ax2, shrink=0.5, aspect=5)
+            # Add colorbar
+            fig.colorbar(surf, ax=ax2, shrink=0.5, aspect=5)
 
-        # Set main title
-        plt.suptitle(
-            f"Sample {i + 1}: True={true_name}, Pred={pred_name}, Conf={confidence:.2f}",
-            color=title_color,
-            fontsize=14,
-        )
+            # Set main title
+            plt.suptitle(
+                f"Sample {i + 1}: True={true_name}, Pred={pred_name}, Conf={confidence:.2f}",
+                color=title_color,
+                fontsize=14,
+            )
 
-        plt.tight_layout()
+            plt.tight_layout()
 
-        # Save the figure
-        sample_path = Path(output_path).parent / f"attention_map_{i + 1}.png"
-        plt.savefig(sample_path, dpi=300, bbox_inches="tight")
-        plt.close()
+            # Save the figure
+            sample_path = Path(output_path).parent / f"attention_map_{i + 1}.png"
+            plt.savefig(sample_path, dpi=300, bbox_inches="tight")
+            plt.close()
+        except Exception as e:
+            logger.error(f"Error generating attention map for sample {i}: {e}")
 
     # Create a combined visualization of all attention maps
-    fig = plt.figure(figsize=(15, 10))
+    try:
+        fig = plt.figure(figsize=(15, 10))
 
-    # Calculate grid dimensions
-    cols = min(5, num_samples)
-    rows = (num_samples + cols - 1) // cols
+        # Calculate grid dimensions
+        cols = min(5, num_samples)
+        rows = (num_samples + cols - 1) // cols
 
-    for i in range(num_samples):
-        attention_map = attention_maps[i]
-        true_label = true_labels[i]
-        pred_label = pred_labels[i]
+        for i in range(num_samples):
+            try:
+                attention_map = attention_maps[i]
+                true_label = true_labels[i]
+                pred_label = pred_labels[i]
 
-        # Reshape attention map if needed
-        if attention_map.ndim > 2:
-            # For multi-channel attention maps, take average across channels
-            if attention_map.shape[0] in (1, 3):  # Channel-first format
-                attention_map = np.mean(attention_map, axis=0)
-            else:
-                attention_map = np.mean(attention_map, axis=-1)
+                # Reshape attention map if needed
+                if attention_map.ndim > 2:
+                    # For multi-channel attention maps, take average across channels
+                    if attention_map.shape[0] in (1, 3):  # Channel-first format
+                        attention_map = np.mean(attention_map, axis=0)
+                    else:
+                        attention_map = np.mean(attention_map, axis=-1)
 
-        # Get class names
-        true_name = label_names.get(true_label, f"Class {true_label}")
-        pred_name = label_names.get(pred_label, f"Class {pred_label}")
+                # Get class names
+                true_name = label_names.get(true_label, f"Class {true_label}")
+                pred_name = label_names.get(pred_label, f"Class {pred_label}")
 
-        # Create subplot
-        ax = fig.add_subplot(rows, cols, i + 1)
+                # Create subplot
+                ax = fig.add_subplot(rows, cols, i + 1)
 
-        # Plot heatmap
-        im = ax.imshow(attention_map, cmap="viridis")
+                # Plot heatmap
+                im = ax.imshow(attention_map, cmap="viridis")
 
-        # Add border color based on correctness
-        is_correct = true_label == pred_label
-        border_color = "green" if is_correct else "red"
-        for spine in ax.spines.values():
-            spine.set_visible(True)
-            spine.set_color(border_color)
-            spine.set_linewidth(2)
+                # Add border color based on correctness
+                is_correct = true_label == pred_label
+                border_color = "green" if is_correct else "red"
+                for spine in ax.spines.values():
+                    spine.set_visible(True)
+                    spine.set_color(border_color)
+                    spine.set_linewidth(2)
 
-        # Add minimal title
-        ax.set_title(f"T:{true_name}\nP:{pred_name}", fontsize=8)
-        ax.axis("off")
+                # Add minimal title
+                ax.set_title(f"T:{true_name}\nP:{pred_name}", fontsize=8)
+                ax.axis("off")
+            except Exception as e:
+                logger.error(f"Error in attention map overview for sample {i}: {e}")
+                # Create an empty subplot with error message
+                ax = fig.add_subplot(rows, cols, i + 1)
+                ax.text(0.5, 0.5, "Error", ha="center", va="center")
+                ax.axis("off")
 
-    plt.suptitle("Attention Map Overview", fontsize=16)
-    plt.tight_layout()
+        plt.suptitle("Attention Map Overview", fontsize=16)
+        plt.tight_layout()
 
-    # Save the overview figure
-    plt.savefig(output_path, dpi=300, bbox_inches="tight")
-    plt.close()
+        # Save the overview figure
+        plt.savefig(output_path, dpi=300, bbox_inches="tight")
+        plt.close()
 
-    logger.info(f"Saved attention map visualizations to {output_dir}")
+        logger.info(f"Saved attention map visualizations to {output_dir}")
+    except Exception as e:
+        logger.error(f"Error generating attention map overview: {e}")
 
 
 def ensure_dir(path: Union[str, Path]) -> Path:
@@ -1073,29 +1137,67 @@ def generate_plots(
     class_names = load_class_names(experiment_dir)
 
     # Define paths for all evaluation artifacts
-    evaluation_artifacts_dir = experiment_dir / "evaluation_artifacts"
+    # First check direct evaluation_artifacts directory
+    direct_evaluation_artifacts_dir = experiment_dir / "evaluation_artifacts"
+    # Also check in metrics subdirectory
+    metrics_evaluation_artifacts_dir = (
+        experiment_dir / "metrics" / "evaluation_artifacts"
+    )
+
+    # Use the first directory that exists, or default to direct path
+    evaluation_artifacts_dir = direct_evaluation_artifacts_dir
+    if (
+        not direct_evaluation_artifacts_dir.exists()
+        and metrics_evaluation_artifacts_dir.exists()
+    ):
+        logger.info(f"Using evaluation artifacts from metrics subdirectory")
+        evaluation_artifacts_dir = metrics_evaluation_artifacts_dir
+
+    logger.info(f"Using evaluation artifacts directory: {evaluation_artifacts_dir}")
+
+    # Define a function to find artifacts in multiple possible locations
+    def find_artifact(filename):
+        # Check in order: direct path, metrics path, in both evaluation_artifacts subdirs
+        possible_paths = [
+            direct_evaluation_artifacts_dir / filename,
+            metrics_evaluation_artifacts_dir / filename,
+            experiment_dir / filename,
+        ]
+
+        for path in possible_paths:
+            if path.exists():
+                logger.info(f"Found artifact {filename} at {path}")
+                return path
+
+        # Return default path even if it doesn't exist
+        return evaluation_artifacts_dir / filename
 
     # Basic evaluation artifacts
-    predictions_path = evaluation_artifacts_dir / "predictions.npy"
-    features_path = evaluation_artifacts_dir / "features.npy"
-    true_labels_path = evaluation_artifacts_dir / "true_labels.npy"
-    scores_path = evaluation_artifacts_dir / "scores.npy"
-    test_images_path = evaluation_artifacts_dir / "test_images.npy"
+    predictions_path = find_artifact("predictions.npy")
+    features_path = find_artifact("features.npy")
+    true_labels_path = find_artifact("true_labels.npy")
+    scores_path = find_artifact("scores.npy")
+    test_images_path = find_artifact("test_images.npy")
 
     # New evaluation artifacts
-    misclassified_indices_path = evaluation_artifacts_dir / "misclassified_indices.npy"
-    per_class_metrics_path = evaluation_artifacts_dir / "per_class_metrics.npy"
-    calibration_path = evaluation_artifacts_dir / "calibration_data.npy"
-    embeddings_path = evaluation_artifacts_dir / "embeddings.npy"
+    misclassified_indices_path = find_artifact("misclassified_indices.npy")
+    per_class_metrics_path = find_artifact("per_class_metrics.npy")
+    calibration_path = find_artifact("calibration_data.npy")
+    embeddings_path = find_artifact("embeddings.npy")
 
     # Other visualization directories
     augmentation_examples_path = experiment_dir / "reports" / "plots" / "augmentation"
     attention_visualizations_path = experiment_dir / "reports" / "plots" / "attention"
-    shap_visualizations_path = experiment_dir / "reports" / "plots" / "shap"
 
-    # SHAP directory
-    shap_dir = experiment_dir / "shap_visualizations"
-    shap_output_dir = output_dir / "shap"
+    # SHAP directories - Fix paths to be consistent with other visualizations
+    shap_dir = (
+        experiment_dir / "reports" / "plots" / "shap_analysis"
+    )  # Where model-generated SHAP files are stored
+    shap_output_dir = output_dir / "shap_analysis"  # Where we copy files for the report
+
+    # Ensure the SHAP directories exist
+    ensure_dir(shap_dir)
+    ensure_dir(shap_output_dir)
 
     # Check which artifacts exist
     has_predictions = predictions_path.exists()
@@ -1114,9 +1216,22 @@ def generate_plots(
         attention_visualizations_path.exists()
         and attention_visualizations_path.is_dir()
     )
-    has_shap_visualizations = (
-        shap_visualizations_path.exists() and shap_visualizations_path.is_dir()
-    )
+    has_shap_visualizations = shap_dir.exists() and shap_dir.is_dir()
+
+    # Log which artifacts were found
+    logger.info("Found the following artifacts:")
+    for name, found in {
+        "predictions": has_predictions,
+        "features": has_features,
+        "true_labels": has_true_labels,
+        "scores": has_scores,
+        "test_images": has_test_images,
+        "misclassified_indices": has_misclassified_indices,
+        "per_class_metrics": has_per_class_metrics,
+        "calibration_data": has_calibration,
+        "embeddings": has_embeddings,
+    }.items():
+        logger.info(f"  - {name}: {'✓' if found else '✗'}")
 
     # Load artifacts that exist
     predictions = np.load(predictions_path) if has_predictions else None
@@ -1143,7 +1258,7 @@ def generate_plots(
     theme = load_visualization_theme(experiment_dir)
 
     # Copy SHAP visualizations if available
-    if shap_dir.exists() and any(shap_dir.glob("*.png")):
+    if has_shap_visualizations:
         ensure_dir(shap_output_dir)
         import shutil
 
@@ -1272,7 +1387,7 @@ def generate_plots(
                     output_path=output_dir / "confidence_distribution.png",
                     theme=theme,
                 )
-                
+
                 # Plot additional visualization plots
                 try:
                     # Confidence histogram
@@ -1285,7 +1400,7 @@ def generate_plots(
                         theme=theme,
                     )
                     logger.info("Generated confidence histogram")
-                    
+
                     # Prediction distribution
                     plot_categorical(
                         values=pred_classes,
@@ -1295,22 +1410,28 @@ def generate_plots(
                         theme=theme,
                     )
                     logger.info("Generated prediction distribution")
-                    
+
                     # Classification examples grid
                     if has_test_images:
                         n_examples = min(len(test_images), 20)
-                        examples_indices = np.random.choice(len(test_images), n_examples, replace=False)
-                        
+                        examples_indices = np.random.choice(
+                            len(test_images), n_examples, replace=False
+                        )
+
                         create_classification_examples_grid(
                             images=test_images[examples_indices],
-                            true_labels=true_labels[examples_indices] if len(true_labels) >= len(test_images) else None,
-                            pred_labels=pred_classes[examples_indices] if len(pred_classes) >= len(test_images) else None,
+                            true_labels=true_labels[examples_indices]
+                            if len(true_labels) >= len(test_images)
+                            else None,
+                            pred_labels=pred_classes[examples_indices]
+                            if len(pred_classes) >= len(test_images)
+                            else None,
                             class_names=class_names,
                             output_path=output_dir / "classification_examples.png",
                             theme=theme,
                         )
                         logger.info("Generated classification examples grid")
-                        
+
                     # Augmentation visualization
                     if has_augmentation_examples and has_test_images:
                         visualize_augmentations(
@@ -1319,7 +1440,7 @@ def generate_plots(
                             theme=theme,
                         )
                         logger.info("Generated augmentation visualization")
-                        
+
                 except Exception as e:
                     logger.error(f"Error generating additional visualizations: {e}")
     except Exception as e:
@@ -1336,32 +1457,40 @@ def generate_plots(
         try:
             # Check for size mismatch between test_images and true_labels
             if len(test_images) != len(true_labels):
-                logger.warning(f"Size mismatch: test_images ({len(test_images)}) vs true_labels ({len(true_labels)}). Using only the available images.")
-                
+                logger.warning(
+                    f"Size mismatch: test_images ({len(test_images)}) vs true_labels ({len(true_labels)}). Using only the available images."
+                )
+
                 # Check if we have a subset of labels saved
                 subset_labels_path = evaluation_artifacts_dir / "subset_true_labels.npy"
                 if subset_labels_path.exists():
                     subset_labels = np.load(subset_labels_path)
-                    logger.info(f"Using subset_true_labels ({len(subset_labels)}) for visualization")
+                    logger.info(
+                        f"Using subset_true_labels ({len(subset_labels)}) for visualization"
+                    )
                     true_labels = subset_labels
                 else:
                     # Create a subset on the fly if needed
                     subset_size = min(len(test_images), len(true_labels))
                     true_labels = true_labels[:subset_size]
-                    logger.info(f"Created subset of {subset_size} labels to match test_images")
-                    
+                    logger.info(
+                        f"Created subset of {subset_size} labels to match test_images"
+                    )
+
                 # Also limit predictions if needed
                 if len(predictions) > len(true_labels):
-                    predictions = predictions[:len(true_labels)]
-                
+                    predictions = predictions[: len(true_labels)]
+
                 # Adjust misclassified indices to only include valid indices
-                misclassified_indices = misclassified_indices[misclassified_indices < len(true_labels)]
-            
+                misclassified_indices = misclassified_indices[
+                    misclassified_indices < len(true_labels)
+                ]
+
             # Now plot with matching sizes
             plot_top_misclassifications(
                 images=test_images,
-                true_labels=true_labels[:len(test_images)],  # Ensure sizes match
-                predictions=predictions[:len(test_images)],  # Ensure sizes match
+                true_labels=true_labels[: len(test_images)],  # Ensure sizes match
+                predictions=predictions[: len(test_images)],  # Ensure sizes match
                 class_names=class_names,
                 misclassified_indices=misclassified_indices,
                 output_path=output_dir / "top_misclassifications.png",
@@ -1392,34 +1521,135 @@ def generate_plots(
         except Exception as e:
             logger.error(f"Error generating calibration curves: {e}")
 
-    # Plot feature space embeddings if available
-    if has_embeddings:
+    # Plot feature space if features and labels are available
+    if (
+        has_features
+        and has_true_labels
+        and features is not None
+        and true_labels is not None
+    ):
         try:
-            # Check for size mismatch between embeddings and labels
-            if 'labels' in embedding_data and 'embeddings' in embedding_data:
-                embeddings = embedding_data['embeddings']
-                labels = embedding_data['labels']
-                
-                if len(embeddings) != len(labels):
-                    logger.warning(f"Size mismatch: features ({len(embeddings)}) vs labels ({len(labels)}). Adjusting for visualization.")
-                    
-                    # Use the smaller of the two to avoid index errors
-                    min_size = min(len(embeddings), len(labels))
-                    embedding_data['embeddings'] = embeddings[:min_size]
-                    embedding_data['labels'] = labels[:min_size]
-                    logger.info(f"Using {min_size} samples for feature space visualization")
-            
-            plot_embeddings(
-                embedding_data=embedding_data,
-                class_names=class_names,
-                output_path=output_dir / "feature_space.png",
-                theme=theme,
+            feature_space_path = output_dir / "feature_space.png"
+
+            # Extract labels - if true_labels is one-hot encoded, convert to indices
+            if len(true_labels.shape) > 1 and true_labels.shape[1] > 1:
+                labels = np.argmax(true_labels, axis=1)
+            else:
+                labels = true_labels.flatten()
+
+            # Use either t-SNE or UMAP depending on what's available
+            if has_embeddings and embedding_data is not None:
+                # We already have embeddings generated during evaluation
+                if embedding_data.get("method") == "umap":
+                    logger.info("Using pre-computed UMAP embeddings")
+                    plot_umap_visualization(
+                        features=embedding_data["embeddings"],
+                        labels=embedding_data["labels"],
+                        class_names=class_names,
+                        output_path=feature_space_path,
+                        theme=theme,
+                    )
+                else:
+                    logger.info("Using pre-computed t-SNE embeddings")
+                    plot_tsne_visualization(
+                        features=embedding_data["embeddings"],
+                        labels=embedding_data["labels"],
+                        class_names=class_names,
+                        output_path=feature_space_path,
+                        theme=theme,
+                    )
+            else:
+                # No pre-computed embeddings, use plot_feature_space
+                logger.info("Computing feature space visualization from raw features")
+                plot_feature_space(
+                    features=features,
+                    labels=labels,
+                    class_names=class_names,
+                    output_path=feature_space_path,
+                    theme=theme,
+                    title="Feature Space Visualization",
+                )
+            logger.info(
+                f"Generated feature space visualization at {feature_space_path}"
             )
         except Exception as e:
-            logger.error(f"Error generating feature space visualization: {e}")
+            logger.error(f"Error generating feature space plot: {e}")
+
+    # Create augmentation grid if samples are available in the augmentation directory
+    augmentation_dir = output_dir / "augmentation"
+    ensure_dir(augmentation_dir)
+
+    try:
+        # Try to load an example image from test_images
+        if has_test_images and test_images is not None and len(test_images) > 0:
+            original_image = test_images[0]
+
+            # Create some basic augmentations for visualization
+            import torchvision.transforms as T
+
+            # Define augmentations
+            augmentations = [
+                ("Horizontal Flip", T.RandomHorizontalFlip(p=1.0)),
+                ("Vertical Flip", T.RandomVerticalFlip(p=1.0)),
+                ("Rotate 30°", T.RandomRotation(degrees=30)),
+                (
+                    "Color Jitter",
+                    T.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5),
+                ),
+                ("Grayscale", T.Grayscale(num_output_channels=3)),
+                ("Blur", T.GaussianBlur(kernel_size=5)),
+            ]
+
+            # Generate augmented versions
+            augmented_images = []
+            augmentation_names = []
+
+            import torch
+
+            for name, aug in augmentations:
+                # Convert numpy to tensor if needed
+                if isinstance(original_image, np.ndarray):
+                    # Normalize image to 0-1 range if needed
+                    if original_image.max() > 1.0:
+                        img_tensor = torch.from_numpy(
+                            original_image.astype(np.float32) / 255.0
+                        ).permute(2, 0, 1)
+                    else:
+                        img_tensor = torch.from_numpy(
+                            original_image.astype(np.float32)
+                        ).permute(2, 0, 1)
+                else:
+                    img_tensor = original_image
+
+                # Apply augmentation
+                try:
+                    aug_tensor = aug(img_tensor)
+                    # Convert back to numpy for visualization
+                    aug_image = aug_tensor.permute(1, 2, 0).numpy()
+
+                    augmented_images.append(aug_image)
+                    augmentation_names.append(name)
+                except Exception as e:
+                    logger.warning(f"Error applying augmentation {name}: {e}")
+
+            # Create the grid if we have any successful augmentations
+            if augmented_images:
+                aug_grid_path = augmentation_dir / "augmentation_grid.png"
+                create_augmentation_grid(
+                    original_image=original_image
+                    if isinstance(original_image, np.ndarray)
+                    else original_image.permute(1, 2, 0).numpy(),
+                    augmented_images=augmented_images,
+                    augmentation_names=augmentation_names,
+                    output_path=aug_grid_path,
+                    title="Data Augmentation Examples",
+                )
+                logger.info(f"Generated augmentation grid at {aug_grid_path}")
+    except Exception as e:
+        logger.error(f"Error generating augmentation grid: {e}")
 
     # Check for attention maps and visualize if available
-    attention_maps_path = evaluation_artifacts_dir / "attention_maps.npy"
+    attention_maps_path = find_artifact("attention_maps.npy")
     if attention_maps_path.exists():
         try:
             # Load attention maps data
@@ -1441,19 +1671,29 @@ def generate_plots(
         except Exception as e:
             logger.error(f"Error generating attention map visualizations: {e}")
 
+    # Apply theme to all plots
+    if theme:
+        # Use apply_dark_theme if specified in the theme
+        if theme.get("dark_mode", True):
+            apply_dark_theme()
+        else:
+            apply_theme(theme)
+    else:
+        # Default to dark theme
+        apply_dark_theme()
+
     logger.info("Finished generating plots for report")
 
 
 def generate_plots_for_report(
-    experiment_dir: Union[str, Path], 
-    output_dir: Optional[Union[str, Path]] = None
+    experiment_dir: Union[str, Path], output_dir: Optional[Union[str, Path]] = None
 ) -> None:
     """
     Generate plots for a training report.
-    
+
     This is a wrapper function for generate_plots that properly handles paths
     and provides a clear API for the CLI.
-    
+
     Args:
         experiment_dir: Path to experiment directory
         output_dir: Directory to save plots (default: experiment_dir/reports/plots)
@@ -1474,7 +1714,7 @@ def generate_plots_for_report(
         experiment_dir=experiment_dir,
         output_dir=output_dir,
     )
-    
+
     logger.info(f"Plots generated for experiment: {experiment_dir}")
     return
 
@@ -1506,3 +1746,252 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+def normalize_image_for_display(image_array: np.ndarray) -> np.ndarray:
+    """
+    Convert various image formats to a consistent numpy array format for display.
+
+    Args:
+        image_array: Image data in various formats
+
+    Returns:
+        Image as a numpy array in HWC format with values in [0, 255] as uint8
+    """
+    # Check if the input is valid
+    if image_array is None or not isinstance(image_array, np.ndarray):
+        logger.error(f"Invalid image data type: {type(image_array)}")
+        return np.zeros((224, 224, 3), dtype=np.uint8)
+
+    # Check for empty arrays
+    if image_array.size == 0:
+        logger.error("Empty image array")
+        return np.zeros((224, 224, 3), dtype=np.uint8)
+
+    # Handle channel dimensions
+    if len(image_array.shape) == 4:
+        if image_array.shape[0] == 1:  # Batch dimension of 1
+            image_array = image_array[0]
+        else:
+            logger.warning(
+                f"Unexpected batch dimension: {image_array.shape}, taking first image"
+            )
+            image_array = image_array[0]
+
+    # Convert from CHW to HWC if needed
+    if len(image_array.shape) == 3 and image_array.shape[0] in [1, 3, 4]:
+        image_array = np.transpose(image_array, (1, 2, 0))
+
+    # Ensure three channels (convert grayscale to RGB)
+    if len(image_array.shape) == 2:
+        image_array = np.stack([image_array] * 3, axis=-1)
+    elif len(image_array.shape) == 3 and image_array.shape[2] == 1:
+        image_array = np.concatenate([image_array] * 3, axis=2)
+
+    # Handle 4 channels (RGBA) - discard alpha
+    if len(image_array.shape) == 3 and image_array.shape[2] == 4:
+        image_array = image_array[:, :, :3]
+
+    # Normalize values to 0-255 range
+    if image_array.dtype == np.float32 or image_array.dtype == np.float64:
+        # Check if normalized between 0 and 1
+        if np.max(image_array) <= 1.0:
+            image_array = (image_array * 255).astype(np.uint8)
+        # Check if normalized with ImageNet stats
+        elif np.min(image_array) < 0:
+            # Approximately reverse ImageNet normalization
+            mean = np.array([0.485, 0.456, 0.406])
+            std = np.array([0.229, 0.224, 0.225])
+
+            # Handle both HWC and CHW formats
+            if image_array.shape[2] == 3:  # HWC
+                for i in range(3):
+                    image_array[:, :, i] = image_array[:, :, i] * std[i] + mean[i]
+            else:  # Assume CHW
+                for i in range(3):
+                    image_array[i] = image_array[i] * std[i] + mean[i]
+
+            image_array = np.clip(image_array, 0, 1)
+            image_array = (image_array * 255).astype(np.uint8)
+        else:
+            # Just clip and convert to uint8
+            image_array = np.clip(image_array, 0, 255).astype(np.uint8)
+
+    # Ensure uint8 type for cv2/PIL compatibility
+    if image_array.dtype != np.uint8:
+        image_array = image_array.astype(np.uint8)
+
+    return image_array
+
+
+def create_classification_examples_grid(
+    images: np.ndarray,
+    true_labels: np.ndarray,
+    pred_labels: np.ndarray,
+    class_names: List[str],
+    output_path: Union[str, Path],
+    max_examples: int = 20,
+    figsize: Tuple[int, int] = (15, 12),
+    theme: Optional[Dict] = None,
+) -> None:
+    """
+    Create a grid of image examples with classification results.
+
+    Args:
+        images: Array of images
+        true_labels: Ground truth labels
+        pred_labels: Predicted labels
+        class_names: List of class names
+        output_path: Path to save the visualization
+        max_examples: Maximum number of examples to show
+        figsize: Figure size as (width, height)
+        theme: Visualization theme settings
+    """
+    # Apply theme if provided
+    apply_theme(theme)
+
+    # Handle None inputs
+    if true_labels is None or pred_labels is None:
+        logger.warning("Missing labels for classification grid, skipping")
+        return
+
+    # Convert labels to indices if one-hot encoded
+    if true_labels.ndim > 1:
+        true_indices = np.argmax(true_labels, axis=1)
+    else:
+        true_indices = true_labels
+
+    if pred_labels.ndim > 1:
+        pred_indices = np.argmax(pred_labels, axis=1)
+    else:
+        pred_indices = pred_labels
+
+    # Check correctness of predictions
+    correctness = pred_indices == true_indices
+
+    # Determine samples to display
+    # For better visualization, include both correct and incorrect examples
+    correct_samples = np.where(correctness)[0]
+    incorrect_samples = np.where(~correctness)[0]
+
+    # Limit samples based on availability
+    n_correct = min(max_examples // 2, len(correct_samples))
+    n_incorrect = min(max_examples // 2, len(incorrect_samples))
+
+    # Random selection
+    if n_correct > 0:
+        correct_selection = np.random.choice(correct_samples, n_correct, replace=False)
+    else:
+        correct_selection = np.array([], dtype=int)
+
+    if n_incorrect > 0:
+        incorrect_selection = np.random.choice(
+            incorrect_samples, n_incorrect, replace=False
+        )
+    else:
+        incorrect_selection = np.array([], dtype=int)
+
+    # Combine samples
+    selected_indices = np.concatenate([correct_selection, incorrect_selection])
+    np.random.shuffle(selected_indices)  # Mix correct and incorrect
+
+    # Limit to max examples
+    n_samples = min(len(selected_indices), max_examples)
+    selected_indices = selected_indices[:n_samples]
+
+    # Create grid layout
+    cols = min(5, n_samples)
+    rows = (n_samples + cols - 1) // cols
+
+    # Create figure
+    fig, axes = plt.subplots(rows, cols, figsize=figsize)
+    if rows == 1 and cols == 1:
+        axes = np.array([axes])
+    axes = axes.flatten()
+
+    # Plot each example
+    for i, idx in enumerate(selected_indices):
+        if i >= len(axes):
+            break
+
+        try:
+            # Get data
+            image = images[idx]
+            true_idx = true_indices[idx]
+            pred_idx = pred_indices[idx]
+
+            # Normalize image to consistent format
+            norm_image = normalize_image_for_display(image)
+
+            # Get class names
+            true_name = (
+                class_names[true_idx]
+                if true_idx < len(class_names)
+                else f"Class {true_idx}"
+            )
+            pred_name = (
+                class_names[pred_idx]
+                if pred_idx < len(class_names)
+                else f"Class {pred_idx}"
+            )
+
+            # Truncate class names if too long
+            if len(true_name) > 15:
+                true_name = true_name[:12] + "..."
+            if len(pred_name) > 15:
+                pred_name = pred_name[:12] + "..."
+
+            # Plot image
+            axes[i].imshow(norm_image)
+
+            # Add colored border based on correctness
+            is_correct = true_idx == pred_idx
+            border_color = "green" if is_correct else "red"
+
+            for spine in axes[i].spines.values():
+                spine.set_visible(True)
+                spine.set_color(border_color)
+                spine.set_linewidth(2)
+
+            # Add title with labels
+            axes[i].set_title(
+                f"True: {true_name}\nPred: {pred_name}",
+                fontsize=8,
+                color="white" if is_correct else "red",
+            )
+
+            # Remove ticks
+            axes[i].set_xticks([])
+            axes[i].set_yticks([])
+
+        except Exception as e:
+            logger.error(f"Error creating example grid for index {idx}: {e}")
+            axes[i].text(
+                0.5,
+                0.5,
+                "Error",
+                horizontalalignment="center",
+                verticalalignment="center",
+            )
+            axes[i].axis("off")
+
+    # Hide unused subplots
+    for i in range(n_samples, len(axes)):
+        axes[i].axis("off")
+
+    # Add title
+    plt.suptitle("Classification Examples", fontsize=16)
+
+    # Create legend for correct/incorrect
+    legend_elements = [
+        plt.Line2D([0], [0], color="green", lw=4, label="Correct"),
+        plt.Line2D([0], [0], color="red", lw=4, label="Incorrect"),
+    ]
+    fig.legend(handles=legend_elements, loc="lower center", ncol=2)
+
+    # Adjust layout and save
+    plt.tight_layout(rect=[0, 0.05, 1, 0.95])  # Make room for legend
+    plt.savefig(output_path, dpi=300, bbox_inches="tight")
+    plt.close()
+
+    logger.info(f"Created classification examples grid with {n_samples} images")

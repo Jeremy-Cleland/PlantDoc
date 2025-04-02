@@ -47,7 +47,7 @@ class CBAMResNet(nn.Module):
             in_channels, 64, kernel_size=7, stride=2, padding=3, bias=False
         )
         self.bn1 = nn.BatchNorm2d(64)
-        self.relu = nn.ReLU(inplace=True)
+        self.relu = nn.ReLU(inplace=False)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
 
         # Apply increasing drop path probabilities in deeper layers
@@ -266,7 +266,7 @@ class CBAMResNet18Backbone(nn.Module):
                     self.output_dim * 3, self.output_dim, kernel_size=1, bias=False
                 ),
                 nn.BatchNorm2d(self.output_dim),
-                nn.ReLU(inplace=True),
+                nn.ReLU(inplace=False),
             )
 
             # Global average pooling to maintain output shape

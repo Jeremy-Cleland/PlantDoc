@@ -72,14 +72,13 @@ class ConfidenceMonitorCallback(Callback):
         """Collect confidence scores during validation."""
         logs = logs or {}
 
-        # Skip if we're not in fine-tuning mode (backbone is still frozen)
-        is_fine_tuning = logs.get("is_fine_tuning", False)
+        # Check if we're in fine-tuning mode (backbone is unfrozen)
+        is_fine_tuning = logs.get("is_fine_tuning", True)  # Default to True to compute metrics
         if not is_fine_tuning:
             if batch == 0 and logs.get("is_validation", False):
                 logger.debug(
-                    "ConfidenceMonitor: Skipping batch during frozen backbone phase"
+                    "ConfidenceMonitor: Processing batch during frozen backbone phase"
                 )
-            return
 
         is_validation = logs.get("val_phase", False) or logs.get("is_validation", False)
         if not is_validation:
@@ -114,13 +113,12 @@ class ConfidenceMonitorCallback(Callback):
         logs = logs or {}
         epoch_1based = epoch + 1
 
-        # Skip during frozen backbone phase with appropriate message
-        is_fine_tuning = logs.get("is_fine_tuning", False)
+        # Check if we're in fine-tuning mode (backbone is unfrozen)
+        is_fine_tuning = logs.get("is_fine_tuning", True)  # Default to True to compute metrics
         if not is_fine_tuning:
             logger.info(
-                f"ConfidenceMonitor (Epoch {epoch_1based}): Skipping metrics calculation during frozen backbone phase."
+                f"ConfidenceMonitor (Epoch {epoch_1based}): Computing metrics during frozen backbone phase."
             )
-            return
 
         if epoch_1based % self.monitor_frequency != 0:
             return

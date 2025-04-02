@@ -63,7 +63,6 @@ def get_scheduler(
             factor=factor,
             patience=patience,
             min_lr=min_lr,
-            verbose=True,
         )
 
     elif scheduler_name in ["cosine", "cosineannealinglr"]:

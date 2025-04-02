@@ -246,23 +246,35 @@ def evaluate_model(
             artifacts_dir = output_dir / "evaluation_artifacts"
             ensure_dir(artifacts_dir)
 
+            # Also create legacy location for backward compatibility
+            metrics_artifacts_dir = output_dir / "metrics" / "evaluation_artifacts"
+            ensure_dir(metrics_artifacts_dir)
+
+            # Helper function to save artifacts to both locations
+            def save_artifact(name, data):
+                # Primary location
+                primary_path = artifacts_dir / f"{name}.npy"
+                np.save(primary_path, data)
+
+                # Legacy location
+                legacy_path = metrics_artifacts_dir / f"{name}.npy"
+                np.save(legacy_path, data)
+
+                logger.info(f"Saved {name} to {primary_path} and legacy location")
+                return primary_path
+
             # Save confusion matrix
-            np.save(
-                artifacts_dir / "confusion_matrix.npy",
-                conf_matrix,
-            )
+            save_artifact("confusion_matrix", conf_matrix)
 
             # Save predictions
-            np.save(artifacts_dir / "predictions.npy", all_preds)
-            np.save(artifacts_dir / "targets.npy", all_targets)
-            np.save(artifacts_dir / "probabilities.npy", all_probs)
+            save_artifact("predictions", all_preds)
+            save_artifact("targets", all_targets)
+            save_artifact("probabilities", all_probs)
 
             # Save misclassified indices
             misclassified_indices = np.where(all_preds != all_targets)[0]
-            np.save(artifacts_dir / "misclassified_indices.npy", misclassified_indices)
-            logger.info(
-                f"Saved {len(misclassified_indices)} misclassified indices to {artifacts_dir / 'misclassified_indices.npy'}"
-            )
+            save_artifact("misclassified_indices", misclassified_indices)
+            logger.info(f"Saved {len(misclassified_indices)} misclassified indices")
 
             # Save per-class metrics
             per_class_metrics = {
@@ -274,10 +286,8 @@ def evaluate_model(
                 for class_name, metrics in class_report.items()
                 if class_name not in ["accuracy", "macro avg", "weighted avg"]
             }
-            np.save(artifacts_dir / "per_class_metrics.npy", per_class_metrics)
-            logger.info(
-                f"Saved per-class metrics for {len(per_class_metrics)} classes to {artifacts_dir / 'per_class_metrics.npy'}"
-            )
+            save_artifact("per_class_metrics", per_class_metrics)
+            logger.info(f"Saved per-class metrics for {len(per_class_metrics)} classes")
 
             # Save calibration data
             try:
@@ -303,10 +313,8 @@ def evaluate_model(
                     }
 
                 # Save calibration data
-                np.save(artifacts_dir / "calibration_data.npy", calibration_data)
-                logger.info(
-                    f"Saved calibration data for {n_classes} classes to {artifacts_dir / 'calibration_data.npy'}"
-                )
+                save_artifact("calibration_data", calibration_data)
+                logger.info(f"Saved calibration data for {n_classes} classes")
             except Exception as e:
                 logger.error(f"Error computing calibration data: {e}")
 
@@ -366,9 +374,9 @@ def evaluate_model(
                                 "labels": all_labels_tensor.cpu().numpy(),
                                 "method": method_used,
                             }
-                            np.save(artifacts_dir / "embeddings.npy", embedding_data)
+                            save_artifact("embeddings", embedding_data)
                             logger.info(
-                                f"Saved 2D embeddings ({method_used}) for {len(embeddings)} samples to {artifacts_dir / 'embeddings.npy'}"
+                                f"Saved 2D embeddings ({method_used}) for {len(embeddings)} samples"
                             )
                     else:
                         logger.warning(
@@ -488,17 +496,23 @@ def evaluate_model(
     try:
         true_labels_path = output_dir / "evaluation_artifacts" / "true_labels.npy"
         test_images_path = output_dir / "evaluation_artifacts" / "test_images.npy"
-        
+
         if true_labels_path.exists() and test_images_path.exists():
             true_labels = np.load(true_labels_path)
             test_images = np.load(test_images_path)
-            
+
             if len(true_labels) != len(test_images):
-                logger.info(f"Size mismatch: test_images {len(test_images)} vs true_labels {len(true_labels)}")
-                subset_labels_path = output_dir / "evaluation_artifacts" / "subset_true_labels.npy"
+                logger.info(
+                    f"Size mismatch: test_images {len(test_images)} vs true_labels {len(true_labels)}"
+                )
+                subset_labels_path = (
+                    output_dir / "evaluation_artifacts" / "subset_true_labels.npy"
+                )
                 subset_size = min(len(test_images), len(true_labels))
                 np.save(subset_labels_path, true_labels[:subset_size])
-                logger.info(f"Saved subset of {subset_size} true labels to match test_images size")
+                logger.info(
+                    f"Saved subset of {subset_size} true labels to match test_images size"
+                )
     except Exception as e:
         logger.warning(f"Could not create subset of true labels: {e}")
 

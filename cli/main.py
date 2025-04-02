@@ -305,20 +305,22 @@ def generate_attention_visualizations(
         # Convert to PIL Image
         try:
             img_pil = Image.fromarray(img_np.astype(np.uint8))
-            
+
             # Save original size for debugging
             orig_size = img_pil.size
-            
+
             # Resize to match expected input size (optional but safer)
             if img_pil.size != (224, 224):
                 img_pil = img_pil.resize((224, 224))
-                
+
             # Convert back to tensor directly in CHW format
             img_tensor = TF.to_tensor(img_pil)
-            logger.info(f"Prepared image: original size {orig_size}, tensor shape {img_tensor.shape}")
-            
+            logger.info(
+                f"Prepared image: original size {orig_size}, tensor shape {img_tensor.shape}"
+            )
+
             return img_tensor
-            
+
         except Exception as e:
             logger.error(f"Error preparing image for visualization: {e}")
             # Return a safely formatted tensor in a last attempt
@@ -429,11 +431,14 @@ def eval(
         checkpoint_path = Path(checkpoint_path)
         if not checkpoint_path.is_absolute():
             # Try relative to checkpoint directory first
-            if (checkpoint_dir / checkpoint_path).exists():
-                checkpoint_path = checkpoint_dir / checkpoint_path
-            # If not found, try relative to current working directory
+            relative_to_checkpoint = checkpoint_dir / checkpoint_path
+            if relative_to_checkpoint.exists():
+                checkpoint_path = relative_to_checkpoint
+            # If not found, check if it exists relative to cwd
             elif not checkpoint_path.exists():
-                checkpoint_path = Path.cwd() / checkpoint_path
+                cwd_path = Path.cwd() / checkpoint_path
+                if cwd_path.exists():
+                    checkpoint_path = cwd_path
 
     # Configure logging
     logger = configure_logging(cfg)
