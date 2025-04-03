@@ -375,7 +375,9 @@ class GradCAMCallback(Callback):
             return np.array(Image.fromarray(image).resize(self.input_size))
         elif isinstance(image, torch.Tensor):
             # Use ternary operator for better readability
-            img_tensor = image[0] if image.ndim == 4 else image  # (B, C, H, W) or (C, H, W)
+            img_tensor = (
+                image[0] if image.ndim == 4 else image
+            )  # (B, C, H, W) or (C, H, W)
 
             # Properly denormalize using ImageNet mean and std
             mean = torch.tensor(self.mean).view(3, 1, 1).to(img_tensor.device)

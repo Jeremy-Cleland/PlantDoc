@@ -691,6 +691,16 @@ class Trainer:
             inputs, targets = self._get_batch_data(batch)
             if inputs is None:
                 continue
+            # Call on_batch_begin for validation batches
+            batch_size = inputs.size(0)
+            batch_logs = {
+                "batch": batch_idx,
+                "size": batch_size,
+                "is_validation": True,
+                "val_phase": True,
+            }
+            [cb.on_batch_begin(batch_idx, batch_logs) for cb in self.callbacks]
+            # Move inputs and targets to device
             inputs, targets = (
                 inputs.to(self.device, non_blocking=True),
                 targets.to(self.device, non_blocking=True),
@@ -713,6 +723,20 @@ class Trainer:
                 all_outputs_list.append(outputs.cpu())
                 all_targets_list.append(targets.cpu())  # Collect for callbacks
             pbar.set_postfix(loss=f"{loss_item:.4f}")
+
+            # Call on_batch_end for validation batches with all required data
+            batch_end_logs = {
+                "batch": batch_idx,
+                "size": batch_size,
+                "loss": loss_item,
+                "is_validation": True,
+                "val_phase": True,
+                "outputs": outputs,
+                "targets": targets,
+                "inputs": inputs,
+                "is_fine_tuning": self.is_fine_tuning,
+            }
+            [cb.on_batch_end(batch_idx, batch_end_logs) for cb in self.callbacks]
 
         if self.use_mps_optimizations and OmegaConf.select(
             self.mps_config, "memory.enable_sync_for_timing", default=False

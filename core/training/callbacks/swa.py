@@ -114,7 +114,9 @@ class SWACallback(Callback):
         # Get experiment_dir from logs if not provided during initialization
         if self.experiment_dir is None and "experiment_dir" in logs:
             self.experiment_dir = logs.get("experiment_dir")
-            logger.info(f"SWACallback: Got experiment_dir from logs: {self.experiment_dir}")
+            logger.info(
+                f"SWACallback: Got experiment_dir from logs: {self.experiment_dir}"
+            )
 
         if self._model is None or self._optimizer is None:
             logger.error(
@@ -229,10 +231,14 @@ class SWACallback(Callback):
                 )
                 val_loader = logs.get("train_loader")
                 if val_loader is None:
-                    logger.warning("SWACallback: No train_loader found either. BN stats update skipped.")
+                    logger.warning(
+                        "SWACallback: No train_loader found either. BN stats update skipped."
+                    )
                     return
                 else:
-                    logger.info("SWACallback: Using train_loader for BN stats update as fallback.")
+                    logger.info(
+                        "SWACallback: Using train_loader for BN stats update as fallback."
+                    )
             else:
                 logger.info("SWACallback: Using val_loader for BN stats update.")
 
@@ -256,15 +262,17 @@ class SWACallback(Callback):
                     for batch in loader:
                         # If batch is a dict, extract the image tensor
                         if isinstance(batch, dict):
-                            if 'image' in batch:
-                                yield batch['image']
-                            elif 'input' in batch:
-                                yield batch['input']
-                            elif 'x' in batch:
-                                yield batch['x']
+                            if "image" in batch:
+                                yield batch["image"]
+                            elif "input" in batch:
+                                yield batch["input"]
+                            elif "x" in batch:
+                                yield batch["x"]
                             else:
                                 # Skip batch if we can't find the input
-                                logger.warning("Unable to extract input tensor from batch dict")
+                                logger.warning(
+                                    "Unable to extract input tensor from batch dict"
+                                )
                                 continue
                         # If batch is a tuple/list (inputs, targets, ...), yield the first element
                         elif isinstance(batch, (tuple, list)) and len(batch) > 0:
@@ -276,7 +284,9 @@ class SWACallback(Callback):
                 # Update BN stats using wrapped loader
                 try:
                     torch.optim.swa_utils.update_bn(
-                        dataloader_wrapper(val_loader), self.swa_model, device=self.device
+                        dataloader_wrapper(val_loader),
+                        self.swa_model,
+                        device=self.device,
                     )
                     logger.info("  SWA BN statistics updated.")
                 except Exception as e:
@@ -291,15 +301,17 @@ class SWACallback(Callback):
                             for batch in val_loader:
                                 # Process input based on batch type
                                 if isinstance(batch, dict):
-                                    if 'image' in batch:
-                                        inputs = batch['image'].to(self.device)
-                                    elif 'input' in batch:
-                                        inputs = batch['input'].to(self.device)
-                                    elif 'x' in batch:
-                                        inputs = batch['x'].to(self.device)
+                                    if "image" in batch:
+                                        inputs = batch["image"].to(self.device)
+                                    elif "input" in batch:
+                                        inputs = batch["input"].to(self.device)
+                                    elif "x" in batch:
+                                        inputs = batch["x"].to(self.device)
                                     else:
                                         continue
-                                elif isinstance(batch, (tuple, list)) and len(batch) > 0:
+                                elif (
+                                    isinstance(batch, (tuple, list)) and len(batch) > 0
+                                ):
                                     inputs = batch[0].to(self.device)
                                 else:
                                     continue
@@ -307,11 +319,17 @@ class SWACallback(Callback):
                                 # Forward pass to update BN stats
                                 self.swa_model(inputs)
                                 batch_count += 1
-                                if batch_count >= 10:  # Process a reasonable number of batches
+                                if (
+                                    batch_count >= 10
+                                ):  # Process a reasonable number of batches
                                     break
-                        logger.info("  SWA BN statistics updated using manual approach.")
+                        logger.info(
+                            "  SWA BN statistics updated using manual approach."
+                        )
                     except Exception as inner_e:
-                        logger.error(f"  Failed to update SWA BN with manual approach: {inner_e}")
+                        logger.error(
+                            f"  Failed to update SWA BN with manual approach: {inner_e}"
+                        )
 
             except Exception as e:
                 logger.error(

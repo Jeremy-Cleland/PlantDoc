@@ -273,9 +273,11 @@ class CBAMResNet18Model(BaseModel):
         # Target the last convolutional layer before attention
         try:
             # Get the last convolutional layer in layer4
-            if hasattr(self.backbone, "backbone") and hasattr(
-                self.backbone.backbone, "layer4"
-            ) and hasattr(self.backbone.backbone.layer4[-1], "conv2"):
+            if (
+                hasattr(self.backbone, "backbone")
+                and hasattr(self.backbone.backbone, "layer4")
+                and hasattr(self.backbone.backbone.layer4[-1], "conv2")
+            ):
                 logger.info("Using layer4[-1].conv2 as GradCAM target layer")
                 return self.backbone.backbone.layer4[-1].conv2
 

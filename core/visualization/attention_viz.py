@@ -418,8 +418,23 @@ def plot_attention_comparison(
         axes = np.array([axes])
 
     for i in range(num_images):
+        # Ensure image doesn't have batch dimension
+        img = images[i]
+        if isinstance(img, torch.Tensor) and img.dim() == 4:
+            img = img.squeeze(0)
+
+        # Ensure channel_map doesn't have batch dimension
+        ch_map = channel_maps[i]
+        if isinstance(ch_map, torch.Tensor) and ch_map.dim() == 4:
+            ch_map = ch_map.squeeze(0)
+
+        # Ensure spatial_map doesn't have batch dimension
+        sp_map = spatial_maps[i]
+        if isinstance(sp_map, torch.Tensor) and sp_map.dim() == 4:
+            sp_map = sp_map.squeeze(0)
+
         # Convert image to numpy
-        img = _to_numpy(images[i])
+        img = _to_numpy(img)
         if img.shape[0] == 3:  # CHW format
             img = np.transpose(img, (1, 2, 0))
         # Normalize if needed
@@ -432,7 +447,7 @@ def plot_attention_comparison(
         axes[i, 0].axis("off")
 
         # Plot channel attention
-        ch_map = _to_numpy(channel_maps[i])
+        ch_map = _to_numpy(ch_map)
         if ch_map.ndim > 2:
             ch_map = ch_map.squeeze()
         # For channel attention, display as a bar chart if it's a 1D array
@@ -448,7 +463,7 @@ def plot_attention_comparison(
             axes[i, 1].axis("off")
 
         # Plot spatial attention
-        sp_map = _to_numpy(spatial_maps[i])
+        sp_map = _to_numpy(sp_map)
         if sp_map.ndim > 2:
             sp_map = sp_map.squeeze()
 
@@ -875,6 +890,10 @@ def generate_attention_report(
 
         plt.figure(figsize=(8, 8))
         img_np = _to_numpy(image)
+        # Handle batch dimension if present
+        if img_np.ndim == 4:  # [B, C, H, W]
+            img_np = img_np[0]  # Take first image in batch
+
         if img_np.shape[0] == 3:  # CHW format
             img_np = np.transpose(img_np, (1, 2, 0))
         # Normalize if needed
@@ -1076,7 +1095,7 @@ class CBAMVisualizer:
         Preprocess an image for model input.
 
         Args:
-            image: Input image tensor (C, H, W)
+            image: Input image tensor (C, H, W) or (B, C, H, W)
             normalize: Whether to normalize using ImageNet stats
 
         Returns:
@@ -1085,15 +1104,24 @@ class CBAMVisualizer:
         # Ensure image is on the correct device
         image = image.to(self.device)
 
-        # Add batch dimension if missing
-        if image.dim() == 3:
+        # Handle batch dimension correctly
+        has_batch_dim = False
+        if image.dim() == 4:
+            has_batch_dim = True
+        elif image.dim() == 3:
+            # Add batch dimension if missing
             image = image.unsqueeze(0)
+            has_batch_dim = True
 
         # Resize if model has input_size attribute
         if hasattr(self.model, "input_size"):
             try:
                 input_size = self.model.input_size
-                if isinstance(input_size, (list, tuple)) and len(input_size) == 2 and image.shape[2:] != tuple(input_size):
+                if (
+                    isinstance(input_size, (list, tuple))
+                    and len(input_size) == 2
+                    and image.shape[2:] != tuple(input_size)
+                ):
                     logger.info(
                         f"Resizing image from {image.shape[2:]} to {input_size}"
                     )
@@ -1144,6 +1172,16 @@ class CBAMVisualizer:
             image = transform(img).unsqueeze(0)
         else:
             image = image_input
+
+        # Ensure image has batch dimension
+        if isinstance(image, torch.Tensor) and image.dim() == 3:
+            image = image.unsqueeze(0)
+        elif isinstance(image, torch.Tensor) and image.dim() == 4 and image.size(0) > 1:
+            # If batch size > 1, use only the first image
+            logger.warning(
+                f"Using only the first image from batch of size {image.size(0)}"
+            )
+            image = image[0:1]
 
         # Ensure image is preprocessed
         image = self.preprocess_image(image)

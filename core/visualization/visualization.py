@@ -2710,7 +2710,6 @@ def plot_categorical(
     return fig
 
 
-
 def create_augmentation_grid(
     original_image: np.ndarray,
     augmented_images: List[np.ndarray],
@@ -2793,3 +2792,228 @@ def create_augmentation_grid(
         logger.info(f"Saved augmentation grid to {output_path}")
 
     return fig
+
+
+# def create_analysis_dashboard(
+#     dataset_info: Dict,
+#     class_dist: np.ndarray,
+#     class_names: List[str],
+#     sample_images: Optional[np.ndarray] = None,
+#     output_path: Optional[Union[str, Path]] = None,
+#     figsize: Tuple[int, int] = (18, 16),  # Increased size
+#     theme: Optional[Dict] = None,
+# ) -> Figure:
+#     """
+#     Create a comprehensive dashboard for dataset analysis.
+
+#     Args:
+#         dataset_info: Dictionary with dataset information (num_samples, img_size, etc.)
+#         class_dist: Array with number of samples per class
+#         class_names: List of class names
+#         sample_images: Optional array of sample images to display (N, H, W, C) or (N, C, H, W)
+#         output_path: Path to save the figure
+#         figsize: Figure size
+#         theme: Theme settings to apply (uses DEFAULT_THEME if None)
+
+#     Returns:
+#         Matplotlib figure
+#     """
+#     # Apply theme
+#     theme = theme or DEFAULT_THEME
+#     apply_dark_theme(theme)
+
+#     # Create figure with subfigures
+#     fig = plt.figure(figsize=figsize, facecolor=theme["background_color"])
+#     # Adjusted GridSpec: 3 rows, 4 columns
+#     gs = plt.GridSpec(3, 4, figure=fig, hspace=0.4, wspace=0.3)
+
+#     # --- Row 1: Class Distribution ---
+#     # Bar chart (takes 2 columns)
+#     ax1 = fig.add_subplot(gs[0, :2])
+#     ax1.set_facecolor(theme["background_color"])
+#     indices = np.arange(len(class_names))
+#     bars = ax1.barh(
+#         indices, class_dist, color=theme["main_color"], alpha=0.8, height=0.7
+#     )
+#     # Add value labels
+#     for i, bar in enumerate(bars):
+#         width = bar.get_width()
+#         ax1.text(
+#             width + 0.01 * max(class_dist),  # Adjust offset based on max value
+#             bar.get_y() + bar.get_height() / 2,
+#             f"{int(width)}",
+#             ha="left",
+#             va="center",
+#             color=theme["text_color"],
+#             fontsize=8,
+#         )
+#     ax1.set_title("Class Distribution (Counts)", color=theme["text_color"])
+#     ax1.set_xlabel("Number of Samples", color=theme["text_color"])
+#     ax1.set_yticks(indices)
+#     ax1.set_yticklabels(class_names, color=theme["text_color"], fontsize=8)
+#     ax1.tick_params(colors=theme["text_color"])
+#     ax1.invert_yaxis()  # Display classes top-to-bottom
+#     ax1.grid(True, axis="x", linestyle="--", alpha=0.3, color=theme["grid_color"])
+
+#     # Pie chart (takes 2 columns)
+#     ax2 = fig.add_subplot(gs[0, 2:])
+#     ax2.set_facecolor(theme["background_color"])
+#     # Filter out classes with zero samples for pie chart
+#     non_zero_indices = class_dist > 0
+#     filtered_dist = class_dist[non_zero_indices]
+#     filtered_names = [class_names[i] for i, flag in enumerate(non_zero_indices) if flag]
+#     pie_colors = [
+#         theme["bar_colors"][i % len(theme["bar_colors"])]
+#         for i in range(len(filtered_names))
+#     ]
+#     wedges, texts, autotexts = ax2.pie(
+#         filtered_dist,
+#         labels=None,  # Labels handled by legend
+#         autopct="%1.1f%%",
+#         startangle=90,
+#         colors=pie_colors,
+#         pctdistance=0.85,  # Move percentage text inside wedges
+#         wedgeprops=dict(width=0.4, edgecolor=theme["background_color"]),
+#     )
+#     for text in autotexts:
+#         text.set_color("white")  # White text for percentages
+#         text.set_fontsize(9)
+#     ax2.set_title("Class Distribution (%)", color=theme["text_color"])
+#     # Add legend outside the pie chart
+#     ax2.legend(
+#         wedges,
+#         filtered_names,
+#         title="Classes",
+#         loc="center left",
+#         bbox_to_anchor=(1, 0, 0.5, 1),
+#         frameon=False,
+#         fontsize=8,
+#         title_fontsize=10,
+#         labelcolor=theme["text_color"],
+#     )
+
+#     # --- Row 2: Dataset Info & Sample Images ---
+#     # Dataset info text (takes 1 column)
+#     ax3 = fig.add_subplot(gs[1, 0])
+#     ax3.set_facecolor(theme["background_color"])
+#     ax3.axis("off")
+#     info_text = "Dataset Information:\n\n"
+#     for key, value in dataset_info.items():
+#         # Format keys nicely
+#         key_formatted = key.replace("_", " ").title()
+#         info_text += f"• {key_formatted}: {value}\n"
+#     ax3.text(
+#         0.01,
+#         0.95,
+#         info_text,
+#         transform=ax3.transAxes,
+#         fontsize=10,
+#         verticalalignment="top",
+#         color=theme["text_color"],
+#         bbox=dict(
+#             boxstyle="round,pad=0.3", fc=theme["grid_color"], alpha=0.2, ec="none"
+#         ),
+#     )
+
+#     # Sample images (takes 3 columns)
+#     if sample_images is not None and len(sample_images) > 0:
+#         n_samples_to_show = min(9, len(sample_images))  # Show up to 9 samples
+#         sample_indices = np.random.choice(
+#             len(sample_images), n_samples_to_show, replace=False
+#         )
+#         samples = sample_images[sample_indices]
+
+#         # Create a 3x3 grid within the allocated space (gs[1, 1:])
+#         gs_samples = gs[1, 1:].subgridspec(3, 3, wspace=0.1, hspace=0.1)
+
+#         for i in range(n_samples_to_show):
+#             ax_img = fig.add_subplot(gs_samples[i])
+#             img = samples[i]
+#             # Convert CHW to HWC if needed
+#             if img.ndim == 3 and img.shape[0] in [1, 3]:
+#                 img = np.transpose(img, (1, 2, 0))
+#             # Handle grayscale
+#             if img.ndim == 3 and img.shape[-1] == 1:
+#                 img = np.repeat(img, 3, axis=-1)
+#             elif img.ndim == 2:
+#                 img = np.stack([img] * 3, axis=-1)
+#             # Normalize/Scale image for display
+#             img = img.astype(np.float32)
+#             if img.max() > 1.0:
+#                 img = img / 255.0
+#             img = np.clip(img, 0, 1)
+
+#             ax_img.imshow(img, interpolation="nearest")
+#             ax_img.set_xticks([])
+#             ax_img.set_yticks([])
+#             ax_img.set_facecolor(theme["background_color"])
+#             # Add border
+#             for spine in ax_img.spines.values():
+#                 spine.set_edgecolor(theme["grid_color"])
+#                 spine.set_linewidth(1)
+
+#         # Add title for sample images section
+#         ax_sample_title = fig.add_subplot(gs[1, 1:])
+#         ax_sample_title.set_facecolor(theme["background_color"])
+#         ax_sample_title.axis("off")
+#         ax_sample_title.set_title("Sample Images", color=theme["text_color"], y=1.02)
+#     else:
+#         # Placeholder if no images
+#         ax_no_img = fig.add_subplot(gs[1, 1:])
+#         ax_no_img.set_facecolor(theme["background_color"])
+#         ax_no_img.axis("off")
+#         ax_no_img.text(
+#             0.5,
+#             0.5,
+#             "No sample images provided",
+#             ha="center",
+#             va="center",
+#             color=theme["text_color"],
+#         )
+
+#     # --- Row 3: Placeholder for future plots ---
+#     # Example: Could add feature space plot or other analysis here
+#     ax_placeholder1 = fig.add_subplot(gs[2, :2])
+#     ax_placeholder1.set_facecolor(theme["background_color"])
+#     ax_placeholder1.axis("off")
+#     ax_placeholder1.text(
+#         0.5,
+#         0.5,
+#         "Future Plot Area 1",
+#         ha="center",
+#         va="center",
+#         color=theme["text_color"],
+#     )
+
+#     ax_placeholder2 = fig.add_subplot(gs[2, 2:])
+#     ax_placeholder2.set_facecolor(theme["background_color"])
+#     ax_placeholder2.axis("off")
+#     ax_placeholder2.text(
+#         0.5,
+#         0.5,
+#         "Future Plot Area 2",
+#         ha="center",
+#         va="center",
+#         color=theme["text_color"],
+#     )
+
+#     # Adjust layout and add overall title
+#     plt.suptitle(
+#         "Dataset Analysis Dashboard", fontsize=18, color=theme["text_color"], y=0.99
+#     )
+#     # Use tight_layout first, then adjust subplots if needed
+#     fig.tight_layout(rect=[0, 0.03, 1, 0.97])  # Adjust rect to prevent title overlap
+
+#     # Save figure if output path provided
+#     if output_path:
+#         output_path = Path(output_path)
+#         ensure_dir(output_path.parent)
+#         plt.savefig(
+#             output_path,
+#             dpi=400,
+#             bbox_inches="tight",
+#             facecolor=theme["background_color"],
+#         )
+#         logger.info(f"Saved analysis dashboard to {output_path}")
+
+#     return fig

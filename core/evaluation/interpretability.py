@@ -126,10 +126,7 @@ def evaluate_model(
                 f"Generating GradCAM for sample {idx + 1}/{len(vis_samples)}: {target_class_name}"
             )
 
-            if output_dir is not None:
-                output_path = viz_dir / f"{file_name}"
-            else:
-                output_path = None
+            output_path = viz_dir / f"{file_name}" if output_dir is not None else None
 
             # Apply GradCAM visualization
             result = grad_cam.visualize(
@@ -174,8 +171,8 @@ class GradCAM:
         model: nn.Module,
         target_layer: Optional[nn.Module] = None,
         input_size: Tuple[int, int] = (224, 224),
-        mean: List[float] = [0.485, 0.456, 0.406],
-        std: List[float] = [0.229, 0.224, 0.225],
+        mean: Optional[List[float]] = None,
+        std: Optional[List[float]] = None,
         debug: bool = True,  # Enable debug by default
     ):
         """Initialize GradCAM with enhanced visualization settings."""
@@ -186,8 +183,8 @@ class GradCAM:
 
         # Store preprocessing parameters
         self.input_size = input_size
-        self.mean = mean
-        self.std = std
+        self.mean = [0.485, 0.456, 0.406] if mean is None else mean
+        self.std = [0.229, 0.224, 0.225] if std is None else std
 
         # Check for frozen backbone
         self.model_has_frozen_backbone = False

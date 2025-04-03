@@ -75,7 +75,7 @@ data:
 
 # DataLoader configuration
 loader:
-  batch_size: 128 # Reduced from 128 for better stability and memory usage
+  batch_size: 256 # Reduced from 128 for better stability and memory usage
   num_workers: 6 # Adjusted based on typical hardware constraints
   pin_memory: false
   drop_last: false
@@ -222,7 +222,7 @@ optimizer:
   eps: 1e-8  # Set to standard value for stability
   momentum: 0.9  # For SGD
   nesterov: false  # For SGD
-  differential_lr: false  # Whether to use different LRs for backbone vs. head
+  differential_lr: true  # Whether to use different LRs for backbone vs. head
   differential_lr_factor: 0.1  # Factor to reduce backbone LR by if differential_lr is true
 
 # Loss function settings
@@ -259,10 +259,10 @@ scheduler:
 # Training configuration
 training:
   epochs: 10
-  batch_size: 128 
+  batch_size: 256 
   learning_rate: 0.001  # Simplified from scientific notation
   weight_decay: 2e-5  # Simplified from scientific notation
-  deterministic: true
+  deterministic: false
   use_mixed_precision: true  # Enable mixed precision training
   gradient_clip_val: 1.0
   precision: "float16"  # Match hardware precision setting
@@ -365,8 +365,8 @@ callbacks:
   shap:
     enabled: true  # Enable SHAP callback
     num_samples: 10  # Number of samples to analyze
-    compare_with_gradcam: true  # Compare with GradCAM
-    num_background_samples: 50  # Background samples for SHAP
+    compare_with_gradcam: false  # Compare with GradCAM
+    num_background_samples: 10  # Background samples for SHAP
     output_subdir: "shap_analysis"  # Output subdirectory
     dataset_split: "test"  # Dataset split to use
     

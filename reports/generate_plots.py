@@ -1465,7 +1465,7 @@ def generate_plots(
                 try:
                     # Confidence histogram
                     plot_histogram(
-                        values=confidences,
+                        data=confidences,
                         title="Prediction Confidence Histogram",
                         xlabel="Confidence",
                         ylabel="Count",
@@ -1493,12 +1493,16 @@ def generate_plots(
 
                         create_classification_examples_grid(
                             images=test_images[examples_indices],
-                            true_labels=true_labels[examples_indices]
-                            if len(true_labels) >= len(test_images)
-                            else None,
-                            pred_labels=pred_classes[examples_indices]
-                            if len(pred_classes) >= len(test_images)
-                            else None,
+                            true_labels=(
+                                true_labels[examples_indices]
+                                if len(true_labels) >= len(test_images)
+                                else None
+                            ),
+                            pred_labels=(
+                                pred_classes[examples_indices]
+                                if len(pred_classes) >= len(test_images)
+                                else None
+                            ),
                             class_names=class_names,
                             output_path=output_dir / "classification_examples.png",
                             theme=theme,
@@ -1709,9 +1713,11 @@ def generate_plots(
             if augmented_images:
                 aug_grid_path = augmentation_dir / "augmentation_grid.png"
                 create_augmentation_grid(
-                    original_image=original_image
-                    if isinstance(original_image, np.ndarray)
-                    else original_image.permute(1, 2, 0).numpy(),
+                    original_image=(
+                        original_image
+                        if isinstance(original_image, np.ndarray)
+                        else original_image.permute(1, 2, 0).numpy()
+                    ),
                     augmented_images=augmented_images,
                     augmentation_names=augmentation_names,
                     output_path=aug_grid_path,

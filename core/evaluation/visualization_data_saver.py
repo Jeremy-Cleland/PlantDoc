@@ -76,9 +76,7 @@ def save_attention_maps(
                 img_paths = batch[2] if len(batch) > 2 else [""] * inputs.size(0)
 
             # Forward pass
-            if hasattr(model, "return_attention") and callable(
-                model.return_attention
-            ):
+            if hasattr(model, "return_attention") and callable(model.return_attention):
                 # Use return_attention=True flag if available
                 outputs = model(inputs, return_attention=True)
             else:
