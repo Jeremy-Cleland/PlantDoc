@@ -23,6 +23,15 @@ from .base_visualization import (
     plot_training_history,
     plot_training_time,
 )
+from .flows import (
+    ConfusionFlow, 
+    generate_confusion_flow,
+    plot_confidence_distribution_by_class,
+    plot_confidence_timeline,
+    plot_ece_by_class,
+    save_confidence_visualizations,
+    generate_confidence_report,
+)
 from .visualization import (
     create_analysis_dashboard,
     create_augmentation_grid,
@@ -87,4 +96,12 @@ __all__ = [
     "plot_tsne_visualization",
     "plot_umap_visualization",
     "visualize_augmentations",
+    # Flow visualizations
+    "ConfusionFlow",
+    "generate_confusion_flow",
+    "plot_confidence_distribution_by_class",
+    "plot_confidence_timeline",
+    "plot_ece_by_class",
+    "save_confidence_visualizations",
+    "generate_confidence_report",
 ]

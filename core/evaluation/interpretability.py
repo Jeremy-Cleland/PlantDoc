@@ -560,55 +560,77 @@ class GradCAM:
                 # Enhanced CAM processing
                 cam = F.relu(cam)
 
-                # If CAM is all zeros after ReLU, try using alternative methods
-                if cam.sum() < 1e-10:
+                # Enhanced approach for handling zero or near-zero CAM values
+                if cam.sum() < 1e-5:  # Use slightly higher threshold
                     logger.warning(
-                        "CAM is all zeros after ReLU - using alternative method"
+                        "CAM is all zeros or very small after ReLU - using enhanced approach"
                     )
-                    # Try several alternative approaches in sequence until we get a non-zero map
-
-                    # Method 1: Use absolute values of activations without ReLU
-                    cam = torch.abs(self.activations[0].mean(dim=0))
+                    # Try combining multiple approaches for a more robust result
+                    
+                    # Create a list to store all alternative CAMs
+                    alternative_cams = []
+                    
+                    # Method 1: Use ReLU but with a small epsilon to avoid zeros
+                    cam1 = F.relu(cam + 1e-5)
+                    alternative_cams.append(cam1)
                     if self.debug:
                         logger.info(
-                            f"Alternative CAM (avg abs activations) - min: {cam.min()}, max: {cam.max()}, sum: {cam.sum()}"
+                            f"Method 1 (ReLU+epsilon) - min: {cam1.min()}, max: {cam1.max()}, sum: {cam1.sum()}"
                         )
-
-                    # Method 2: If still zero, try using the raw activations without weights
-                    if cam.sum() < 1e-10:
-                        logger.warning("Method 1 failed - trying raw activations")
-                        cam = torch.mean(torch.abs(self.activations[0]), dim=0)
-                        if self.debug:
-                            logger.info(
-                                f"Alternative CAM (raw activations) - min: {cam.min()}, max: {cam.max()}, sum: {cam.sum()}"
-                            )
-
-                    # Method 3: If still zero, try using the gradients directly
-                    if cam.sum() < 1e-10:
-                        logger.warning("Method 2 failed - trying gradients directly")
-                        cam = torch.mean(torch.abs(self.gradients[0]), dim=0)
-                        if self.debug:
-                            logger.info(
-                                f"Alternative CAM (gradients) - min: {cam.min()}, max: {cam.max()}, sum: {cam.sum()}"
-                            )
-
-                    # Method 4: Last resort - create a synthetic heatmap
-                    if cam.sum() < 1e-10:
-                        logger.warning("All methods failed - using synthetic heatmap")
-                        # Create a gaussian blob in the center as fallback
-                        h, w = cam.shape
-                        y, x = torch.meshgrid(
-                            torch.linspace(-1, 1, h),
-                            torch.linspace(-1, 1, w),
-                            indexing="ij",
+                    
+                    # Method 2: Use absolute values of activations without ReLU
+                    cam2 = torch.abs(self.activations[0].mean(dim=0))
+                    alternative_cams.append(cam2)
+                    if self.debug:
+                        logger.info(
+                            f"Method 2 (abs activations) - min: {cam2.min()}, max: {cam2.max()}, sum: {cam2.sum()}"
                         )
-                        d = torch.sqrt(x * x + y * y)
-                        sigma, mu = 0.5, 0.0
-                        cam = torch.exp(-((d - mu) ** 2 / (2.0 * sigma**2)))
+                    
+                    # Method 3: Use the raw activations directly
+                    cam3 = torch.mean(self.activations[0], dim=0)
+                    alternative_cams.append(cam3)
+                    if self.debug:
+                        logger.info(
+                            f"Method 3 (raw activations) - min: {cam3.min()}, max: {cam3.max()}, sum: {cam3.sum()}"
+                        )
+                    
+                    # Method 4: Use gradients directly
+                    cam4 = torch.mean(torch.abs(self.gradients[0]), dim=0)
+                    alternative_cams.append(cam4)
+                    if self.debug:
+                        logger.info(
+                            f"Method 4 (gradients) - min: {cam4.min()}, max: {cam4.max()}, sum: {cam4.sum()}"
+                        )
+                    
+                    # Method 5: Create a synthetic gaussian for fallback
+                    h, w = cam.shape
+                    y, x = torch.meshgrid(
+                        torch.linspace(-1, 1, h),
+                        torch.linspace(-1, 1, w),
+                        indexing="ij",
+                    )
+                    d = torch.sqrt(x * x + y * y)
+                    sigma, mu = 0.5, 0.0
+                    cam5 = torch.exp(-((d - mu) ** 2 / (2.0 * sigma**2)))
+                    alternative_cams.append(cam5)
+                    if self.debug:
+                        logger.info(
+                            f"Method 5 (synthetic) - min: {cam5.min()}, max: {cam5.max()}, sum: {cam5.sum()}"
+                        )
+                    
+                    # Select the best alternative method (non-zero with highest sum)
+                    valid_cams = [c for c in alternative_cams if c.sum() > 1e-5]
+                    if valid_cams:
+                        # Use the CAM with the highest total activation
+                        cam_sums = [c.sum().item() for c in valid_cams]
+                        best_cam_idx = cam_sums.index(max(cam_sums))
+                        cam = valid_cams[best_cam_idx]
                         if self.debug:
-                            logger.info(
-                                f"Synthetic CAM - min: {cam.min()}, max: {cam.max()}, sum: {cam.sum()}"
-                            )
+                            logger.info(f"Selected alternative method {best_cam_idx+1} with sum: {cam.sum().item()}")
+                    else:
+                        # Fallback to synthetic if all alternatives fail
+                        cam = cam5
+                        logger.warning("All alternative methods failed, using synthetic fallback")
 
                 # Normalization
                 if cam.max() > cam.min():  # Only normalize if there's a range of values

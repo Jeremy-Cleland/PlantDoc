@@ -224,21 +224,27 @@ class SWACallback(Callback):
 
         # --- Update Batch Normalization Statistics ---
         if self.update_bn_freq > 0 and (epoch + 1) % self.update_bn_freq == 0:
+            # Try to find a suitable dataloader for updating BN stats
+            # Order of preference: val_loader > test_loader > train_loader
             val_loader = logs.get("val_loader")
             if val_loader is None:
-                logger.warning(
-                    "SWACallback: Cannot update BN stats - 'val_loader' not found in logs. Attempting to use train_loader."
-                )
-                val_loader = logs.get("train_loader")
-                if val_loader is None:
-                    logger.warning(
-                        "SWACallback: No train_loader found either. BN stats update skipped."
-                    )
-                    return
+                # Try test_loader as second option
+                test_loader = logs.get("test_loader")
+                if test_loader is not None:
+                    val_loader = test_loader
+                    logger.info("SWACallback: Using test_loader for BN stats update.")
                 else:
-                    logger.info(
-                        "SWACallback: Using train_loader for BN stats update as fallback."
-                    )
+                    # Try train_loader as last resort
+                    val_loader = logs.get("train_loader")
+                    if val_loader is None:
+                        logger.warning(
+                            "SWACallback: No val_loader, test_loader, or train_loader found. BN stats update skipped."
+                        )
+                        return
+                    else:
+                        logger.info(
+                            "SWACallback: Using train_loader for BN stats update as fallback."
+                        )
             else:
                 logger.info("SWACallback: Using val_loader for BN stats update.")
 

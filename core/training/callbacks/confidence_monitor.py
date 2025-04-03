@@ -2,8 +2,11 @@
 ConfidenceMonitorCallback for tracking model confidence and calibration during training.
 """
 
+import json
+import os
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Tuple
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -11,6 +14,7 @@ import torch.nn.functional as F
 
 from core.training.callbacks.base import Callback
 from utils.logger import get_logger
+from utils.paths import ensure_dir
 
 logger = get_logger(__name__)
 
@@ -28,6 +32,8 @@ class ConfidenceMonitorCallback(Callback):
             threshold_warning (float): Threshold for confidence warnings. Default: 0.7.
             ece_bins (int): Number of bins for ECE calculation. Default: 10.
             log_per_class (bool): Whether to log per-class confidence. Default: True.
+            save_visualizations (bool): Whether to save visualizations. Default: True.
+            output_dir (str): Output directory for visualizations. Default: None.
     """
 
     priority = 40
@@ -39,6 +45,9 @@ class ConfidenceMonitorCallback(Callback):
         self.threshold_warning = kwargs.get("threshold_warning", 0.7)
         self.ece_bins = kwargs.get("ece_bins", 10)
         self.log_per_class = kwargs.get("log_per_class", True)
+        self.save_visualizations = kwargs.get("save_visualizations", True)
+        self.output_dir = kwargs.get("output_dir", None)
+        self.experiment_dir = None  # Will be set via context
 
         # Validate parameters
         if self.monitor_frequency < 1:
@@ -50,11 +59,12 @@ class ConfidenceMonitorCallback(Callback):
 
         self._epoch_scores: List[Tuple[float, int, int]] = []
         self.history: List[Dict[str, Any]] = []
+        self.class_names = None  # Will be set from context or logs
 
         logger.info(
             f"Initialized ConfidenceMonitorCallback: Freq={self.monitor_frequency}, "
             f"Warn={self.threshold_warning:.2f}, ECE Bins={self.ece_bins}, "
-            f"PerClass={self.log_per_class}"
+            f"PerClass={self.log_per_class}, SaveViz={self.save_visualizations}"
         )
 
         unused_keys = set(kwargs.keys()) - {
@@ -62,11 +72,33 @@ class ConfidenceMonitorCallback(Callback):
             "threshold_warning",
             "ece_bins",
             "log_per_class",
+            "save_visualizations",
+            "output_dir",
         }
         if unused_keys:
             logger.warning(
                 f"Unused config keys for ConfidenceMonitorCallback: {list(unused_keys)}"
             )
+
+    def set_trainer_context(self, context):
+        """Set experiment context from trainer."""
+        self.config = context.get("config", None)
+        self.experiment_dir = context.get("experiment_dir", None)
+
+        # Get class names from context if available
+        if "config" in context and hasattr(context["config"], "data"):
+            if hasattr(context["config"].data, "class_names"):
+                self.class_names = context["config"].data.class_names
+                logger.info(
+                    f"ConfidenceMonitor: Using {len(self.class_names)} class names from config"
+                )
+
+        # Set output directory if not provided
+        if self.output_dir is None and self.experiment_dir is not None:
+            self.output_dir = (
+                Path(self.experiment_dir) / "reports" / "plots" / "confidence"
+            )
+            logger.info(f"ConfidenceMonitor: Set output directory to {self.output_dir}")
 
     def on_batch_end(self, batch: int, logs: Optional[Dict[str, Any]] = None) -> None:
         """Collect confidence scores during validation."""
@@ -199,6 +231,35 @@ class ConfidenceMonitorCallback(Callback):
         )  # Update logs with val_ prefix
         self._epoch_scores = []
 
+    def on_train_end(self, logs: Optional[Dict[str, Any]] = None) -> None:
+        """Save confidence history and visualizations at the end of training."""
+        if not self.history:
+            logger.warning("No confidence history to save")
+            return
+
+        # Try to get class names from logs if not already set
+        if self.class_names is None and logs is not None:
+            if "class_names" in logs:
+                self.class_names = logs["class_names"]
+                logger.info(f"Using {len(self.class_names)} class names from logs")
+
+        # Save confidence history
+        if self.experiment_dir is not None:
+            history_dir = Path(self.experiment_dir) / "evaluation_artifacts"
+            ensure_dir(history_dir)
+
+            history_path = history_dir / "confidence_history.json"
+            try:
+                with open(history_path, "w") as f:
+                    json.dump(self.history, f, indent=2)
+                logger.info(f"Saved confidence history to {history_path}")
+            except Exception as e:
+                logger.error(f"Failed to save confidence history: {e}")
+
+        # Generate visualizations if requested
+        if self.save_visualizations:
+            self._save_visualizations()
+
     def _calculate_ece(self, confidences, predictions, targets, num_samples):
         """Calculate Expected Calibration Error."""
         if num_samples == 0:
@@ -207,16 +268,36 @@ class ConfidenceMonitorCallback(Callback):
         ece = 0.0
         bin_boundaries = np.linspace(0, 1, self.ece_bins + 1)
 
+        # Store bin statistics for visualization
+        bin_stats = []
+
         for bin_lower, bin_upper in zip(bin_boundaries[:-1], bin_boundaries[1:]):
             in_bin = (confidences > bin_lower) & (confidences <= bin_upper)
             in_bin |= (confidences == 1.0) & (bin_upper == 1.0)
             bin_n = np.sum(in_bin)
 
             if bin_n > 0:
-                ece += abs(
-                    np.mean(predictions[in_bin] == targets[in_bin])
-                    - np.mean(confidences[in_bin])
-                ) * (bin_n / num_samples)
+                bin_acc = np.mean(predictions[in_bin] == targets[in_bin])
+                bin_conf = np.mean(confidences[in_bin])
+                bin_gap = abs(bin_acc - bin_conf)
+                ece += bin_gap * (bin_n / num_samples)
+
+                bin_stats.append(
+                    {
+                        "bin_lower": float(bin_lower),
+                        "bin_upper": float(bin_upper),
+                        "bin_size": int(bin_n),
+                        "bin_accuracy": float(bin_acc),
+                        "bin_confidence": float(bin_conf),
+                        "bin_gap": float(bin_gap),
+                    }
+                )
+
+        # Save bin statistics for later visualization
+        if hasattr(self, "_bin_stats"):
+            self._bin_stats.append({"epoch": len(self.history), "bins": bin_stats})
+        else:
+            self._bin_stats = [{"epoch": len(self.history), "bins": bin_stats}]
 
         return ece
 
@@ -234,3 +315,46 @@ class ConfidenceMonitorCallback(Callback):
             c: {"mean": np.mean(pc[c]) if pc[c] else 0.0, "count": len(pc[c])}
             for c in sorted(targets_seen)
         }
+
+    def _save_visualizations(self):
+        """Generate and save confidence visualizations."""
+        if not self.history:
+            logger.warning("No confidence history to visualize")
+            return
+
+        if self.output_dir is None:
+            if self.experiment_dir is not None:
+                self.output_dir = (
+                    Path(self.experiment_dir) / "reports" / "plots" / "confidence"
+                )
+            else:
+                logger.warning(
+                    "No output directory specified for confidence visualizations"
+                )
+                return
+
+        # Ensure output directory exists
+        output_dir = Path(self.output_dir)
+        ensure_dir(output_dir)
+
+        try:
+            # Import here to avoid circular imports
+            from core.visualization.flows.confidence_viz import (
+                save_confidence_visualizations,
+            )
+
+            # Generate visualizations
+            save_confidence_visualizations(
+                history=self.history,
+                class_names=self.class_names,
+                output_dir=output_dir,
+                use_dark_theme=True,
+                latest_epoch_only=False,  # Generate for all epochs
+            )
+
+            logger.info(f"Generated confidence visualizations in {output_dir}")
+        except Exception as e:
+            logger.error(f"Failed to generate confidence visualizations: {e}")
+            import traceback
+
+            logger.error(traceback.format_exc())

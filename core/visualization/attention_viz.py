@@ -569,8 +569,15 @@ def generate_attention_report(
     # Get the file prefix for saving visualizations
     prefix = filename_prefix or "attention"
 
-    # Get attention maps
-    attention_maps = visualizer.get_attention_maps(image)
+    # Get attention maps with error handling
+    try:
+        attention_maps = visualizer.get_attention_maps(image)
+        if not attention_maps:
+            logger.warning("No attention maps returned. Creating empty dictionary.")
+            attention_maps = {}
+    except Exception as e:
+        logger.error(f"Error retrieving attention maps: {e}")
+        attention_maps = {}
 
     # Generate visualizations of attention maps (spatial and channel)
     spatial_maps = {

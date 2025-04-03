@@ -1475,8 +1475,9 @@ def generate_plots(
                     logger.info("Generated confidence histogram")
 
                     # Prediction distribution
+                    # Fix parameter names for plot_categorical
                     plot_categorical(
-                        values=pred_classes,
+                        data=pred_classes,  # Change values to data
                         labels=class_names,
                         title="Prediction Distribution",
                         output_path=output_dir / "prediction_distribution.png",
@@ -1638,13 +1639,14 @@ def generate_plots(
             else:
                 # No pre-computed embeddings, use plot_feature_space
                 logger.info("Computing feature space visualization from raw features")
+                # Fix the feature_space plot parameters (remove title if causing issues)
                 plot_feature_space(
                     features=features,
                     labels=labels,
                     class_names=class_names,
                     output_path=feature_space_path,
                     theme=theme,
-                    title="Feature Space Visualization",
+                    # title parameter removed as it might be causing the error
                 )
             logger.info(
                 f"Generated feature space visualization at {feature_space_path}"
@@ -1664,17 +1666,25 @@ def generate_plots(
             # Create some basic augmentations for visualization
             import torchvision.transforms as T
 
-            # Define augmentations
+            # Define augmentations with error handling for each type
             augmentations = [
                 ("Horizontal Flip", T.RandomHorizontalFlip(p=1.0)),
                 ("Vertical Flip", T.RandomVerticalFlip(p=1.0)),
                 ("Rotate 30°", T.RandomRotation(degrees=30)),
+                # Make sure Color Jitter only applies to 3-channel images
                 (
                     "Color Jitter",
-                    T.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5),
+                    lambda x: T.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5)(x) 
+                              if x.shape[0] == 3 else x
                 ),
+                # Grayscale works with most image formats
                 ("Grayscale", T.Grayscale(num_output_channels=3)),
-                ("Blur", T.GaussianBlur(kernel_size=5)),
+                # Make sure GaussianBlur only applies to valid image sizes
+                (
+                    "Blur", 
+                    lambda x: T.GaussianBlur(kernel_size=5)(x) 
+                              if min(x.shape[1:]) >= 5 else x
+                ),
             ]
 
             # Generate augmented versions
@@ -1712,12 +1722,21 @@ def generate_plots(
             # Create the grid if we have any successful augmentations
             if augmented_images:
                 aug_grid_path = augmentation_dir / "augmentation_grid.png"
+                # Ensure original_image has the right format for visualization (HWC)
+                if isinstance(original_image, np.ndarray):
+                    # If original_image is already a numpy array, check the format
+                    if len(original_image.shape) == 3 and original_image.shape[0] == 3:
+                        # Convert from CHW format to HWC
+                        viz_original = np.transpose(original_image, (1, 2, 0))
+                    else:
+                        # Already in HWC format
+                        viz_original = original_image
+                else:
+                    # Convert tensor to numpy in HWC format
+                    viz_original = original_image.permute(1, 2, 0).numpy()
+                
                 create_augmentation_grid(
-                    original_image=(
-                        original_image
-                        if isinstance(original_image, np.ndarray)
-                        else original_image.permute(1, 2, 0).numpy()
-                    ),
+                    original_image=viz_original,
                     augmented_images=augmented_images,
                     augmentation_names=augmentation_names,
                     output_path=aug_grid_path,

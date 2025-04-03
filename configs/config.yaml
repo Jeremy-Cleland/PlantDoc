@@ -412,7 +412,7 @@ evaluation:
     # SHAP configuration in evaluation module
     shap:
       enabled: true
-      num_samples: 10
+      num_samples: 50
       compare_with_gradcam: true
       num_background_samples: 50
       output_subdir: "shap_analysis"

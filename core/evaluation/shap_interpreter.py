@@ -372,9 +372,29 @@ class SHAPInterpreter:
                     mean = np.array(self.mean).reshape(1, 1, 3)
                     std = np.array(self.std).reshape(1, 1, 3)
                     img_np = img_np * std + mean
-                    img_np = np.clip(img_np * 255, 0, 255).astype(np.uint8)
 
-                original_image = Image.fromarray(img_np)
+                # Check for unusual dimensions BEFORE converting to uint8
+                if img_np.shape[0] == 1 and img_np.shape[1] == 1:
+                    logger.warning(
+                        f"Detected unusual image shape {img_np.shape}, reshaping"
+                    )
+                    # Reshape to valid dimensions (use input_size from model)
+                    img_np = np.broadcast_to(
+                        img_np, (self.input_size[0], self.input_size[1], 3)
+                    ).copy()  # Make a copy to ensure it's writable
+
+                # Convert to uint8 for PIL AFTER reshaping
+                img_np_uint8 = np.clip(img_np * 255, 0, 255).astype(np.uint8)
+
+                try:
+                    original_image = Image.fromarray(img_np_uint8)
+                except Exception as e:
+                    logger.warning(f"Error creating PIL image from array: {e}")
+                    # Create a fallback image with proper dimensions
+                    fallback_array = np.zeros(
+                        (self.input_size[0], self.input_size[1], 3), dtype=np.uint8
+                    )
+                    original_image = Image.fromarray(fallback_array)
             else:
                 # Fallback if format is unknown
                 original_image = Image.fromarray(
@@ -388,6 +408,66 @@ class SHAPInterpreter:
         # If image_input is a PIL Image
         elif hasattr(image_input, "convert"):  # PIL Image
             original_image = image_input
+
+            # Create transform with normalization
+            transform = transforms.Compose(
+                [
+                    transforms.Resize(self.input_size),
+                    transforms.ToTensor(),
+                    transforms.Normalize(mean=self.mean, std=self.std),
+                ]
+            )
+
+            # Apply transform and add batch dimension
+            input_tensor = transform(original_image).unsqueeze(0)
+
+            return input_tensor, original_image
+
+        # If image_input is a numpy array
+        elif isinstance(image_input, np.ndarray):
+            # Handle various numpy array formats
+            if image_input.ndim == 4:  # NCHW or NHWC format
+                if image_input.shape[1] == 3:  # NCHW
+                    # Convert to HWC for PIL
+                    img_np = image_input[0].transpose(1, 2, 0)
+                else:  # Assume NHWC
+                    img_np = image_input[0]
+            elif image_input.ndim == 3:  # CHW or HWC format
+                if image_input.shape[0] == 3:  # CHW
+                    # Convert to HWC for PIL
+                    img_np = image_input.transpose(1, 2, 0)
+                else:  # Assume HWC
+                    img_np = image_input
+            else:
+                raise ValueError(f"Unsupported numpy array shape: {image_input.shape}")
+
+            # Normalize or scale to 0-255
+            if img_np.dtype == np.float32 or img_np.dtype == np.float64:
+                if img_np.max() <= 1.0:
+                    img_np = np.clip(img_np * 255, 0, 255)
+
+            # Check for unusual dimensions and reshape if needed BEFORE converting to uint8
+            if img_np.shape[0] == 1 and img_np.shape[1] == 1:
+                logger.warning(
+                    f"Detected unusual image shape {img_np.shape}, reshaping"
+                )
+                # Reshape to valid dimensions (use input_size from model)
+                img_np = np.broadcast_to(
+                    img_np, (self.input_size[0], self.input_size[1], 3)
+                ).copy()  # Make a copy to ensure it's writable
+
+            # Convert to uint8 for PIL AFTER reshaping
+            img_np_uint8 = img_np.astype(np.uint8)
+
+            try:
+                original_image = Image.fromarray(img_np_uint8)
+            except Exception as e:
+                logger.warning(f"Error creating PIL image from array: {e}")
+                # Create a fallback image with proper dimensions
+                fallback_array = np.zeros(
+                    (self.input_size[0], self.input_size[1], 3), dtype=np.uint8
+                )
+                original_image = Image.fromarray(fallback_array)
 
             # Create transform with normalization
             transform = transforms.Compose(
@@ -914,7 +994,8 @@ class SHAPInterpreter:
                 batch_size = images.size(0)
                 for i in range(batch_size):
                     if len(samples) < num_samples:
-                        samples.append(images[i])
+                        # Clone the tensor to avoid in-place modifications
+                        samples.append(images[i].clone().detach())
                         sample_targets.append(targets[i].item())
                     else:
                         break
@@ -925,8 +1006,10 @@ class SHAPInterpreter:
             # Stack samples
             sample_tensor = torch.stack(samples).to(self.device)
 
-            # Get SHAP values for all samples
-            all_shap_values = self.explainer.shap_values(sample_tensor)
+            # Use torch.no_grad to avoid gradient calculation errors
+            with torch.no_grad():
+                # Get SHAP values for all samples
+                all_shap_values = self.explainer.shap_values(sample_tensor)
 
             # Process SHAP values based on the type of output
             if isinstance(all_shap_values, list):
@@ -942,7 +1025,7 @@ class SHAPInterpreter:
 
                     # Convert to numpy if it's a tensor
                     if isinstance(shap_values, torch.Tensor):
-                        shap_values = shap_values.cpu().numpy()
+                        shap_values = shap_values.detach().cpu().numpy()
 
                     # Get average absolute value across the samples
                     avg_abs_shap = np.abs(shap_values).mean(axis=0)
@@ -961,7 +1044,11 @@ class SHAPInterpreter:
                     }
             else:
                 # Single array for all classes
-                # Just average across samples
+                # Convert to numpy if it's a tensor
+                if isinstance(all_shap_values, torch.Tensor):
+                    all_shap_values = all_shap_values.detach().cpu().numpy()
+                
+                # Just average across samples 
                 avg_abs_shap = np.abs(all_shap_values).mean(axis=0)
 
                 # Calculate channel-wise importance
@@ -1746,7 +1833,8 @@ class ShapInterpreter:
                 fontsize=12,
             )
             plt.axis("off")
-            plt.tight_layout()
+
+            # Save if output_dir is defined
             plt.savefig(self.output_dir / "shap_error.png", dpi=400)
             plt.close()
             raise
@@ -1892,3 +1980,152 @@ def generate_shap_visualizations(
         "results": results,
         "visualization_dir": str(output_dir),
     }
+
+
+def feature_importance(
+    self,
+    shap_values,
+    input_images,
+    class_names=None,
+    output_path=None,
+    max_display=3,
+    title=None,
+):
+    """
+    Visualize feature importance across classes.
+
+    Args:
+        shap_values: SHAP values from explainer
+        input_images: Input images corresponding to the SHAP values
+        class_names: List of class names
+        output_path: Path to save the visualization
+        max_display: Maximum number of classes to display
+        title: Title for the plot
+
+    Returns:
+        Figure with feature importance visualization
+    """
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    try:
+        # Check if shap_values is a list of arrays (one per class)
+        if isinstance(shap_values, list):
+            num_classes = len(shap_values)
+            logger.info(f"Visualizing feature importance for {num_classes} classes")
+
+            # If there are too many classes, only plot the top few by magnitude
+            if num_classes > max_display:
+                logger.info(
+                    f"Too many classes ({num_classes}), showing top {max_display}"
+                )
+
+                # Calculate the total magnitude of SHAP values for each class
+                magnitudes = [np.abs(sv).sum() for sv in shap_values]
+                top_indices = np.argsort(magnitudes)[-max_display:]
+
+                # Filter shap_values to only include top classes
+                filtered_shap_values = [shap_values[i] for i in top_indices]
+                filtered_class_names = None
+                if class_names:
+                    filtered_class_names = [class_names[i] for i in top_indices]
+
+                # Call shap's image_plot with the filtered values
+                shap.image_plot(
+                    filtered_shap_values,
+                    np.transpose(input_images.cpu().numpy(), (0, 2, 3, 1)),
+                    show=False,
+                )
+
+                if title:
+                    plt.suptitle(title)
+
+                if output_path:
+                    plt.savefig(output_path, dpi=150, bbox_inches="tight")
+                    logger.info(
+                        f"Saved feature importance visualization to {output_path}"
+                    )
+
+                return plt.gcf()
+
+            # If we have a reasonable number of classes, plot all of them
+            shap.image_plot(
+                shap_values,
+                np.transpose(input_images.cpu().numpy(), (0, 2, 3, 1)),
+                show=False,
+            )
+
+            if title:
+                plt.suptitle(title)
+
+            if output_path:
+                plt.savefig(output_path, dpi=150, bbox_inches="tight")
+                logger.info(f"Saved feature importance visualization to {output_path}")
+
+            return plt.gcf()
+
+        else:
+            # If we have a single array of SHAP values (e.g., for a specific class)
+            # Create a simple visualization for it
+            fig, ax = plt.subplots(1, 2, figsize=(12, 6))
+
+            # Show original image
+            if isinstance(input_images, torch.Tensor):
+                img = input_images[0].permute(1, 2, 0).cpu().numpy()
+                # Denormalize
+                mean = np.array(self.mean).reshape((1, 1, 3))
+                std = np.array(self.std).reshape((1, 1, 3))
+                img = img * std + mean
+                img = np.clip(img, 0, 1)
+            else:
+                img = input_images
+
+            ax[0].imshow(img)
+            ax[0].axis("off")
+            ax[0].set_title("Original Image")
+
+            # Show SHAP values
+            # Handle different shapes
+            if shap_values.ndim == 4:  # (batch, channel, height, width)
+                shap_img = np.abs(shap_values[0]).sum(axis=0)  # Sum across channels
+            elif shap_values.ndim == 3:  # (channel, height, width)
+                shap_img = np.abs(shap_values).sum(axis=0)  # Sum across channels
+            else:
+                logger.warning(f"Unexpected SHAP values shape: {shap_values.shape}")
+                shap_img = np.abs(shap_values).sum(axis=-1)  # Default summing behavior
+
+            # Normalize for visualization
+            shap_img = shap_img / shap_img.max()
+
+            # Plot SHAP heatmap
+            ax[1].imshow(shap_img, cmap="hot")
+            ax[1].axis("off")
+            ax[1].set_title("SHAP Feature Importance")
+
+            if title:
+                fig.suptitle(title)
+
+            if output_path:
+                plt.savefig(output_path, dpi=150, bbox_inches="tight")
+                logger.info(f"Saved feature importance visualization to {output_path}")
+
+            return fig
+
+    except Exception as e:
+        logger.error(f"Error in feature_importance: {e}")
+        # Create a simple error figure
+        fig, ax = plt.subplots(figsize=(10, 5))
+        ax.text(
+            0.5,
+            0.5,
+            f"Error visualizing feature importance: {e}",
+            ha="center",
+            va="center",
+            fontsize=12,
+        )
+        ax.axis("off")
+
+        if output_path:
+            plt.savefig(output_path, dpi=150, bbox_inches="tight")
+
+        return fig

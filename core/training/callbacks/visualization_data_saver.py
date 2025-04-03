@@ -59,7 +59,9 @@ class VisualizationDataSaver(Callback):
         self.num_test_images = num_test_images
         self.model_type = model_type
         self.save_augmentation_examples = save_augmentation_examples
-        self.dataset_dir = dataset_dir or None  # If None, will try to detect during execution
+        self.dataset_dir = (
+            dataset_dir or None
+        )  # If None, will try to detect during execution
 
         # Initialize trainer context attributes
         self.model = None
@@ -573,6 +575,7 @@ class VisualizationDataSaver(Callback):
         except Exception as e:
             logger.error(f"Error copying dataset analysis: {e}")
             import traceback
+
             logger.error(traceback.format_exc())
 
         # Generate confusion flow visualization
@@ -581,6 +584,7 @@ class VisualizationDataSaver(Callback):
         except Exception as e:
             logger.error(f"Error generating confusion flow: {e}")
             import traceback
+
             logger.error(traceback.format_exc())
 
         logger.info("Finished saving data for enhanced visualizations")
@@ -691,24 +695,30 @@ class VisualizationDataSaver(Callback):
                 if hasattr(self.config, "data") and hasattr(self.config.data, "root"):
                     dataset_dir = Path(self.config.data.root) / "processed"
                     logger.info(f"Using dataset directory from config: {dataset_dir}")
-                elif hasattr(self.config, "paths") and hasattr(self.config.paths, "data_dir"):
+                elif hasattr(self.config, "paths") and hasattr(
+                    self.config.paths, "data_dir"
+                ):
                     dataset_dir = Path(self.config.paths.data_dir) / "processed"
-                    logger.info(f"Using dataset directory from config paths: {dataset_dir}")
-            
+                    logger.info(
+                        f"Using dataset directory from config paths: {dataset_dir}"
+                    )
+
             # If still None, try default location
             if dataset_dir is None:
                 dataset_dir = Path("/Users/jeremy/plantdoc/data/processed")
                 logger.info(f"Using default dataset directory: {dataset_dir}")
-        
+
         # Import function from confusion_flow
-        from core.visualization.flows.confusion_flow import copy_dataset_analysis_to_model
-        
+        from core.visualization.flows.confusion_flow import (
+            copy_dataset_analysis_to_model,
+        )
+
         # Copy dataset analysis
         if dataset_dir is not None and Path(dataset_dir).exists():
             success = copy_dataset_analysis_to_model(
                 source_dir=dataset_dir,
                 dest_dir=self.experiment_dir,
-                output_subdir="dataset_analysis"
+                output_subdir="dataset_analysis",
             )
             if success:
                 logger.info(f"Successfully copied dataset analysis from {dataset_dir}")
@@ -724,7 +734,7 @@ class VisualizationDataSaver(Callback):
         if not cm_path.exists():
             logger.warning(f"Confusion matrix not found at {cm_path}")
             return
-        
+
         # Load confusion matrix
         try:
             confusion_matrix = np.load(cm_path)
@@ -732,42 +742,48 @@ class VisualizationDataSaver(Callback):
         except Exception as e:
             logger.error(f"Failed to load confusion matrix: {e}")
             return
-        
+
         # Get class names
         class_names = []
-        
+
         # Try to get class names from config
         if hasattr(self, "config") and self.config is not None:
             if hasattr(self.config.data, "class_names"):
                 class_names = self.config.data.class_names
-        
+
         # Try to get class names from model
         if not class_names and hasattr(self, "model") and self.model is not None:
             if hasattr(self.model, "class_names"):
                 class_names = self.model.class_names
-        
+
         # Try to get class names from validation loader
-        if not class_names and hasattr(self, "val_loader") and self.val_loader is not None:
+        if (
+            not class_names
+            and hasattr(self, "val_loader")
+            and self.val_loader is not None
+        ):
             if hasattr(self.val_loader.dataset, "class_names"):
                 class_names = self.val_loader.dataset.class_names
             elif hasattr(self.val_loader.dataset, "classes"):
                 class_names = self.val_loader.dataset.classes
-        
+
         # If still no class names, create generic ones
         if not class_names:
             num_classes = confusion_matrix.shape[0]
             class_names = [f"Class {i}" for i in range(num_classes)]
-            logger.warning(f"No class names found, using generic names for {num_classes} classes")
+            logger.warning(
+                f"No class names found, using generic names for {num_classes} classes"
+            )
         else:
             logger.info(f"Using {len(class_names)} class names for confusion flow")
-        
+
         # Create output directory
         output_dir = self.experiment_dir / "reports" / "plots" / "confusion_flow"
         ensure_dir(output_dir)
-        
+
         # Generate confusion flow visualization
         from core.visualization.flows.confusion_flow import generate_confusion_flow
-        
+
         # Generate the visualization
         output_path = output_dir / "confusion_flow.png"
         generate_confusion_flow(
@@ -777,7 +793,7 @@ class VisualizationDataSaver(Callback):
             min_flow_threshold=3,  # Show flows with at least 3 misclassifications
             max_flows=50,  # Show at most 50 flows
             title="Plant Disease Misclassification Patterns",
-            use_dark_theme=True
+            use_dark_theme=True,
         )
-        
+
         logger.info(f"Generated confusion flow visualization at {output_path}")
