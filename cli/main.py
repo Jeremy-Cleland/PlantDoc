@@ -70,9 +70,6 @@ def train(
     if version is None:
         version = get_next_version(actual_model_name)
 
-    # Generate clean versioned experiment name
-    # If experiment_name is provided, use it as the base name without version suffix
-    # If not, use the model name
     base_name = experiment_name or actual_model_name
 
     if "_v" in base_name:

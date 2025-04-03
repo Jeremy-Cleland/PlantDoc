@@ -1478,7 +1478,7 @@ def generate_plots(
                     # Fix parameter names for plot_categorical
                     plot_categorical(
                         data=pred_classes,  # Change values to data
-                        labels=class_names,
+                        categories=class_names,
                         title="Prediction Distribution",
                         output_path=output_dir / "prediction_distribution.png",
                         theme=theme,
@@ -1639,14 +1639,26 @@ def generate_plots(
             else:
                 # No pre-computed embeddings, use plot_feature_space
                 logger.info("Computing feature space visualization from raw features")
+
+                # Handle high-dimensional features by flattening
+                if len(features.shape) > 2:
+                    # For 4D features like [batch, channels, height, width]
+                    # Reshape to 2D: [batch, channels*height*width]
+                    features_reshaped = features.reshape(features.shape[0], -1)
+                    logger.info(
+                        f"Reshaped features from {features.shape} to {features_reshaped.shape}"
+                    )
+                    features_to_plot = features_reshaped
+                else:
+                    features_to_plot = features
+
                 # Fix the feature_space plot parameters (remove title if causing issues)
                 plot_feature_space(
-                    features=features,
+                    features=features_to_plot,
                     labels=labels,
                     class_names=class_names,
                     output_path=feature_space_path,
                     theme=theme,
-                    # title parameter removed as it might be causing the error
                 )
             logger.info(
                 f"Generated feature space visualization at {feature_space_path}"
@@ -1674,16 +1686,20 @@ def generate_plots(
                 # Make sure Color Jitter only applies to 3-channel images
                 (
                     "Color Jitter",
-                    lambda x: T.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5)(x) 
-                              if x.shape[0] == 3 else x
+                    lambda x: T.ColorJitter(
+                        brightness=0.5, contrast=0.5, saturation=0.5
+                    )(x)
+                    if x.shape[0] == 3
+                    else x,
                 ),
                 # Grayscale works with most image formats
                 ("Grayscale", T.Grayscale(num_output_channels=3)),
                 # Make sure GaussianBlur only applies to valid image sizes
                 (
-                    "Blur", 
-                    lambda x: T.GaussianBlur(kernel_size=5)(x) 
-                              if min(x.shape[1:]) >= 5 else x
+                    "Blur",
+                    lambda x: T.GaussianBlur(kernel_size=5)(x)
+                    if min(x.shape[1:]) >= 5
+                    else x,
                 ),
             ]
 
@@ -1734,7 +1750,7 @@ def generate_plots(
                 else:
                     # Convert tensor to numpy in HWC format
                     viz_original = original_image.permute(1, 2, 0).numpy()
-                
+
                 create_augmentation_grid(
                     original_image=viz_original,
                     augmented_images=augmented_images,
