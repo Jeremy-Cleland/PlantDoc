@@ -237,10 +237,63 @@ class SWACallback(Callback):
                     # Try train_loader as last resort
                     val_loader = logs.get("train_loader")
                     if val_loader is None:
-                        logger.warning(
-                            "SWACallback: No val_loader, test_loader, or train_loader found. BN stats update skipped."
-                        )
-                        return
+                        # Try multiple options to get dataloaders
+                        # 1. Try to get from trainer object
+                        trainer = logs.get("trainer")
+                        if trainer is not None:
+                            if hasattr(trainer, "val_loader") and trainer.val_loader is not None:
+                                val_loader = trainer.val_loader
+                                logger.info("SWACallback: Using val_loader from trainer for BN stats update.")
+                            elif hasattr(trainer, "test_loader") and trainer.test_loader is not None:
+                                val_loader = trainer.test_loader
+                                logger.info("SWACallback: Using test_loader from trainer for BN stats update.")
+                            elif hasattr(trainer, "train_loader") and trainer.train_loader is not None:
+                                val_loader = trainer.train_loader
+                                logger.info("SWACallback: Using train_loader from trainer for BN stats update.")
+                        
+                        # 2. Try to get from data_module if it exists
+                        if val_loader is None:
+                            data_module = logs.get("data_module")
+                            if data_module is not None:
+                                if hasattr(data_module, "val_dataloader") and callable(data_module.val_dataloader):
+                                    try:
+                                        val_loader = data_module.val_dataloader()
+                                        logger.info("SWACallback: Using val_dataloader from data_module for BN stats update.")
+                                    except Exception as e:
+                                        logger.warning(f"Error getting val_dataloader from data_module: {e}")
+                                
+                                elif hasattr(data_module, "test_dataloader") and callable(data_module.test_dataloader):
+                                    try:
+                                        val_loader = data_module.test_dataloader()
+                                        logger.info("SWACallback: Using test_dataloader from data_module for BN stats update.")
+                                    except Exception as e:
+                                        logger.warning(f"Error getting test_dataloader from data_module: {e}")
+                                
+                                elif hasattr(data_module, "train_dataloader") and callable(data_module.train_dataloader):
+                                    try:
+                                        val_loader = data_module.train_dataloader()
+                                        logger.info("SWACallback: Using train_dataloader from data_module for BN stats update.")
+                                    except Exception as e:
+                                        logger.warning(f"Error getting train_dataloader from data_module: {e}")
+                        
+                        # 3. Look in the model object if it might have dataloaders
+                        if val_loader is None and self._model is not None:
+                            if hasattr(self._model, "val_loader"):
+                                val_loader = self._model.val_loader
+                                logger.info("SWACallback: Using val_loader from model for BN stats update.")
+                            elif hasattr(self._model, "test_loader"):
+                                val_loader = self._model.test_loader
+                                logger.info("SWACallback: Using test_loader from model for BN stats update.")
+                            elif hasattr(self._model, "train_loader"):
+                                val_loader = self._model.train_loader
+                                logger.info("SWACallback: Using train_loader from model for BN stats update.")
+                            
+                        # If still no loader found, skip BN stats update
+                        if val_loader is None:
+                            logger.warning(
+                                "SWACallback: No val_loader, test_loader, or train_loader found in any context. BN stats update skipped."
+                            )
+                            return
                     else:
                         logger.info(
                             "SWACallback: Using train_loader for BN stats update as fallback."

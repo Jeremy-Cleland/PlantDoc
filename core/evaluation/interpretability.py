@@ -570,8 +570,8 @@ class GradCAM:
                     # Create a list to store all alternative CAMs
                     alternative_cams = []
                     
-                    # Method 1: Use ReLU but with a small epsilon to avoid zeros
-                    cam1 = F.relu(cam + 1e-5)
+                    # Method 1: Use ReLU but with a larger epsilon to avoid zeros
+                    cam1 = F.relu(cam + 1e-4)  # Increased epsilon 
                     alternative_cams.append(cam1)
                     if self.debug:
                         logger.info(
@@ -579,58 +579,116 @@ class GradCAM:
                         )
                     
                     # Method 2: Use absolute values of activations without ReLU
-                    cam2 = torch.abs(self.activations[0].mean(dim=0))
+                    # Apply a small smoothing factor to ensure non-zero values
+                    cam2 = torch.abs(self.activations[0].mean(dim=0)) + 1e-5
                     alternative_cams.append(cam2)
                     if self.debug:
                         logger.info(
                             f"Method 2 (abs activations) - min: {cam2.min()}, max: {cam2.max()}, sum: {cam2.sum()}"
                         )
                     
-                    # Method 3: Use the raw activations directly
-                    cam3 = torch.mean(self.activations[0], dim=0)
+                    # Method 3: Use the raw activations directly with a baseline offset
+                    act_mean = torch.mean(self.activations[0], dim=0)
+                    cam3 = act_mean - act_mean.min() + 1e-5  # Ensure positive values
                     alternative_cams.append(cam3)
                     if self.debug:
                         logger.info(
                             f"Method 3 (raw activations) - min: {cam3.min()}, max: {cam3.max()}, sum: {cam3.sum()}"
                         )
                     
-                    # Method 4: Use gradients directly
-                    cam4 = torch.mean(torch.abs(self.gradients[0]), dim=0)
+                    # Method 4: Use gradients directly with a smooth activation
+                    grad_mean = torch.mean(torch.abs(self.gradients[0]), dim=0)
+                    cam4 = F.softplus(grad_mean)  # softplus(x) = log(1 + exp(x)) is a smooth ReLU
                     alternative_cams.append(cam4)
                     if self.debug:
                         logger.info(
                             f"Method 4 (gradients) - min: {cam4.min()}, max: {cam4.max()}, sum: {cam4.sum()}"
                         )
                     
-                    # Method 5: Create a synthetic gaussian for fallback
-                    h, w = cam.shape
-                    y, x = torch.meshgrid(
-                        torch.linspace(-1, 1, h),
-                        torch.linspace(-1, 1, w),
-                        indexing="ij",
-                    )
-                    d = torch.sqrt(x * x + y * y)
-                    sigma, mu = 0.5, 0.0
-                    cam5 = torch.exp(-((d - mu) ** 2 / (2.0 * sigma**2)))
-                    alternative_cams.append(cam5)
-                    if self.debug:
-                        logger.info(
-                            f"Method 5 (synthetic) - min: {cam5.min()}, max: {cam5.max()}, sum: {cam5.sum()}"
+                    # Method 5: Use a weighted combination of activations and gradients
+                    if self.activations is not None and self.gradients is not None:
+                        try:
+                            act_flat = torch.mean(torch.abs(self.activations[0]), dim=0)
+                            grad_flat = torch.mean(torch.abs(self.gradients[0]), dim=0)
+                            # Normalize both to [0,1] range
+                            if act_flat.max() > act_flat.min():
+                                act_norm = (act_flat - act_flat.min()) / (act_flat.max() - act_flat.min() + 1e-7)
+                            else:
+                                act_norm = torch.ones_like(act_flat) * 0.5
+                            if grad_flat.max() > grad_flat.min():
+                                grad_norm = (grad_flat - grad_flat.min()) / (grad_flat.max() - grad_flat.min() + 1e-7)
+                            else:
+                                grad_norm = torch.ones_like(grad_flat) * 0.5
+                                
+                            # Weighted combination (slightly favor activations)
+                            cam5 = (0.6 * act_norm + 0.4 * grad_norm) + 1e-5
+                            alternative_cams.append(cam5)
+                            if self.debug:
+                                logger.info(
+                                    f"Method 5 (weighted combo) - min: {cam5.min()}, max: {cam5.max()}, sum: {cam5.sum()}"
+                                )
+                        except Exception as e:
+                            logger.warning(f"Error in method 5 (weighted combo): {e}")
+                            # Fallback to gaussian
+                            h, w = cam.shape
+                            y, x = torch.meshgrid(
+                                torch.linspace(-1, 1, h),
+                                torch.linspace(-1, 1, w),
+                                indexing="ij",
+                            )
+                            d = torch.sqrt(x * x + y * y)
+                            sigma, mu = 0.5, 0.0
+                            cam5 = torch.exp(-((d - mu) ** 2 / (2.0 * sigma**2)))
+                            alternative_cams.append(cam5)
+                            if self.debug:
+                                logger.info(
+                                    f"Method 5 (gaussian fallback) - min: {cam5.min()}, max: {cam5.max()}, sum: {cam5.sum()}"
+                                )
+                    else:
+                        # Method 6: Create a gaussian fallback if needed
+                        h, w = cam.shape
+                        y, x = torch.meshgrid(
+                            torch.linspace(-1, 1, h),
+                            torch.linspace(-1, 1, w),
+                            indexing="ij",
                         )
+                        d = torch.sqrt(x * x + y * y)
+                        sigma, mu = 0.5, 0.0
+                        cam6 = torch.exp(-((d - mu) ** 2 / (2.0 * sigma**2)))
+                        alternative_cams.append(cam6)
+                        if self.debug:
+                            logger.info(
+                                f"Method 6 (gaussian) - min: {cam6.min()}, max: {cam6.max()}, sum: {cam6.sum()}"
+                            )
                     
                     # Select the best alternative method (non-zero with highest sum)
-                    valid_cams = [c for c in alternative_cams if c.sum() > 1e-5]
+                    # Filter CAMs with sufficient activation and no NaN values
+                    valid_cams = [c for c in alternative_cams if c.sum() > 1e-4 and not torch.isnan(c).any()]
                     if valid_cams:
-                        # Use the CAM with the highest total activation
-                        cam_sums = [c.sum().item() for c in valid_cams]
-                        best_cam_idx = cam_sums.index(max(cam_sums))
+                        # Use the CAM with the highest total activation and reasonable distribution
+                        cam_scores = []
+                        for c in valid_cams:
+                            # Calculate score based on sum and distribution (higher is better)
+                            score = c.sum().item() * (c.std().item() + 0.01)
+                            cam_scores.append(score)
+                        
+                        best_cam_idx = cam_scores.index(max(cam_scores))
                         cam = valid_cams[best_cam_idx]
                         if self.debug:
-                            logger.info(f"Selected alternative method {best_cam_idx+1} with sum: {cam.sum().item()}")
+                            logger.info(f"Selected alternative method {best_cam_idx+1} with score: {cam_scores[best_cam_idx]}")
                     else:
-                        # Fallback to synthetic if all alternatives fail
-                        cam = cam5
-                        logger.warning("All alternative methods failed, using synthetic fallback")
+                        # If all alternatives fail, create a simple gradient-based heatmap
+                        h, w = cam.shape
+                        # Create a centered gaussian as last resort
+                        y, x = torch.meshgrid(
+                            torch.linspace(-1, 1, h),
+                            torch.linspace(-1, 1, w),
+                            indexing="ij",
+                        )
+                        d = torch.sqrt(x * x + y * y)
+                        sigma, mu = 0.5, 0.0
+                        cam = torch.exp(-((d - mu) ** 2 / (2.0 * sigma**2)))
+                        logger.warning("All alternative methods failed, using gaussian heatmap fallback")
 
                 # Normalization
                 if cam.max() > cam.min():  # Only normalize if there's a range of values

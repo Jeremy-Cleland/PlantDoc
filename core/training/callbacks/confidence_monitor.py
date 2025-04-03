@@ -245,16 +245,29 @@ class ConfidenceMonitorCallback(Callback):
 
         # Save confidence history
         if self.experiment_dir is not None:
-            history_dir = Path(self.experiment_dir) / "evaluation_artifacts"
+            history_dir = Path(self.experiment_dir) / "metrics"
             ensure_dir(history_dir)
 
             history_path = history_dir / "confidence_history.json"
             try:
+                # Convert numpy data types to Python native types before serialization
+                serializable_history = []
+                for entry in self.history:
+                    serializable_entry = {}
+                    for key, value in entry.items():
+                        if isinstance(value, (np.integer, np.floating, np.bool_)):
+                            serializable_entry[key] = value.item()
+                        elif isinstance(value, np.ndarray):
+                            serializable_entry[key] = value.tolist()
+                        else:
+                            serializable_entry[key] = value
+                    serializable_history.append(serializable_entry)
+
                 with open(history_path, "w") as f:
-                    json.dump(self.history, f, indent=2)
+                    json.dump(serializable_history, f, indent=2)
                 logger.info(f"Saved confidence history to {history_path}")
             except Exception as e:
-                logger.error(f"Failed to save confidence history: {e}")
+                logger.error(f"Failed to save confidence history: {e}", exc_info=True)
 
         # Generate visualizations if requested
         if self.save_visualizations:

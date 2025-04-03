@@ -272,18 +272,27 @@ class SHAPCallback(Callback):
             except Exception as e:
                 logger.warning(f"Could not check input format: {e}")
 
-            # Run SHAP evaluation
-            results = evaluate_with_shap(
-                model=model,
-                data_loader=dataloader,
-                num_samples=self.num_samples,
-                output_dir=output_dir,
-                class_names=class_names,
-                num_background_samples=self.num_background_samples,
-                compare_with_gradcam=self.compare_with_gradcam,
-            )
-
-            logger.info(f"SHAP analysis complete. Results saved to {output_dir}")
+            # Run SHAP evaluation with proper error handling
+            try:
+                results = evaluate_with_shap(
+                    model=model,
+                    data_loader=dataloader,
+                    num_samples=self.num_samples,
+                    output_dir=output_dir,
+                    class_names=class_names,
+                    num_background_samples=self.num_background_samples,
+                    compare_with_gradcam=self.compare_with_gradcam,
+                )
+                logger.info(f"SHAP analysis complete. Results saved to {output_dir}")
+            except Exception as e:
+                logger.error(f"Error in SHAP callback: {e}", exc_info=True)
+                # Create a minimal results object to prevent None returns
+                results = {
+                    "error": str(e),
+                    "num_explained_samples": 0,
+                    "visualization_dir": str(output_dir),
+                    "status": "failed"
+                }
 
             # Save a summary of results
             with open(os.path.join(output_dir, "summary.txt"), "w") as f:
@@ -460,18 +469,27 @@ class SHAPCallback(Callback):
             except Exception as e:
                 logger.warning(f"Could not check input format: {e}")
 
-            # Run SHAP evaluation
-            results = evaluate_with_shap(
-                model=model,
-                data_loader=dataloader,
-                num_samples=self.num_samples,
-                output_dir=output_dir,
-                class_names=class_names,
-                num_background_samples=self.num_background_samples,
-                compare_with_gradcam=self.compare_with_gradcam,
-            )
-
-            logger.info(f"SHAP analysis complete. Results saved to {output_dir}")
+            # Run SHAP evaluation with proper error handling
+            try:
+                results = evaluate_with_shap(
+                    model=model,
+                    data_loader=dataloader,
+                    num_samples=self.num_samples,
+                    output_dir=output_dir,
+                    class_names=class_names,
+                    num_background_samples=self.num_background_samples,
+                    compare_with_gradcam=self.compare_with_gradcam,
+                )
+                logger.info(f"SHAP analysis complete. Results saved to {output_dir}")
+            except Exception as e:
+                logger.error(f"Error in SHAP callback: {e}", exc_info=True)
+                # Create a minimal results object to prevent None returns
+                results = {
+                    "error": str(e),
+                    "num_explained_samples": 0,
+                    "visualization_dir": str(output_dir),
+                    "status": "failed"
+                }
             return results
         except Exception as e:
             logger.error(f"Error in SHAP validation analysis: {e}", exc_info=True)
