@@ -819,7 +819,9 @@ def plot_histogram(
         data,
         bins=bins,
         kde=kde,
-        color=theme["main_color"],
+        color=theme["bar_colors"][
+            2
+        ],  # Use green color consistently with confidence distribution
         ax=ax,
         edgecolor=theme["background_color"],
         alpha=0.7,

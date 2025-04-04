@@ -586,6 +586,10 @@
               <i class="fas fa-chart-line"></i>
               <a href="#overview" class="nav-link">Performance Overview</a>
             </li>
+            <li class="nav-item" data-section="data-analysis">
+              <i class="fas fa-database"></i>
+              <a href="#data-analysis" class="nav-link">Data Analysis</a>
+            </li>
             <li class="nav-item" data-section="configuration">
               <i class="fas fa-cog"></i>
               <a href="#configuration" class="nav-link">Model Configuration</a>
@@ -593,6 +597,10 @@
             <li class="nav-item" data-section="training">
               <i class="fas fa-chart-area"></i>
               <a href="#training" class="nav-link">Training Metrics</a>
+            </li>
+            <li class="nav-item" data-section="confidence">
+              <i class="fas fa-check-circle"></i>
+              <a href="#confidence" class="nav-link">Confidence Analysis</a>
             </li>
             <li class="nav-item">
               <i class="fas fa-chart-bar"></i>
@@ -708,44 +716,108 @@
           <div class="dashboard">
             <div class="metric-card">
               <div class="metric-label">Accuracy</div>
-              <div class="metric-value">{% if metrics.accuracy is number %}{{ (metrics.accuracy * 100)|round(2) }}%{% else %}{{ metrics.accuracy }}%{% endif %}</div>
+              <div class="metric-value">
+                {% if metrics.accuracy is number %}
+                  {{ (metrics.accuracy * 100)|round(2) }}%
+                {% elif metrics.accuracy is iterable and metrics.accuracy is not string %}
+                  {{ (metrics.accuracy|sum / metrics.accuracy|length * 100)|round(2) }}%
+                {% else %}
+                  {{ metrics.accuracy }}%
+                {% endif %}
+              </div>
               {% if metrics.val_accuracy is defined and metrics.val_accuracy is not none %}
               <div class="metric-info">
                 <i class="fas fa-info-circle"></i>
-                <span>Val: {% if metrics.val_accuracy is number %}{{ (metrics.val_accuracy * 100)|round(2) }}{% else %}{{ metrics.val_accuracy }}{% endif %}%</span>
+                <span>Val: 
+                  {% if metrics.val_accuracy is number %}
+                    {{ (metrics.val_accuracy * 100)|round(2) }}
+                  {% elif metrics.val_accuracy is iterable and metrics.val_accuracy is not string %}
+                    {{ (metrics.val_accuracy|sum / metrics.val_accuracy|length * 100)|round(2) }}
+                  {% else %}
+                    {{ metrics.val_accuracy }}
+                  {% endif %}%
+                </span>
               </div>
               {% endif %}
             </div>
 
             <div class="metric-card">
               <div class="metric-label">Precision</div>
-              <div class="metric-value">{% if metrics.precision is number %}{{ (metrics.precision * 100)|round(2) }}%{% else %}{{ metrics.precision }}%{% endif %}</div>
+              <div class="metric-value">
+                {% if metrics.precision is number %}
+                  {{ (metrics.precision * 100)|round(2) }}%
+                {% elif metrics.precision is iterable and metrics.precision is not string %}
+                  {{ (metrics.precision|sum / metrics.precision|length * 100)|round(2) }}%
+                {% else %}
+                  {{ metrics.precision }}%
+                {% endif %}
+              </div>
               {% if metrics.val_precision is defined and metrics.val_precision is not none %}
               <div class="metric-info">
                 <i class="fas fa-info-circle"></i>
-                <span>Val: {% if metrics.val_precision is number %}{{ (metrics.val_precision * 100)|round(2) }}{% else %}{{ metrics.val_precision }}{% endif %}%</span>
+                <span>Val: 
+                  {% if metrics.val_precision is number %}
+                    {{ (metrics.val_precision * 100)|round(2) }}
+                  {% elif metrics.val_precision is iterable and metrics.val_precision is not string %}
+                    {{ (metrics.val_precision|sum / metrics.val_precision|length * 100)|round(2) }}
+                  {% else %}
+                    {{ metrics.val_precision }}
+                  {% endif %}%
+                </span>
               </div>
               {% endif %}
             </div>
 
             <div class="metric-card">
               <div class="metric-label">Recall</div>
-              <div class="metric-value">{% if metrics.recall is number %}{{ (metrics.recall * 100)|round(2) }}%{% else %}{{ metrics.recall }}%{% endif %}</div>
+              <div class="metric-value">
+                {% if metrics.recall is number %}
+                  {{ (metrics.recall * 100)|round(2) }}%
+                {% elif metrics.recall is iterable and metrics.recall is not string %}
+                  {{ (metrics.recall|sum / metrics.recall|length * 100)|round(2) }}%
+                {% else %}
+                  {{ metrics.recall }}%
+                {% endif %}
+              </div>
               {% if metrics.val_recall is defined and metrics.val_recall is not none %}
               <div class="metric-info">
                 <i class="fas fa-info-circle"></i>
-                <span>Val: {% if metrics.val_recall is number %}{{ (metrics.val_recall * 100)|round(2) }}{% else %}{{ metrics.val_recall }}{% endif %}%</span>
+                <span>Val: 
+                  {% if metrics.val_recall is number %}
+                    {{ (metrics.val_recall * 100)|round(2) }}
+                  {% elif metrics.val_recall is iterable and metrics.val_recall is not string %}
+                    {{ (metrics.val_recall|sum / metrics.val_recall|length * 100)|round(2) }}
+                  {% else %}
+                    {{ metrics.val_recall }}
+                  {% endif %}%
+                </span>
               </div>
               {% endif %}
             </div>
 
             <div class="metric-card">
               <div class="metric-label">F1 Score</div>
-              <div class="metric-value">{% if metrics.f1 is number %}{{ (metrics.f1 * 100)|round(2) }}%{% else %}{{ metrics.f1 }}%{% endif %}</div>
+              <div class="metric-value">
+                {% if metrics.f1 is number %}
+                  {{ (metrics.f1 * 100)|round(2) }}%
+                {% elif metrics.f1 is iterable and metrics.f1 is not string %}
+                  {{ (metrics.f1|sum / metrics.f1|length * 100)|round(2) }}%
+                {% else %}
+                  {{ metrics.f1 }}%
+                {% endif %}
+              </div>
               {% if metrics.val_f1 %}
               <div class="metric-info">
                 <i class="fas fa-info-circle"></i>
-                <span>Val: {% if metrics.val_f1 is number %}{{ (metrics.val_f1 * 100)|round(2) }}{% else %}{{ metrics.val_f1 }}{% endif %}%</span>
+                <span>Val: 
+                  {% if metrics.val_f1 is number %}
+                    {{ (metrics.val_f1 * 100)|round(2) }}
+                  {% elif metrics.val_f1 is iterable and metrics.val_f1 is not string %}
+                    {{ (metrics.val_f1|sum / metrics.val_f1|length * 100)|round(2) }}
+                  {% else %}
+                    {{ metrics.val_f1 }}
+                  {% endif %}%
+                </span>
               </div>
               {% endif %}
             </div>
@@ -797,6 +869,203 @@
           </div>
           {% endif %}
 
+          <!-- Model Configuration -->
+          <section class="analysis-section" id="configuration">
+            <div class="analysis-header">
+              <i class="fas fa-cog"></i> Model Configuration
+            </div>
+            <div class="analysis-content">
+              <p class="mb-3">Detailed configuration of the {{ model_name }} model and training process.</p>
+              
+              <!-- Model Architecture Details -->
+              <h4 class="mt-4 mb-3"><i class="fas fa-microchip"></i> Architecture</h4>
+              <div class="model-details">
+                <div class="detail-item">
+                  <div class="detail-label">Model Name</div>
+                  <div class="detail-value">{{ model_name }}</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-label">Num Classes</div>
+                  <div class="detail-value">{{ class_names|length }}</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-label">Pretrained</div>
+                  <div class="detail-value">{{ config.model.pretrained|default('Yes') }}</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-label">Input Size</div>
+                  <div class="detail-value">{{ config.model.input_size|default([224, 224])|join(" × ") }}</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-label">Head Type</div>
+                  <div class="detail-value">{{ config.model.head_type|default('Standard') }}</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-label">Hidden Dim</div>
+                  <div class="detail-value">{{ config.model.hidden_dim|default('N/A') }}</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-label">Dropout Rate</div>
+                  <div class="detail-value">{{ config.model.dropout_rate|default('0.0') }}</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-label">Model Size</div>
+                  <div class="detail-value">{{ model_info.size_mb|round(2) }} MB</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-label">Parameters</div>
+                  <div class="detail-value">{{ "{:,}".format(model_info.num_parameters) }}</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-label">Layers</div>
+                  <div class="detail-value">{{ model_info.num_layers|default('Unknown') }}</div>
+                </div>
+              </div>
+
+              <!-- Training Parameters -->
+              <h4 class="mt-4 mb-3"><i class="fas fa-sliders-h"></i> Training Parameters</h4>
+              <div class="model-details">
+                <div class="detail-item">
+                  <div class="detail-label">Epochs</div>
+                  <div class="detail-value">{{ config.training.epochs|default('100') }}</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-label">Batch Size</div>
+                  <div class="detail-value">{{ config.training.batch_size|default(config.loader.batch_size|default('32')) }}</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-label">Mixed Precision</div>
+                  <div class="detail-value">{{ config.training.use_mixed_precision|default('False') }}</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-label">Precision</div>
+                  <div class="detail-value">{{ config.training.precision|default('float32') }}</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-label">Gradient Clip</div>
+                  <div class="detail-value">{{ config.training.gradient_clip_val|default('None') }}</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-label">Total Time</div>
+                  <div class="detail-value">{{ total_time|format_time }}</div>
+                </div>
+              </div>
+
+              <!-- Optimizer Configuration -->
+              <h4 class="mt-4 mb-3"><i class="fas fa-chart-line"></i> Optimizer</h4>
+              <div class="model-details">
+                <div class="detail-item">
+                  <div class="detail-label">Name</div>
+                  <div class="detail-value">{{ config.optimizer.name|default('Adam')|title }}</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-label">Learning Rate</div>
+                  <div class="detail-value">{{ config.optimizer.lr|default('1e-3') }}</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-label">Weight Decay</div>
+                  <div class="detail-value">{{ config.optimizer.weight_decay|default('0.0') }}</div>
+                </div>
+                {% if config.optimizer.momentum is defined %}
+                <div class="detail-item">
+                  <div class="detail-label">Momentum</div>
+                  <div class="detail-value">{{ config.optimizer.momentum }}</div>
+                </div>
+                {% endif %}
+              </div>
+
+              <!-- Scheduler Configuration -->
+              <h4 class="mt-4 mb-3"><i class="fas fa-temperature-low"></i> Scheduler</h4>
+              <div class="model-details">
+                <div class="detail-item">
+                  <div class="detail-label">Type</div>
+                  <div class="detail-value">{{ config.scheduler.name|default('None')|replace('_', ' ')|title }}</div>
+                </div>
+                {% if config.scheduler.name is defined %}
+                <div class="detail-item">
+                  <div class="detail-label">Monitor</div>
+                  <div class="detail-value">{{ config.scheduler.monitor|default('None') }}</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-label">Factor</div>
+                  <div class="detail-value">{{ config.scheduler.factor|default('0.1') }}</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-label">Patience</div>
+                  <div class="detail-value">{{ config.scheduler.patience|default('10') }}</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-label">Min LR</div>
+                  <div class="detail-value">{{ config.scheduler.min_lr|default('0') }}</div>
+                </div>
+                {% endif %}
+              </div>
+
+              <!-- Loss Function -->
+              <h4 class="mt-4 mb-3"><i class="fas fa-tachometer-alt"></i> Loss Function</h4>
+              <div class="model-details">
+                <div class="detail-item">
+                  <div class="detail-label">Type</div>
+                  <div class="detail-value">{{ config.loss.name|default('CrossEntropy')|replace('_', ' ')|title }}</div>
+                </div>
+                {% if config.loss.components is defined and config.loss.components|length > 0 %}
+                {% for component in config.loss.components %}
+                <div class="detail-item">
+                  <div class="detail-label">Component {{ loop.index }}</div>
+                  <div class="detail-value">{{ component.name|default('Unknown')|replace('_', ' ')|title }} (w={{ component.weight|default('1.0') }})</div>
+                </div>
+                {% endfor %}
+                {% endif %}
+              </div>
+
+              <!-- Data Processing -->
+              <h4 class="mt-4 mb-3"><i class="fas fa-database"></i> Data Processing</h4>
+              <div class="model-details">
+                {% if config.data.train_val_test_split is defined %}
+                <div class="detail-item">
+                  <div class="detail-label">Data Split</div>
+                  <div class="detail-value">{{ config.data.train_val_test_split|join(" / ") }}</div>
+                </div>
+                {% endif %}
+                {% if config.data.preprocessing is defined %}
+                <div class="detail-item">
+                  <div class="detail-label">Input Size</div>
+                  <div class="detail-value">{{ config.data.preprocessing.resize|default([224, 224])|join(" × ") }} → {{ config.data.preprocessing.center_crop|default([224, 224])|join(" × ") }}</div>
+                </div>
+                {% endif %}
+                <div class="detail-item">
+                  <div class="detail-label">Dataset</div>
+                  <div class="detail-value">{{ config.data.dataset_name|default('Unknown') }}</div>
+                </div>
+              </div>
+
+              <!-- Augmentations -->
+              {% if config.data.augmentation is defined %}
+              <h4 class="mt-4 mb-3"><i class="fas fa-random"></i> Augmentations</h4>
+              <div class="model-details">
+                {% if config.data.augmentation.rand_augment is defined %}
+                <div class="detail-item">
+                  <div class="detail-label">RandAugment</div>
+                  <div class="detail-value">{{ config.data.augmentation.rand_augment.enabled|default('False') }} (n={{ config.data.augmentation.rand_augment.num_ops|default('2') }}, m={{ config.data.augmentation.rand_augment.magnitude|default('9') }})</div>
+                </div>
+                {% endif %}
+                {% if config.data.augmentation.cutmix is defined %}
+                <div class="detail-item">
+                  <div class="detail-label">CutMix</div>
+                  <div class="detail-value">{{ config.data.augmentation.cutmix.enabled|default('False') }} (α={{ config.data.augmentation.cutmix.alpha|default('1.0') }}, p={{ config.data.augmentation.cutmix.p|default('0.5') }})</div>
+                </div>
+                {% endif %}
+                {% if config.data.augmentation.mixup is defined %}
+                <div class="detail-item">
+                  <div class="detail-label">MixUp</div>
+                  <div class="detail-value">{{ config.data.augmentation.mixup.enabled|default('False') }} (α={{ config.data.augmentation.mixup.alpha|default('1.0') }}, p={{ config.data.augmentation.mixup.p|default('0.5') }})</div>
+                </div>
+                {% endif %}
+              </div>
+              {% endif %}
+            </div>
+          </section>
+
           <!-- Attention Visualizations -->
           {% if attention_plots %}
           <div id="attention-visualizations" class="chart-section">
@@ -805,21 +1074,37 @@
             </div>
             <div class="chart-content">
               <p class="chart-caption" style="margin-top: 0; margin-bottom: 1rem;">
-                Attention maps show which regions of the input the model focuses on when making predictions. This helps understand what visual patterns the model considers important.
+                Spatial attention maps highlight regions of input images that the model focuses on when making predictions, 
+                revealing how the model "sees" key diagnostic features for plant disease classification.
               </p>
               
-              {% for attention_plot in attention_plots %}
-              <div style="margin-bottom: 2rem;">
+              <!-- Display in 2 columns -->
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                {% set attention_count = 0 %}
+                {% set spatial_maps = [
+                  'Corn_Common_rust_spatial.png', 
+                  'Grape_healthy_spatial.png', 
+                  'Orange_Haunglongbing_Citrus_greening_spatial.png', 
+                  'Pepper_bell_healthy_spatial.png', 
+                  'Potato_Late_blight_spatial.png', 
+                  'Raspberry_healthy_spatial.png'
+                ] %}
+                
+                {% for attention_plot in attention_plots if attention_plot.split('/')[-1] in spatial_maps and attention_count < 6 %}
+                  {% set attention_count = attention_count + 1 %}
+                  <div style="margin-bottom: 1.5rem;">
                 <img 
                   src="{{ attention_plot }}"
-                  alt="Attention Visualization"
+                      alt="Spatial Attention Map"
                   class="chart-image"
+                      style="width: 100%; border-radius: 8px; border: 1px solid var(--border-color);"
                 />
-                <p class="chart-caption">
-                  {{ attention_plot.split('/')[-1].replace('.png', '').replace('_', ' ').title() }}
+                    <p class="chart-caption" style="margin-top: 0.5rem; text-align: center;">
+                      {{ attention_plot.split('/')[-1].replace('.png', '').replace('_', ' ').replace('spatial', 'Spatial Attention').title() }}
                 </p>
               </div>
               {% endfor %}
+              </div>
             </div>
           </div>
           {% endif %}
@@ -851,68 +1136,132 @@
           </div>
           {% endif %}
 
-          <!-- Model Configuration -->
-          <section class="analysis-section" id="configuration">
-            <div class="analysis-header">
-              <i class="fas fa-cog"></i> Model Configuration
+          <!-- Dataset Analysis -->
+          {% if 'plots/dataset_analysis' in available_plots %}
+          <section class="chart-section" id="dataset-analysis">
+            <div class="section-header">
+              <h2 class="section-title">Dataset Analysis</h2>
             </div>
-            <div class="analysis-content">
-              <div class="model-details">
-                <div class="detail-item">
-                  <div class="detail-label">Model Name</div>
-                  <div class="detail-value">{{ model_name }}</div>
+            <div class="chart-content">
+              {% if 'plots/dataset_analysis/analysis_dashboard.png' in available_plots %}
+              <img
+                src="plots/dataset_analysis/analysis_dashboard.png"
+                alt="Dataset Analysis Dashboard"
+                class="chart-image"
+              />
+              {% endif %}
+              
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-top: 1.5rem;">
+                {% if 'plots/dataset_analysis/class_distribution.png' in available_plots %}
+                <div>
+                  <img
+                    src="plots/dataset_analysis/class_distribution.png"
+                    alt="Class Distribution"
+                    class="chart-image"
+                  />
                 </div>
-                <div class="detail-item">
-                  <div class="detail-label">Optimizer</div>
-                  <div class="detail-value">{{ config.optimizer.name|default('Adam') }}</div>
+                {% endif %}
+                
+                {% if 'plots/dataset_analysis/class_distribution_pie.png' in available_plots %}
+                <div>
+                  <img
+                    src="plots/dataset_analysis/class_distribution_pie.png"
+                    alt="Class Distribution Pie"
+                    class="chart-image"
+                  />
                 </div>
-                <div class="detail-item">
-                  <div class="detail-label">Learning Rate</div>
-                  <div class="detail-value">{{ config.optimizer.lr|default('1e-3') }}</div>
+                {% endif %}
+                
+                {% if 'plots/dataset_analysis/color_distribution.png' in available_plots %}
+                <div>
+                  <img
+                    src="plots/dataset_analysis/color_distribution.png"
+                    alt="Color Distribution"
+                    class="chart-image"
+                  />
                 </div>
-                <div class="detail-item">
-                  <div class="detail-label">Batch Size</div>
-                  <div class="detail-value">{{ config.loader.batch_size|default('32') }}</div>
+                {% endif %}
+                
+                {% if 'plots/dataset_analysis/brightness_distribution.png' in available_plots %}
+                <div>
+                  <img
+                    src="plots/dataset_analysis/brightness_distribution.png"
+                    alt="Brightness Distribution"
+                    class="chart-image"
+                  />
                 </div>
-                <div class="detail-item">
-                  <div class="detail-label">Epochs</div>
-                  <div class="detail-value">{{ config.training.epochs|default('100') }}</div>
+                {% endif %}
                 </div>
-                <div class="detail-item">
-                  <div class="detail-label">Loss Function</div>
-                  <div class="detail-value">{{ config.loss.name|default('CrossEntropy') }}</div>
+              
+              <div class="chart-caption">
+                <p>
+                  Detailed analysis of the dataset characteristics including class distribution, 
+                  image properties, and visual characteristics.
+                </p>
                 </div>
-                <div class="detail-item">
-                  <div class="detail-label">Dataset</div>
-                  <div class="detail-value">{{ config.data.dataset_name|default('Unknown') }}</div>
                 </div>
-                <div class="detail-item">
-                  <div class="detail-label">Num Classes</div>
-                  <div class="detail-value">{{ class_names|length }}</div>
+          </section>
+          {% endif %}
+
+          <!-- Confusion Flow -->
+          {% if 'plots/confusion_flow/confusion_flow.png' in available_plots %}
+          <section class="chart-section" id="confusion-flow">
+            <div class="section-header">
+              <h2 class="section-title">Confusion Flow</h2>
                 </div>
-                <div class="detail-item">
-                  <div class="detail-label">Model Size Mb</div>
-                  <div class="detail-value">{{ model_info.size_mb|round(2) }}</div>
+            <div class="chart-content">
+              <img
+                src="plots/confusion_flow/confusion_flow.png"
+                alt="Confusion Flow"
+                class="chart-image"
+              />
+              <div class="chart-caption">
+                <p>
+                  Visualization of misclassification patterns between classes. Arrows show the flow and 
+                  magnitude of errors, highlighting which classes are frequently confused with each other.
+                </p>
                 </div>
-                <div class="detail-item">
-                  <div class="detail-label">Num Layers</div>
-                  <div class="detail-value">{{ model_info.num_layers|default('Unknown') }}</div>
                 </div>
-                <div class="detail-item">
-                  <div class="detail-label">Num Parameters</div>
-                  <div class="detail-value">{{ "{:,}".format(model_info.num_parameters) }}</div>
+          </section>
+          {% endif %}
+
+          <!-- Confidence Analysis Detailed -->
+          {% if 'plots/confidence' in available_plots %}
+          <section class="chart-section" id="confidence-details">
+            <div class="section-header">
+              <h2 class="section-title">Detailed Confidence Analysis</h2>
                 </div>
-                <div class="detail-item">
-                  <div class="detail-label">Total Training Time</div>
-                  <div class="detail-value">{{ total_time|format_time }}</div>
+            <div class="chart-content">
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                {% if 'plots/confidence/confidence_by_class.png' in available_plots %}
+                <div>
+                  <img
+                    src="plots/confidence/confidence_by_class.png"
+                    alt="Confidence by Class"
+                    class="chart-image"
+                  />
+                  <p class="chart-caption">
+                    Average confidence scores broken down by class, showing which classes the model is most confident about.
+                  </p>
                 </div>
-                <div class="detail-item">
-                  <div class="detail-label">Training Time</div>
-                  <div class="detail-value">{{ total_time|format_time }}</div>
+                {% endif %}
+                
+                {% if 'plots/confidence/confidence_timeline.png' in available_plots %}
+                <div>
+                  <img
+                    src="plots/confidence/confidence_timeline.png"
+                    alt="Confidence Timeline"
+                    class="chart-image"
+                  />
+                  <p class="chart-caption">
+                    Evolution of model confidence throughout the training process, showing how confidence changes with training.
+                  </p>
                 </div>
+                {% endif %}
               </div>
             </div>
           </section>
+          {% endif %}
 
           <!-- Training History -->
           <section class="chart-section" id="training">
@@ -1196,7 +1545,9 @@
               />
               <div class="chart-caption">
                 <p>
-                  Distribution of prediction confidences for correct and incorrect predictions.
+                  Histogram showing the distribution of prediction confidences across all test samples.
+                  The model shows a {% if (confidence_stats|default({})).mean|default(0) > 0.8 %}high{% elif (confidence_stats|default({})).mean|default(0) > 0.6 %}moderate{% else %}low{% endif %} average confidence of 
+                  {% if (confidence_stats|default({})).mean is defined %}{{ confidence_stats.mean|round(2) }}{% else %}N/A{% endif %}.
                 </p>
               </div>
             </div>
@@ -1244,20 +1595,261 @@
             </div>
             <div class="analysis-content">
               <p>
-                The {{ model_name }} model demonstrates {% if metrics.accuracy is number %}{{ (metrics.accuracy * 100)|round(2) }}%{% else %}{{ metrics.accuracy }}%{% endif %} accuracy for
+                The {{ model_name }} model achieves 
+                {% if metrics.accuracy is number %}
+                  {{ (metrics.accuracy * 100)|round(2) }}%
+                {% elif metrics.accuracy is iterable and metrics.accuracy is not string %}
+                  {{ (metrics.accuracy|sum / metrics.accuracy|length * 100)|round(2) }}%
+                {% else %}
+                  {{ metrics.accuracy }}%
+                {% endif %} accuracy for
                 the classification task with {{ class_names|length }} classes.
               </p>
 
-              <div class="alert alert-success">
+              <!-- Performance Summary -->
+              <div class="model-details mt-3" style="grid-template-columns: repeat(2, 1fr);">
+                <div class="detail-item">
+                  <div class="detail-label">Accuracy</div>
+                  <div class="detail-value">{% if metrics.accuracy is number %}{{ (metrics.accuracy * 100)|round(2) }}%{% elif metrics.accuracy is iterable and metrics.accuracy is not string %}{{ (metrics.accuracy|sum / metrics.accuracy|length * 100)|round(2) }}%{% else %}{{ metrics.accuracy }}%{% endif %}</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-label">Precision</div>
+                  <div class="detail-value">{% if metrics.precision is number %}{{ (metrics.precision * 100)|round(2) }}%{% elif metrics.precision is iterable and metrics.precision is not string %}{{ (metrics.precision|sum / metrics.precision|length * 100)|round(2) }}%{% else %}{{ metrics.precision }}%{% endif %}</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-label">Recall</div>
+                  <div class="detail-value">{% if metrics.recall is number %}{{ (metrics.recall * 100)|round(2) }}%{% elif metrics.recall is iterable and metrics.recall is not string %}{{ (metrics.recall|sum / metrics.recall|length * 100)|round(2) }}%{% else %}{{ metrics.recall }}%{% endif %}</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-label">F1 Score</div>
+                  <div class="detail-value">{% if metrics.f1 is number %}{{ (metrics.f1 * 100)|round(2) }}%{% elif metrics.f1 is iterable and metrics.f1 is not string %}{{ (metrics.f1|sum / metrics.f1|length * 100)|round(2) }}%{% else %}{{ metrics.f1 }}%{% endif %}</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-label">Training Time</div>
+                  <div class="detail-value">{{ total_time|format_time }}</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-label">Model Size</div>
+                  <div class="detail-value">{{ model_info.size_mb|round(2) }} MB</div>
+                </div>
+              </div>
+
+              <!-- Key Findings -->
+              <h4 class="mt-4 mb-3"><i class="fas fa-search"></i> Key Findings</h4>
+              <div class="insight-list">
+                <!-- Strengths -->
+                <div class="insight-item">
+                  <div class="insight-icon">
+                    <i class="fas fa-check"></i>
+                  </div>
+                  <div class="insight-content">
+                    <strong>Model Strengths:</strong> The model demonstrates 
+                    {% if metrics.accuracy is number and metrics.accuracy > 0.9 or metrics.accuracy is iterable and metrics.accuracy is not string and metrics.accuracy|sum / metrics.accuracy|length > 0.9 %}
+                      excellent
+                    {% elif metrics.accuracy is number and metrics.accuracy > 0.85 or metrics.accuracy is iterable and metrics.accuracy is not string and metrics.accuracy|sum / metrics.accuracy|length > 0.85 %}
+                      very good
+                    {% elif metrics.accuracy is number and metrics.accuracy > 0.8 or metrics.accuracy is iterable and metrics.accuracy is not string and metrics.accuracy|sum / metrics.accuracy|length > 0.8 %}
+                      good
+                    {% else %}
+                      moderate
+                    {% endif %}
+                    performance on the {{ class_names|length }}-class classification task. 
+                    It performs particularly well on 
+                    {% if per_class_metrics|default(false) %}
+                      {% set best_classes = per_class_metrics|dictsort(by='value.f1')|reverse %}
+                      {% for cls, metrics in best_classes[:3] %}
+                        {{ cls }}{% if not loop.last %}, {% endif %}
+                      {% endfor %}
+                    {% else %}
+                      the majority of classes
+                    {% endif %}
+                    classes.
+                  </div>
+                </div>
+                
+                <!-- Areas for Improvement -->
+                <div class="insight-item">
+                  <div class="insight-icon">
+                    <i class="fas fa-exclamation-triangle"></i>
+                  </div>
+                  <div class="insight-content">
+                    <strong>Areas for Improvement:</strong> 
+                    {% if per_class_metrics|default(false) %}
+                      {% set worst_classes = per_class_metrics|dictsort(by='value.f1') %}
+                      Performance is lower on 
+                      {% for cls, metrics in worst_classes[:3] %}
+                        {{ cls }}{% if not loop.last %}, {% endif %}
+                      {% endfor %}
+                      classes, which may benefit from additional training data or specialized augmentation techniques.
+                    {% else %}
+                      Some classes show lower performance metrics, which could be addressed with class-specific data augmentation or model fine-tuning.
+                    {% endif %}
+                  </div>
+                </div>
+                
+                <!-- Confidence Analysis -->
+                <div class="insight-item">
+                  <div class="insight-icon">
+                    <i class="fas fa-chart-line"></i>
+                  </div>
+                  <div class="insight-content">
+                    <strong>Confidence Analysis:</strong> The model shows
+                    {% if (confidence_stats|default({})).correct_mean|default(0) - (confidence_stats|default({})).incorrect_mean|default(0) > 0.3 %}
+                      strong discrimination between correct and incorrect predictions, with significantly higher confidence for correct classifications.
+                    {% elif (confidence_stats|default({})).correct_mean|default(0) - (confidence_stats|default({})).incorrect_mean|default(0) > 0.1 %}
+                      reasonable discrimination between correct and incorrect predictions, though there is some overlap in confidence distributions.
+                    {% else %}
+                      limited ability to distinguish between correct and incorrect predictions through confidence scores alone.
+                    {% endif %}
+                  </div>
+                </div>
+                
+                <!-- Training Process -->
+                <div class="insight-item">
+                  <div class="insight-icon">
+                    <i class="fas fa-cogs"></i>
+                  </div>
+                  <div class="insight-content">
+                    <strong>Training Process:</strong> The model was trained for {{ config.training.epochs|default('100') }} epochs using
+                    {{ config.optimizer.name|default('Adam')|title }} optimizer with a learning rate of {{ config.optimizer.lr|default('1e-3') }}. 
+                    {% if config.loss.name == 'combined' %}
+                      A combined loss function incorporating 
+                      {% for component in config.loss.components %}
+                        {{ component.name|replace('_', ' ')|title }}{% if not loop.last %} and {% endif %}
+                      {% endfor %}
+                      was used to optimize for both accuracy and robustness.
+                    {% else %}
+                      {{ config.loss.name|default('CrossEntropy')|replace('_', ' ')|title }} loss was used for training.
+                    {% endif %}
+                  </div>
+                </div>
+                
+                <!-- Data Insights -->
+                <div class="insight-item">
+                  <div class="insight-icon">
+                    <i class="fas fa-database"></i>
+                  </div>
+                  <div class="insight-content">
+                    <strong>Data Utilization:</strong> The model was trained using
+                    {% if config.data.augmentation and (config.data.augmentation.rand_augment.enabled|default(false) or config.data.augmentation.cutmix.enabled|default(false) or config.data.augmentation.mixup.enabled|default(false)) %}
+                      extensive data augmentation techniques including
+                      {% if config.data.augmentation.rand_augment and config.data.augmentation.rand_augment.enabled %}RandAugment{% endif %}
+                      {% if config.data.augmentation.cutmix and config.data.augmentation.cutmix.enabled %}{% if config.data.augmentation.rand_augment and config.data.augmentation.rand_augment.enabled %}, {% endif %}CutMix{% endif %}
+                      {% if config.data.augmentation.mixup and config.data.augmentation.mixup.enabled %}{% if config.data.augmentation.rand_augment and config.data.augmentation.rand_augment.enabled or config.data.augmentation.cutmix and config.data.augmentation.cutmix.enabled %}, {% endif %}MixUp{% endif %}
+                      to improve generalization and robustness.
+                    {% else %}
+                      standard preprocessing techniques including resizing and normalization.
+                    {% endif %}
+                  </div>
+                </div>
+              </div>
+
+              <!-- Recommendations -->
+              <h4 class="mt-4 mb-3"><i class="fas fa-lightbulb"></i> Recommendations</h4>
+              <div class="insight-list">
+                <!-- Recommendation 1 -->
+                <div class="insight-item">
+                  <div class="insight-icon">
+                    <i class="fas fa-arrow-circle-up"></i>
+                  </div>
+                  <div class="insight-content">
+                    <strong>Improve Low-Performing Classes:</strong> Consider collecting additional training data or applying targeted augmentation for
+                    {% if per_class_metrics|default(false) %}
+                      {% set worst_classes = per_class_metrics|dictsort(by='value.f1') %}
+                      {% for cls, metrics in worst_classes[:3] %}
+                        {{ cls }}{% if not loop.last %}, {% endif %}
+                      {% endfor %}
+                    {% else %}
+                      classes with lower performance metrics
+                    {% endif %}
+                    to increase their classification accuracy.
+                  </div>
+                </div>
+                
+                <!-- Recommendation 2 -->
+                <div class="insight-item">
+                  <div class="insight-icon">
+                    <i class="fas fa-balance-scale"></i>
+                  </div>
+                  <div class="insight-content">
+                    <strong>Calibration Improvements:</strong> 
+                    {% if (confidence_stats|default({})).correct_mean|default(0) - (confidence_stats|default({})).incorrect_mean|default(0) < 0.2 %}
+                      Apply temperature scaling or other calibration techniques to better align the model's confidence with its actual accuracy.
+                    {% else %}
+                      Continue monitoring the model's confidence calibration in production to ensure it remains well-calibrated.
+                    {% endif %}
+                  </div>
+                </div>
+                
+                <!-- Recommendation 3 -->
+                <div class="insight-item">
+                  <div class="insight-icon">
+                    <i class="fas fa-rocket"></i>
+                  </div>
+                  <div class="insight-content">
+                    <strong>Model Deployment:</strong> This model is 
+                    {% if model_info.size_mb|default(100) < 50 %}
+                      lightweight ({{ model_info.size_mb|round(2) }} MB) and suitable for mobile or edge deployment.
+                    {% elif model_info.size_mb|default(100) < 100 %}
+                      moderately sized ({{ model_info.size_mb|round(2) }} MB) and suitable for most deployment scenarios.
+                    {% else %}
+                      large ({{ model_info.size_mb|round(2) }} MB) and may require optimization for resource-constrained environments.
+                    {% endif %}
+                    Consider using 
+                    {% if model_info.size_mb|default(100) > 100 %}
+                      quantization or model pruning 
+                    {% else %}
+                      model optimization techniques 
+                    {% endif %}
+                    to further improve inference speed if needed.
+                  </div>
+                </div>
+                
+                <!-- Recommendation 4 -->
+                <div class="insight-item">
+                  <div class="insight-icon">
+                    <i class="fas fa-tools"></i>
+                  </div>
+                  <div class="insight-content">
+                    <strong>Advanced Techniques:</strong> For further improvements, consider exploring
+                    {% if 'resnet' in model_name|lower %}
+                      feature fusion techniques, advanced attention mechanisms, or ensemble methods
+                    {% else %}
+                      transfer learning with larger backbone models, self-supervised pre-training, or knowledge distillation
+                    {% endif %}
+                    to enhance model performance while maintaining efficiency.
+                  </div>
+                </div>
+              </div>
+
+              <!-- Overall Assessment -->
+              <div class="alert alert-success mt-4">
                 <div class="alert-icon">
                   <i class="fas fa-check-circle"></i>
                 </div>
                 <div class="alert-content">
-                  <h4>Model Evaluation</h4>
+                  <h4>Overall Assessment</h4>
                   <p>
-                    This report provides a comprehensive analysis of the model's
-                    performance metrics, including accuracy, precision, recall,
-                    and F1 score.
+                    The {{ model_name }} demonstrates 
+                    {% if metrics.accuracy is number and metrics.accuracy > 0.9 or metrics.accuracy is iterable and metrics.accuracy|sum / metrics.accuracy|length > 0.9 %}
+                      excellent
+                    {% elif metrics.accuracy is number and metrics.accuracy > 0.85 or metrics.accuracy is iterable and metrics.accuracy|sum / metrics.accuracy|length > 0.85 %}
+                      very good
+                    {% elif metrics.accuracy is number and metrics.accuracy > 0.8 or metrics.accuracy is iterable and metrics.accuracy|sum / metrics.accuracy|length > 0.8 %}
+                      good
+                    {% else %}
+                      moderate
+                    {% endif %}
+                    performance for the plant disease classification task. With comprehensive metrics analysis and visualizations,
+                    we have identified both strengths and opportunities for improvement. The model is 
+                    {% if metrics.accuracy is number and metrics.accuracy > 0.9 or metrics.accuracy is iterable and metrics.accuracy|sum / metrics.accuracy|length > 0.9 %}
+                      ready for production deployment
+                    {% elif metrics.accuracy is number and metrics.accuracy > 0.85 or metrics.accuracy is iterable and metrics.accuracy|sum / metrics.accuracy|length > 0.85 %}
+                      ready for initial deployment with monitoring
+                    {% else %}
+                      promising but would benefit from additional refinement
+                    {% endif %}
+                    based on its overall metrics and analysis.
                   </p>
                 </div>
               </div>

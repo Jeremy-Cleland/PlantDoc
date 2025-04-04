@@ -21,7 +21,7 @@ paths:
   results_dir: "outputs/results"
   cache_dir: "outputs/cache"
 
-  experiment_name: "cbam_only_resnet18"
+  experiment_name: "cbam_only_resnet18_v2"
   
   # Data directories - relative to project root
   raw_dir: "data/raw"
@@ -75,9 +75,9 @@ data:
 
 # DataLoader configuration
 loader:
-  batch_size: 256 # Reduced from 128 for better stability and memory usage
-  num_workers: 6 # Adjusted based on typical hardware constraints
-  pin_memory: false
+  batch_size: 128  # Reduced from 256 for better stability with increased augmentations
+  num_workers: 6
+  pin_memory: true
   drop_last: false
   prefetch_factor: 2
   persistent_workers: true
@@ -127,7 +127,7 @@ preprocessing:
     mean: [0.485, 0.456, 0.406]
     std: [0.229, 0.224, 0.225]
 
-# Augmentation settings
+# Augmentation settings - Enhanced strategy
 augmentation:
   train:
     # Basic augmentations - disabled when using RandAugment
@@ -159,15 +159,15 @@ augmentation:
       max_w_size: 16
       p: 0.5
       
-    # Advanced augmentation strategies (enable only one at a time)
+    # Advanced augmentation strategies (now using multiple strategies)
     rand_augment:
-      enabled: true   # RandAugment is highly effective for plant diseases
-      num_ops: 2      # Number of operations to apply
-      magnitude: 7    # Integer value (severity of augmentations)
-      p: 0.9          # High probability to ensure consistent augmentation
+      enabled: true
+      num_ops: 3      # Increased from 2 to 3 for more diverse augmentations
+      magnitude: 9    # Increased from 7 to 9 for stronger augmentations
+      p: 0.95         # Increased from 0.9 to 0.95 for more consistent application
       
     augmix:
-      enabled: false  # Disabled to avoid conflicts with RandAugment
+      enabled: false  # Still disabled to avoid conflicts
       severity: 3
       width: 3
       depth: -1
@@ -176,116 +176,112 @@ augmentation:
       
     # Batch-level augmentations
     mixup:
-      enabled: false  # Disabled in favor of CutMix which works better for localized disease features
-      alpha: 1.0
-      p: 0.5
+      enabled: true   # Enabled MixUp alongside CutMix 
+      alpha: 0.4      # Modest alpha value to balance with CutMix
+      p: 0.3          # Lower probability than CutMix to avoid overaugmentation
       
     cutmix:
-      enabled: true   # SECONDARY AUGMENTATION - great for plant disease classification
+      enabled: true
       alpha: 1.0
-      p: 0.3          # Lower probability to avoid overaugmentation
+      p: 0.5          # Increased from 0.3 to 0.5 for better regularization
 
 # Model configuration
 model:
   # Base model settings
-  name: cbam_only_resnet18  # Model name must match a registered model
-  num_classes: 39  # Number of output classes
-  pretrained: true  # Load pretrained ImageNet weights
-  in_channels: 3  # Number of input channels
-  input_size: [224, 224]  # Changed to match center_crop size for consistency
+  name: cbam_only_resnet18
+  num_classes: 39
+  pretrained: true
+  in_channels: 3
+  input_size: [224, 224]
   
   # Head settings
-  head_type: "residual"  # Options: linear, mlp, residual
-  hidden_dim: 256  # Hidden dimension for MLP or residual head
-  dropout_rate: 0.09134925421514478  # Dropout rate for the head
-  use_residual_head: true  # Whether to use residual head for classification
+  head_type: "residual"  # Keep residual head which performs well
+  hidden_dim: 256
+  dropout_rate: 0.15     # Adjusted from 0.09 to 0.15 for better regularization
+  use_residual_head: true
   
   # Backbone settings
-  freeze_backbone: true
-  feature_fusion: true  # Enable feature fusion from multiple backbone layers
-
-  # CBAM settings
-  reduction_ratio: 16  # Changed from 24 to power of 2 (16) for better hardware optimization
-  spatial_kernel_size: 7  # Kernel size for spatial attention
+  freeze_backbone: true  # Will be gradually unfrozen via transfer_learning settings
+  feature_fusion: true   # Keep feature fusion enabled
+  
+  # CBAM settings - Enhanced attention
+  reduction_ratio: 8     # Reduced from 16 to 8 for stronger attention
+  spatial_kernel_size: 5 # Changed from 7 to 5 for finer spatial attention
   
   # Regularization within model components
   regularization:
-    stochastic_depth_prob: 0.040397158459940234  # Stochastic depth probability
-    drop_path_prob: 0.19180035377564947  # Drop path probability
+    stochastic_depth_prob: 0.1   # Increased from 0.04 for better regularization
+    drop_path_prob: 0.25         # Increased from 0.19 for better regularization
 
-# Optimizer settings
+# Optimizer settings - Tuned for better convergence
 optimizer:
-  name: adamw  # Changed from adam to adamw for better weight decay handling
-  lr: 0.001
-  weight_decay: 2.1879976178790097e-05
-  betas: [0.9, 0.999]  # Set to standard values for stability
-  eps: 1e-8  # Set to standard value for stability
-  momentum: 0.9  # For SGD
-  nesterov: false  # For SGD
-  differential_lr: true  # Whether to use different LRs for backbone vs. head
-  differential_lr_factor: 0.1  # Factor to reduce backbone LR by if differential_lr is true
+  name: adamw
+  lr: 0.0005                     # Reduced from 0.001 for more stability
+  weight_decay: 5e-5             # Increased from 2.2e-5 for better regularization
+  betas: [0.9, 0.999]
+  eps: 1e-8
+  momentum: 0.9                  # For SGD if used
+  nesterov: false
+  differential_lr: true          # Keep differential learning rate
+  differential_lr_factor: 0.1
 
-# Loss function settings
+# Loss function settings - Enhanced weighting
 loss:
-  name: combined  # Using combined loss to include focal loss
+  name: combined
   components:
     - name: weighted_cross_entropy
-      weight: 1.0
+      weight: 0.7                # Decreased from 1.0
       reduction: mean
-      label_smoothing: 0.1
-    - name: focal  # Adding focal loss component for AdaptiveWeightAdjustmentCallback
-      weight: 0.5
-      gamma: 2.0  # This will be adaptively adjusted
+      label_smoothing: 0.15      # Increased from 0.1
+    - name: focal
+      weight: 0.7                # Increased from 0.5
+      gamma: 2.5                 # Increased from 2.0
       alpha: 0.25
       reduction: mean
       label_smoothing: 0.0
 
-# Learning rate scheduler
+# Learning rate scheduler - Changed to cosine annealing with warm restarts
 scheduler:
-  name: reduce_on_plateau  # Options: StepLR, ReduceLROnPlateau, CosineAnnealingLR
-  monitor: val_loss  # Metric to monitor for ReduceLROnPlateau
-  mode: min  # min or max, for ReduceLROnPlateau
-  step_mode: epoch  # epoch or step, controls when scheduler.step() is called
-  T_max: 50  # Specified explicitly instead of null
-  min_lr: 1e-6  # Simplified to a standard small value
-  factor: 0.4  # Simplified factor for readability
-  patience: 3  # Increased from 2 to 3 for more stability
-  step_size: 30  # Period of LR decay (for StepLR)
+  name: cosine_annealing_warm_restarts  # Changed from reduce_on_plateau
+  T_0: 10                               # Initial restart period
+  T_mult: 2                             # Multiplier for restart periods
+  eta_min: 1e-6                         # Minimum learning rate
+  step_mode: epoch                      # epoch or step, controls when scheduler.step() is called
   warmup_epochs: 5
   warmup_start_lr: 1.0e-5
-  log_changes: true  # Whether to log LR changes
+  log_changes: true
   enabled: true
 
-# Training configuration
+# Training configuration - Extended training time
 training:
-  epochs: 10
-  batch_size: 256 
-  learning_rate: 0.001  # Simplified from scientific notation
-  weight_decay: 2e-5  # Simplified from scientific notation
+  epochs: 150                    # Increased from 100 to allow longer training
+  batch_size: 128                # Reduced from 256 to accommodate stronger augmentations
+  learning_rate: 0.0005          # Match optimizer lr
+  weight_decay: 5e-5             # Match optimizer weight_decay
   deterministic: false
-  use_mixed_precision: true  # Enable mixed precision training
+  use_mixed_precision: true
   gradient_clip_val: 1.0
-  precision: "float16"  # Match hardware precision setting
-  dropout: 0.2  # Simplified from long decimal
+  precision: "float16"
+  dropout: 0.15                  # Match model dropout_rate
 
-# Transfer learning settings
+# Transfer learning settings - More gradual unfreezing
 transfer_learning:
-  initial_frozen_epochs: 5  # Changed from 0 to 5 for better transfer learning practice
-  finetune_lr_factor: 0.1  # Factor to reduce LR by when unfreezing backbone
+  initial_frozen_epochs: 10      # Increased from 5 to 10 for better initialization
+  finetune_lr_factor: 0.05       # Decreased from 0.1 to 0.05 for finer tuning
 
-# Callbacks configuration
+# Callbacks configuration - Enhanced callbacks
 callbacks:
   early_stopping:
     enabled: true
     monitor: val_loss
-    patience: 10
+    patience: 15                # Increased from 10 due to longer training and cosine schedule
     mode: min
     min_delta: 0.001
     restore_best_weights: true
     verbose: true
   model_checkpoint:
     enabled: true
-    dirpath: "outputs/models/checkpoints"  # Updated path to use outputs directory
+    dirpath: "outputs/models/checkpoints"
     filename: "epoch_{epoch:03d}_{val_loss:.4f}"
     monitor: val_loss
     save_best_only: true
@@ -296,7 +292,7 @@ callbacks:
     save_optimizer: true
     save_freq: "epoch"
     verbose: true
-    max_save: 3
+    max_save: 5                 # Increased from 3 to keep more checkpoints
   learning_rate_monitor:
     enabled: true
     logging_interval: epoch
@@ -305,18 +301,18 @@ callbacks:
     enabled: true
   tensorboard:
     enabled: true
-    log_dir: "outputs/logs/tensorboard"  # Added specific log directory
+    log_dir: "outputs/logs/tensorboard"
     log_graph: false
     histogram_freq: 1
   gradcam:
     enabled: true
     frequency: 10
     n_samples: 10
-    input_size: [224, 224]  # Updated to match model input_size
+    input_size: [224, 224]
     mean: [0.485, 0.456, 0.406]
     std: [0.229, 0.224, 0.225]
-    output_dir: "outputs/visualizations/gradcam"  # Added output directory
-    # test_data will be set programmatically
+    output_dir: "outputs/visualizations/gradcam"
+    # Class names remain the same
     class_names:
       - Apple_scab
       - Apple_black_rot
@@ -359,45 +355,45 @@ callbacks:
       - Tomato_yellow_leaf_curl_virus
   attention_viz:
     enabled: true
-    n_samples: 10  # Number of sample images to visualize for attention maps
+    n_samples: 15               # Increased from 10 to provide more visualization examples
     
   # SHAP analysis
   shap:
-    enabled: true  # Enable SHAP callback
-    num_samples: 10  # Number of samples to analyze
-    compare_with_gradcam: false  # Compare with GradCAM
-    num_background_samples: 10  # Background samples for SHAP
-    output_subdir: "shap_analysis"  # Output subdirectory
-    dataset_split: "test"  # Dataset split to use
+    enabled: true               # Enabled from false for better interpretability
+    num_samples: 20             # Increased from 10
+    compare_with_gradcam: true  # Changed to true
+    num_background_samples: 20  # Increased from 10
+    output_subdir: "shap_analysis"
+    dataset_split: "test"
     
   # Confidence monitoring
   confidence_monitor:
     enabled: true
-    monitor_frequency: 1  # Calculate every epoch
-    threshold_warning: 0.7  # Threshold for low confidence warnings
-    ece_bins: 10  # Number of bins for Expected Calibration Error
-    log_per_class: true  # Log per-class confidence
+    monitor_frequency: 1
+    threshold_warning: 0.7
+    ece_bins: 15               # Increased from 10 for finer-grained ECE measurement
+    log_per_class: true
 
-  # Stochastic Weight Averaging
+  # Stochastic Weight Averaging - Optimized
   swa:
-    enabled: true   # Excellent for improving generalization
-    swa_start_frac: 0.6  # Start earlier (60% through training) to allow more averaging time
-    swa_lr: 0.0005  # Lower LR for more stable averaging (half the base LR)
-    anneal_epochs: 5
+    enabled: true
+    swa_start_frac: 0.5        # Start earlier (50% through training) to allow more averaging time
+    swa_lr: 0.0002             # Adjusted for new base learning rate
+    anneal_epochs: 10          # Increased from 5 for smoother transitions
     anneal_strategy: "cos"
     update_bn_epochs: 5
   
-  # Adaptive weight adjustment
+  # Adaptive weight adjustment - Enhanced for imbalanced classes
   adaptive_weight:
-    enabled: true  # Helps with class imbalance in plant disease datasets
-    focal_loss_gamma_range: [2.0, 4.0]  # Narrower range to avoid extreme values
-    center_loss_weight_range: [0.5, 1.5]  # More conservative range for stability
-    adjust_frequency: 10  # Less frequent adjustments (every 10 epochs) for more stability
+    enabled: true
+    focal_loss_gamma_range: [2.0, 5.0]  # Wider range to help with problematic classes
+    center_loss_weight_range: [0.5, 2.0]  # Wider range to allow stronger adjustments
+    adjust_frequency: 5                   # More frequent adjustments (every 5 epochs)
 
 # Evaluation configuration
 evaluation:
-  split: test  # Which split to evaluate on by default
-  output_dir: "outputs/results/evaluation"  # Added output directory
+  split: test
+  output_dir: "outputs/results/evaluation"
   metrics:
     accuracy: true
     precision: true
@@ -406,89 +402,34 @@ evaluation:
     confusion_matrix: true
   interpretability:
     gradcam: true
-    num_samples: 10
+    num_samples: 20            # Increased from 10
     target_layers: ["layer4"]
-    output_dir: "outputs/visualizations/interpretability"  # Added output directory
-    # SHAP configuration in evaluation module
+    output_dir: "outputs/visualizations/interpretability"
+    # SHAP configuration - Enhanced
     shap:
-      enabled: true
+      enabled: true            # Changed from false
       num_samples: 50
       compare_with_gradcam: true
       num_background_samples: 50
       output_subdir: "shap_analysis"
       dataset_split: "test"
 
-# Prepare data configuration
-prepare_data:
-  # Output directory for all preparation results
-  output_dir: "data/processed"
-  
-  # Validation options
-  dry_run: false  # Changed to false to actually apply fixes
-  fix_extensions: true
-  verify_images: true
-  fix_folders: true
-  
-  # Analysis options
-  run_analysis_after_validation: true
-  sample_size: 1000
-  random_seed: 42
-  
-  # Visualization options
-  run_visualization_after_analysis: true
-  generate_combined_report: true
-  create_plots: true
-  visualizations_output_dir: "outputs/visualizations/data_analysis"  # Added output directory
-  
-  # Advanced visualization settings
-  n_per_class_viz: 30
-  max_classes_viz: null
-  
-  # Visualization theme settings
-  visualization_theme:
-    background_color: "#121212"
-    text_color: "#f5f5f5"
-    grid_color: "#404040"
-    main_color: "#34d399"
-    bar_colors: ["#a78bfa", "#22d3ee", "#34d399", "#d62728", "#e27c7c"]
-    cmap: "YlOrRd"
-  
-  # Analysis plots configuration
-  figures_and_plots:
-    class_distribution: true
-    image_dimensions: true
-    aspect_ratio_distribution: true
-    file_size_distribution: true
-    brightness_distribution: true
-    color_distribution: true
-    file_size_by_class: true
-    analysis_dashboard: true
-    class_distribution_pie: true
-  
-  # Visualization components to generate
-  visualization:
-    image_grid: true
-    tsne_embedding: true
-    feature_clustering: true
-    similarity_matrix: true
-    augmentations: true
-
 # Hardware configuration
 hardware:
-  precision: "float16"  # Good for MPS performance
-  device: "mps"  # Added automatic device detection
-  mps:  # Apple Silicon GPU specific settings
+  precision: "float16"          # Keep for MPS performance
+  device: "mps"                 # Keep Apple Silicon GPU settings
+  mps:                          # Apple Silicon GPU specific settings
     memory:
       monitor: true
-      clear_cache_freq: 10
+      clear_cache_freq: 5       # More frequent cache clearing (from 10 to 5)
       deep_clean_after_val: true
       enable_sync_for_timing: true
-      limit_fraction: 0.95  # Reduced from 0.95 to 0.8 for safer memory usage
+      limit_fraction: 0.85      # Reduced from 0.95 to 0.85 for safer memory usage
     model:
       use_channels_last: true
     profiling:
-      enabled: false
-      output_dir: "outputs/profiling"  # Added output directory
+      enabled: true             # Changed from false to enable profiling
+      output_dir: "outputs/profiling"
     reproducibility:
       set_mps_seed: true
   cuda:
@@ -496,10 +437,12 @@ hardware:
     deterministic: false
     cudnn_deterministic: false
 
-# Reporting configuration
-reporting:
-  generate_plots: true
-  generate_report: true
-  report_template: "reports/templates/training_report.html"
-  output_format: "html"
-  output_dir: "outputs/reports"  # Added output directory
+# Class-specific weighting for problematic classes
+class_weights:
+  enabled: true
+  method: "inverse_frequency"  # Options: manual, inverse_frequency, effective_samples
+  manual_weights:
+    # Special focus on Corn classes that showed lower performance
+    8: 1.5    # Corn_gray_leaf_spot
+    10: 1.3   # Corn_northern_leaf_blight
+  smooth_factor: 0.2

@@ -199,10 +199,13 @@ class ConfusionFlow:
         # Draw nodes (classes)
         node_colors = plt.cm.get_cmap(cmap)(error_norm(self.error_rates))
 
-        # Adjust node size based on class counts
+        # Adjust node size based on class counts and number of classes
         max_count = max(self.class_counts)
-        min_size = 500 * node_scale
-        max_size = 2000 * node_scale
+
+        # Dynamically adjust node size based on number of classes to prevent overcrowding
+        size_factor = max(0.5, min(1.0, 30 / self.num_classes))
+        min_size = 500 * node_scale * size_factor
+        max_size = 2000 * node_scale * size_factor
 
         for i, (pos, err, count, name) in enumerate(
             zip(node_positions, self.error_rates, self.class_counts, self.class_names)
@@ -216,9 +219,9 @@ class ConfusionFlow:
                 pos[1],
                 s=size,
                 color=node_colors[i],
-                alpha=0.8,
+                alpha=0.9,  # Increased opacity
                 edgecolors="white",
-                linewidth=1,
+                linewidth=1.5,  # Thicker border
             )
 
             # Truncate long class names
@@ -238,9 +241,17 @@ class ConfusionFlow:
                 label,
                 horizontalalignment="center",
                 verticalalignment="center",
-                fontsize=label_fontsize,
+                fontsize=max(
+                    8, min(label_fontsize, 10)
+                ),  # Adjust font size for readability
                 fontweight="bold",
                 color=text_color,
+                bbox=dict(
+                    facecolor="black",
+                    alpha=0.4,
+                    boxstyle="round,pad=0.3",
+                    edgecolor="none",
+                ),  # Add background box
                 path_effects=[
                     plt.matplotlib.patheffects.withStroke(
                         linewidth=2, foreground="black"
@@ -286,7 +297,7 @@ class ConfusionFlow:
                 arrowstyle=f"simple,head_width={2 * width},head_length={2 * width}",
                 linewidth=width,
                 color=arrow_cmap_fn(flow_norm(value)),
-                alpha=0.8,
+                alpha=0.9,  # Increased opacity
                 zorder=1,
             )
             ax.add_patch(arrow)
@@ -315,12 +326,19 @@ class ConfusionFlow:
                     fontsize=max(8, min(12, label_fontsize - 2)),
                     fontweight="bold",
                     color="white",
-                    bbox=dict(facecolor="black", alpha=0.5, boxstyle="round"),
+                    bbox=dict(
+                        facecolor="black",
+                        alpha=0.85,  # Increased opacity for better visibility
+                        boxstyle="round,pad=0.4",  # More padding
+                        edgecolor="white",
+                        linewidth=1.0,  # Thicker border
+                    ),
                     path_effects=[
                         plt.matplotlib.patheffects.withStroke(
                             linewidth=2, foreground="black"
                         )
                     ],
+                    zorder=3,  # Ensure text is on top of arrows
                 )
 
         # Add title and remove axes
@@ -389,7 +407,7 @@ def generate_confusion_flow(
     max_flows: int = 50,
     figsize: Tuple[int, int] = (16, 12),
     cmap: str = "YlOrRd",
-    arrow_cmap: str = "YlOrRd",
+    arrow_cmap: str = "plasma",
     title: str = "Misclassification Flow Diagram",
     layout: str = "circular",
     use_dark_theme: bool = True,

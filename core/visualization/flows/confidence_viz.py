@@ -314,8 +314,28 @@ def plot_confidence_timeline(
     ax1.set_xlabel("Epoch", fontsize=12)
     ax1.set_title(title, fontsize=16)
 
-    # Set integer ticks for epochs
-    ax1.set_xticks(valid_epochs)
+    # Set integer ticks for epochs with appropriate spacing based on total epochs
+    num_epochs = len(valid_epochs)
+    if num_epochs > 50:
+        # Calculate tick spacing based on total number of epochs
+        if num_epochs > 200:
+            tick_spacing = 10
+        elif num_epochs > 100:
+            tick_spacing = 5
+        else:
+            tick_spacing = 2
+
+        # Create tick positions at regular intervals
+        tick_positions = valid_epochs[::tick_spacing]
+
+        # Make sure the last epoch is included
+        if tick_positions[-1] != valid_epochs[-1]:
+            tick_positions = list(tick_positions) + [valid_epochs[-1]]
+
+        ax1.set_xticks(tick_positions)
+    else:
+        ax1.set_xticks(valid_epochs)
+
     ax1.set_xlim(min(valid_epochs) - 0.5, max(valid_epochs) + 0.5)
 
     # Add grid

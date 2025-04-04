@@ -1652,6 +1652,17 @@ def generate_plots(
                 else:
                     features_to_plot = features
 
+                # Check for mismatch between features and labels length
+                if len(features_to_plot) != len(labels):
+                    logger.warning(
+                        f"Features length ({len(features_to_plot)}) doesn't match labels length ({len(labels)}). "
+                        f"Truncating to the minimum length."
+                    )
+                    # Use the minimum length for both
+                    min_length = min(len(features_to_plot), len(labels))
+                    features_to_plot = features_to_plot[:min_length]
+                    labels = labels[:min_length]
+
                 # Fix the feature_space plot parameters (remove title if causing issues)
                 plot_feature_space(
                     features=features_to_plot,

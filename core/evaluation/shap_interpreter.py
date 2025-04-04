@@ -286,10 +286,12 @@ class SHAPInterpreter:
             if isinstance(self.explainer, shap.DeepExplainer):
                 # DeepExplainer works with tensors that require gradients
                 # Clone and ensure it requires gradients
+                # Make a deep copy to prevent in-place modifications affecting the original tensor
                 input_with_grad = input_tensor.detach().clone().requires_grad_(True)
                 
                 # DeepExplainer works with tensors directly
-                shap_values = self.explainer.shap_values(input_with_grad)
+                # Use .clone() again to prevent in-place modifications during shap_values calculation
+                shap_values = self.explainer.shap_values(input_with_grad.clone())
 
                 # Convert shap_values to numpy arrays if they're tensors
                 if isinstance(shap_values, list):
@@ -539,7 +541,8 @@ class SHAPInterpreter:
             if isinstance(self.explainer, shap.DeepExplainer):
                 # For DeepExplainer, use the tensor directly with gradients
                 input_with_grad = input_tensor.to(self.device).detach().clone().requires_grad_(True)
-                shap_values = self.explainer.shap_values(input_with_grad)
+                # Use .clone() to prevent in-place modifications during shap_values calculation
+                shap_values = self.explainer.shap_values(input_with_grad.clone())
             else:
                 # For other explainers, convert to numpy
                 input_numpy = input_tensor.to(self.device).cpu().numpy()
@@ -1036,7 +1039,8 @@ class SHAPInterpreter:
             try:
                 # Use a much smaller subset of samples to avoid memory issues
                 small_sample_size = min(10, len(sample_tensor_with_grad))
-                reduced_sample_tensor = sample_tensor_with_grad[:small_sample_size].clone()
+                # Create a completely new tensor to avoid view issues
+                reduced_sample_tensor = sample_tensor_with_grad[:small_sample_size].clone().detach().requires_grad_(True)
                 
                 # For DeepExplainer, disable any in-place operations in the model
                 if isinstance(self.explainer, shap.DeepExplainer):
@@ -1047,8 +1051,9 @@ class SHAPInterpreter:
                             self.base_model = base_model
                         
                         def forward(self, x):
-                            # Ensure x requires gradients and is a fresh clone
-                            x = x.detach().clone().requires_grad_(True)
+                            # Ensure x is a fresh clone to prevent in-place modification issues
+                            # Double clone to be extra safe against view issues
+                            x = x.detach().clone().detach().clone().requires_grad_(True)
                             
                             # Temporarily disable inplace operations in ReLU layers
                             original_inplace_settings = {}
@@ -1752,11 +1757,11 @@ class ShapInterpreter:
             )
 
             # Use PyTorch-compatible explainer
-            explainer = shap.GradientExplainer(self.model, background_tensor)
+            explainer = shap.GradientExplainer(self.model, background_tensor.clone())
 
             logger.info("Computing SHAP values with GradientExplainer...")
-            # Get SHAP values for test data
-            shap_values = explainer.shap_values(test_tensor)
+            # Get SHAP values for test data - clone the input to prevent in-place modifications
+            shap_values = explainer.shap_values(test_tensor.clone())
 
             # Save summary plot
             logger.info("Generating summary plot...")
