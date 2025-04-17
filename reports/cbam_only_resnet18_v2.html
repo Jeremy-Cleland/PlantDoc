@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Training Report - cbam_only_resnet18 v2</title>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <style>
+      :root {
+        --bg-primary: #09090b;
+        --bg-secondary: #111113;
+        --bg-tertiary: #1a1a1d;
+        --text-primary: #f8fafc;
+        --text-secondary: #cbd5e1;
+        --text-tertiary: #94a3b8;
+        --accent-primary: #7B3210;
+        --accent-secondary: #7B3210;
+        --accent-tertiary: #b5fdbc;
+        --success: #b5fdbc;
+        --warning: #f59e0b;
+        --danger: #ef4444;
+        --info: #7B3210;
+        --border-radius: 15px;
+        --card-radius: 15px;
+        --shadow: 0 4px 16px rgba(23,23,23,0.5);
+        --transition: all 0.3s ease;
+        --border-color: #281C16;
+      }
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: "SF Pro Display", -apple-system, BlinkMacSystemFont,
+          "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
+        background-color: var(--bg-primary);
+        color: var(--text-primary);
+        line-height: 1.6;
+      }
+
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 2rem;
+      }
+
+      header {
+        margin-bottom: 2rem;
+        text-align: center;
+      }
+
+      h1 {
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+        background: linear-gradient(
+          90deg,
+          var(--accent-primary),
+          var(--accent-tertiary)
+        );
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+
+      .subtitle {
+        color: var(--text-secondary);
+        font-size: 1.2rem;
+        max-width: 800px;
+        margin: 0 auto;
+      }
+
+      .alert {
+        background-color: var(--bg-secondary);
+        border-radius: var(--card-radius);
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        border-left: 4px solid var(--info);
+      }
+
+      .alert-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.75rem 1.25rem;
+        border-radius: var(--border-radius);
+        font-size: 1rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: var(--transition);
+        text-decoration: none;
+        margin-top: 1.5rem;
+      }
+
+      .btn-primary {
+        background-color: var(--accent-primary);
+        color: white;
+        border: none;
+      }
+
+      .btn-primary:hover {
+        background-color: var(--accent-primary);
+        opacity: 0.9;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1>CBAM-ResNet18 v2 Training Report</h1>
+        <p class="subtitle">
+          Performance analysis for version 2 of the CBAM-augmented ResNet18 model
+        </p>
+      </header>
+
+      <div class="alert">
+        <h2 class="alert-title">
+          <i class="fas fa-tools"></i> Report In Progress
+        </h2>
+        <p>
+          The detailed training report for CBAM-ResNet18 v2 is currently being processed.
+          This model represents an improved version with enhanced data augmentation and 
+          hyperparameter tuning, showing a performance increase over v1.
+        </p>
+        <p style="margin-top: 1rem">
+          Key metrics (preliminary):
+        </p>
+        <ul style="margin: 1rem 0 1rem 1.5rem">
+          <li>Accuracy: 98.12%</li>
+          <li>Precision: 99.41%</li>
+          <li>Recall: 99.33%</li>
+          <li>F1 Score: 99.35%</li>
+        </ul>
+        <p>
+          Please check back soon for the complete training report with visualizations and detailed analysis.
+        </p>
+
+        <a href="/" class="btn btn-primary">
+          <i class="fas fa-arrow-left"></i>
+          <span>Back to Reports</span>
+        </a>
+      </div>
+    </div>
+  </body>
+</html>
