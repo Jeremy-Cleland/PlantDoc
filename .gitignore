@@ -63,8 +63,31 @@ data/external/*
 !data/interim/.gitkeep
 !data/external/.gitkeep
 
-# Model outputs
-outputs/
+# Model outputs - Modify to allow specific website images
+
+outputs/cbam_only_resnet18_v1/checkpoints
+outputs/cbam_only_resnet18_v2/checkpoints
+outputs/cbam_only_resnet18_v1/evaluation_artifacts
+outputs/cbam_only_resnet18_v2/evaluation_artifacts
+outputs/cbam_only_resnet18_v1/metrics/evaluation_artifacts
+outputs/cbam_only_resnet18_v2/metrics/evaluation_artifacts
+outputs/cbam_only_resnet18_v1/gradcam
+outputs/cbam_only_resnet18_v2/gradcam
+# Exceptions for website images
+!outputs/dataset_analysis_report/
+!outputs/cbam_only_resnet18_v1/reports/
+!outputs/cbam_only_resnet18_v1/reports/**
+!outputs/cbam_only_resnet18_v2/reports/
+!outputs/cbam_only_resnet18_v2/reports/**
+
+
+# Re-exclude large files within those directories
+outputs/**/*.pth
+outputs/**/*.pt
+outputs/**/*.ckpt
+outputs/**/*.onnx
+outputs/**/class_image_grid.png
+
 checkpoints/
 logs/
 runs/
@@ -83,6 +106,7 @@ multirun/
 .hydra/
 
 # Media files (may be in datasets)
+# Modify to allow website image files
 *.jpg
 *.jpeg
 *.png
@@ -95,9 +119,17 @@ multirun/
 *.avi
 *.mov
 
+# Exceptions for website images
+!outputs/**/*.png
+!outputs/**/*.jpg
+!outputs/**/*.jpeg
+
+# Re-exclude any image file larger than 5MB
+# Note: This is a comment; Git itself doesn't natively support file size filtering
+# GitHub recommends keeping files under 5MB
+
 # Reports and large documents
-reports/plots/
-reports/figures/
+
 *.pdf
 *.pptx
 *.xlsx
@@ -170,3 +202,7 @@ tmp/
 temp/
 .tmp/
 .temp/
+
+
+/Users/jeremy/plantdoc/presentation.md
+presentation.md
