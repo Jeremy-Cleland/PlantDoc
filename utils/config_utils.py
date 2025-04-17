@@ -65,7 +65,7 @@ def _configure_experiment_paths(config: DictConfig) -> DictConfig:
     output_dir = config.paths.output_dir
 
     # Extract model name and version from the experiment_name
-    # Expect format like "cbam_only_resnet18_v3"
+    # Expect format like "cbam_only_resnet18_v2"
     if "_v" in experiment_name:
         # Extract model name and version (e.g., "cbam_only_resnet18_v2" -> "cbam_only_resnet18" and "2")
         model_base_name, version_str = experiment_name.rsplit("_v", 1)

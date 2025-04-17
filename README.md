@@ -537,7 +537,7 @@ Our planned features and improvements:
 
 ### Short-term (Next 3 months)
 
-- [ ] Mobile-optimized model variants (e.g., using MobileNetV3 or EfficientNet-Lite backbones).
+- [ ] Mobile-optimized model variants (e.g., using MobileNetv2 or EfficientNet-Lite backbones).
 - [ ] Simple REST API service for easy deployment.
 - [ ] Integration guide for common agricultural IoT platforms.
 - [ ] Enhanced data augmentation strategies (e.g., GridMask, FMix).
