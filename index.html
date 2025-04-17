@@ -281,12 +281,28 @@
             border-radius: 4px;
         }
 
+        .grid-2 {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1.5rem;
+            margin: 1.5rem 0;
+        }
+
+        .chart-image {
+            width: 100%;
+            border-radius: var(--border-radius);
+        }
+
         @media (max-width: 768px) {
             .reports-grid {
                 grid-template-columns: 1fr;
             }
             
             .metrics-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .grid-2 {
                 grid-template-columns: 1fr;
             }
         }
@@ -322,7 +338,7 @@
                 <span class="tech-badge">Deep Learning</span>
             </div>
             <div class="image-container">
-                <img src="outputs/cbam_only_resnet18_v1/reports/plots/classification_examples.png" alt="Classification examples" class="project-image">
+                <img src="outputs/cbam_only_resnet18_v1/reports/plots/classification_examples.png" alt="Classification examples" class="project-image" style="max-width: 900px;">
             </div>
         </section>
 
@@ -352,17 +368,25 @@
                 </div>
             </div>
             
+            <div class="image-container">
+                <img src="outputs/dataset_analysis_report/analysis_dashboard.png" alt="Dataset Analysis Dashboard" class="project-image" style="max-width: 900px;">
+            </div>
+            
             <h3 style="margin-top: 1.5rem; color: var(--accent-tertiary);">Class Distribution</h3>
             <p>
                 The dataset exhibits a significant class imbalance, with the largest class containing 5,507 images (Orange_Haunglongbing_Citrus_greening) and the smallest containing around 1,000 images. The ratio of largest to smallest class is approximately 5.5:1.
             </p>
             
+            <div class="image-container">
+                <img src="outputs/dataset_analysis_report/class_distribution.png" alt="Full Class Distribution" class="project-image" style="max-width: 900px;">
+            </div>
+
             <div class="chart-container">
                 <p>Top 5 largest classes:</p>
                 <div style="margin-top: 1rem;">
                     <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
-                        <span>Orange_Haunglongbing_Citrus_greening (8.96%)</span>
-                        <span>5,507</span>
+                        <span>Orange_Haunglongbing_Citrus_greening</span>
+                        <span>5,507 (8.96%)</span>
                     </div>
                     <div class="progress-container">
                         <div class="progress-bar" style="width: 89.6%;"></div>
@@ -370,8 +394,8 @@
                 </div>
                 <div style="margin-top: 1rem;">
                     <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
-                        <span>Tomato_Yellow_Leaf_Curl_Virus (8.71%)</span>
-                        <span>5,357</span>
+                        <span>Tomato_Yellow_Leaf_Curl_Virus</span>
+                        <span>5,357 (8.71%)</span>
                     </div>
                     <div class="progress-container">
                         <div class="progress-bar" style="width: 87.1%;"></div>
@@ -379,8 +403,8 @@
                 </div>
                 <div style="margin-top: 1rem;">
                     <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
-                        <span>Soybean_healthy (8.28%)</span>
-                        <span>5,090</span>
+                        <span>Soybean_healthy</span>
+                        <span>5,090 (8.28%)</span>
                     </div>
                     <div class="progress-container">
                         <div class="progress-bar" style="width: 82.8%;"></div>
@@ -388,8 +412,8 @@
                 </div>
                 <div style="margin-top: 1rem;">
                     <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
-                        <span>Peach_Bacterial_spot (3.74%)</span>
-                        <span>2,297</span>
+                        <span>Peach_Bacterial_spot</span>
+                        <span>2,297 (3.74%)</span>
                     </div>
                     <div class="progress-container">
                         <div class="progress-bar" style="width: 37.4%;"></div>
@@ -397,8 +421,8 @@
                 </div>
                 <div style="margin-top: 1rem;">
                     <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
-                        <span>Tomato_Bacterial_spot (3.46%)</span>
-                        <span>2,127</span>
+                        <span>Tomato_Bacterial_spot</span>
+                        <span>2,127 (3.46%)</span>
                     </div>
                     <div class="progress-container">
                         <div class="progress-bar" style="width: 34.6%;"></div>
@@ -424,11 +448,41 @@
                     <div class="metric-label">Avg. File Size</div>
                     <div class="metric-value">14.96 KB</div>
                 </div>
+                <div class="metric">
+                    <div class="metric-label">Avg. RGB Values</div>
+                    <div class="metric-value">R=118.5, G=124.6, B=104.6</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">Avg. Brightness</div>
+                    <div class="metric-value">115.9</div>
+                </div>
+            </div>
+            
+            <div class="grid-2">
+                <div class="chart-container">
+                    <img src="outputs/dataset_analysis_report/image_dimensions.png" alt="Image Dimensions" class="chart-image">
+                </div>
+                <div class="chart-container">
+                    <img src="outputs/dataset_analysis_report/color_distribution.png" alt="Color Distribution" class="chart-image">
+                </div>
+            </div>
+
+            <div class="grid-2">
+                <div class="chart-container">
+                    <img src="outputs/dataset_analysis_report/brightness_distribution.png" alt="Brightness Distribution" class="chart-image">
+                </div>
+                <div class="chart-container">
+                    <img src="outputs/dataset_analysis_report/aspect_ratio_distribution.png" alt="Aspect Ratio Distribution" class="chart-image">
+                </div>
             </div>
             
             <p style="margin-top: 1.5rem;">
-                The relatively consistent image dimensions and predominantly square aspect ratios make this dataset well-suited for deep learning approaches without requiring extensive preprocessing for size normalization.
+                The relatively consistent image dimensions and predominantly square aspect ratios make this dataset well-suited for deep learning approaches without requiring extensive preprocessing for size normalization. The color analysis reveals predominant green tones as expected for plant imagery, with disease-specific color variations that help the model learn distinctive features.
             </p>
+
+            <div class="image-container">
+                <img src="outputs/dataset_analysis_report/class_image_grid.png" alt="Class Image Grid" class="project-image" style="max-width: 900px;">
+            </div>
         </section>
 
         <!-- Methodology Section -->
@@ -459,8 +513,18 @@
                 <li>Automatic data validation and integrity checking</li>
                 <li>Class balancing techniques to handle uneven distributions</li>
             </ul>
+
             <div class="image-container">
-                <img src="outputs/cbam_only_resnet18_v1/reports/plots/confusion_matrix.png" alt="Confusion Matrix" class="project-image">
+                <img src="outputs/dataset_analysis_report/augmentation_examples.png" alt="Augmentation Examples" class="project-image" style="max-width: 900px;">
+            </div>
+
+            <h3 style="margin-top: 1.5rem; color: var(--accent-tertiary);">Feature Visualization</h3>
+            <div class="image-container">
+                <img src="outputs/dataset_analysis_report/tsne_visualization.png" alt="t-SNE Visualization" class="project-image" style="max-width: 900px;">
+            </div>
+
+            <div class="image-container">
+                <img src="outputs/cbam_only_resnet18_v1/reports/plots/confusion_matrix.png" alt="Confusion Matrix" class="project-image" style="max-width: 900px;">
             </div>
         </section>
 
@@ -470,6 +534,70 @@
             <p>
                 Our models demonstrate excellent performance across all evaluated metrics. The training process shows consistent improvement in accuracy and confidence over time.
             </p>
+
+            <div class="metrics-grid">
+                <div class="metric">
+                    <div class="metric-label">Accuracy (v1)</div>
+                    <div class="metric-value">97.46%</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">Accuracy (v2)</div>
+                    <div class="metric-value">96.71%</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">Precision (v1)</div>
+                    <div class="metric-value">99.21%</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">Precision (v2)</div>
+                    <div class="metric-value">99.19%</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">Recall (v1)</div>
+                    <div class="metric-value">99.17%</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">Recall (v2)</div>
+                    <div class="metric-value">99.16%</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">F1 Score (v1)</div>
+                    <div class="metric-value">99.16%</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">F1 Score (v2)</div>
+                    <div class="metric-value">99.17%</div>
+                </div>
+            </div>
+            
+            <h3 style="margin-top: 1.5rem; color: var(--accent-tertiary);">Training Comparison</h3>
+            
+            <div class="metrics-grid">
+                <div class="metric">
+                    <div class="metric-label">Training Time (v1)</div>
+                    <div class="metric-value">9h 46m 44s</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">Training Time (v2)</div>
+                    <div class="metric-value">3h 14m 43s</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">Epochs (v1)</div>
+                    <div class="metric-value">150</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">Epochs (v2)</div>
+                    <div class="metric-value">100</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">Model Size</div>
+                    <div class="metric-value">48.82 MB</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">Parameters</div>
+                    <div class="metric-value">12,798,646</div>
+                </div>
+            </div>
             
             <h3 style="margin-top: 1.5rem; color: var(--accent-tertiary);">Training Progression</h3>
             
@@ -482,7 +610,6 @@
                                 <th>Epoch</th>
                                 <th>Accuracy</th>
                                 <th>Mean Confidence</th>
-                                <th>ECE</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -490,31 +617,26 @@
                                 <td>1</td>
                                 <td>77.38%</td>
                                 <td>41.23%</td>
-                                <td>0.362</td>
                             </tr>
                             <tr>
                                 <td>10</td>
                                 <td>93.98%</td>
                                 <td>82.32%</td>
-                                <td>0.117</td>
                             </tr>
                             <tr>
                                 <td>20</td>
                                 <td>95.92%</td>
                                 <td>85.79%</td>
-                                <td>0.101</td>
                             </tr>
                             <tr>
                                 <td>30</td>
                                 <td>96.43%</td>
                                 <td>87.14%</td>
-                                <td>0.093</td>
                             </tr>
                             <tr>
                                 <td>Final</td>
                                 <td>97.46%</td>
                                 <td>89.25%</td>
-                                <td>0.082</td>
                             </tr>
                         </tbody>
                     </table>
@@ -528,7 +650,6 @@
                                 <th>Epoch</th>
                                 <th>Accuracy</th>
                                 <th>Mean Confidence</th>
-                                <th>ECE</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -536,31 +657,26 @@
                                 <td>1</td>
                                 <td>77.88%</td>
                                 <td>42.70%</td>
-                                <td>0.352</td>
                             </tr>
                             <tr>
                                 <td>10</td>
                                 <td>94.22%</td>
                                 <td>81.98%</td>
-                                <td>0.123</td>
                             </tr>
                             <tr>
                                 <td>20</td>
                                 <td>96.05%</td>
                                 <td>85.92%</td>
-                                <td>0.101</td>
                             </tr>
                             <tr>
                                 <td>30</td>
                                 <td>96.39%</td>
                                 <td>87.39%</td>
-                                <td>0.090</td>
                             </tr>
                             <tr>
                                 <td>Final</td>
-                                <td>98.12%</td>
-                                <td>90.12%</td>
-                                <td>0.078</td>
+                                <td>96.71%</td>
+                                <td>89.03%</td>
                             </tr>
                         </tbody>
                     </table>
@@ -568,7 +684,7 @@
             </div>
             
             <p>
-                Both models demonstrate similar training patterns, with v2 achieving a slightly higher final accuracy (98.12% vs 97.46%) and mean confidence (90.12% vs 89.25%).
+                Both models demonstrate similar training patterns, with v1 achieving a slightly higher final accuracy (97.46% vs 96.71%) but requiring 50% more training time than v2. The shorter training time of v2 makes it more efficient for rapid development cycles.
             </p>
             
             <h3 style="margin-top: 1.5rem; color: var(--accent-tertiary);">Confidence Distribution</h3>
@@ -577,11 +693,54 @@
             </p>
             
             <div class="image-container">
-                <img src="outputs/cbam_only_resnet18_v1/reports/plots/confidence_distribution.png" alt="Confidence Distribution" class="project-image">
+                <img src="outputs/cbam_only_resnet18_v1/reports/plots/confidence_distribution.png" alt="Confidence Distribution" class="project-image" style="max-width: 900px;">
             </div>
             
             <p>
                 By the final epoch, both models show high confidence (>85%) for the vast majority of predictions, with minimal low-confidence predictions. This demonstrates the models' ability to make decisive classifications with high certainty.
+            </p>
+
+            <h3 style="margin-top: 1.5rem; color: var(--accent-tertiary);">Class-Specific Confidence Analysis</h3>
+            <p>
+                The following chart shows the mean confidence scores for each class in the PlantDoc dataset. Most classes maintain very high confidence (>90%), indicating strong predictive capability across disease categories.
+            </p>
+
+            <div class="chart-container">
+                <h4 style="margin-bottom: 1rem;">Top 5 Classes by Mean Confidence (V1)</h4>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Class</th>
+                            <th>Mean Confidence</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Apple Cedar Apple Rust</td>
+                            <td>97.52%</td>
+                        </tr>
+                        <tr>
+                            <td>Tomato Early Blight</td>
+                            <td>96.75%</td>
+                        </tr>
+                        <tr>
+                            <td>Apple Black Rot</td>
+                            <td>96.73%</td>
+                        </tr>
+                        <tr>
+                            <td>Grape Black Rot</td>
+                            <td>96.66%</td>
+                        </tr>
+                        <tr>
+                            <td>Cherry Powdery Mildew</td>
+                            <td>96.42%</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <p style="margin-top: 1.5rem;">
+                The model's consistent high confidence scores across disease categories demonstrate its reliability for real-world plant disease diagnosis applications.
             </p>
         </section>
 
@@ -595,21 +754,21 @@
             <ul style="margin-left: 1.5rem; margin-top: 0.5rem;">
                 <li><strong>Mixed Precision Training:</strong> FP16 implementation for faster training without sacrificing accuracy</li>
                 <li><strong>Adaptive Optimization:</strong> Using AdamW optimizer with cosine annealing learning rate scheduling</li>
-                <li><strong>Regularization Techniques:</strong> Dropout, weight decay, and stochastic weight averaging for enhanced generalization</li>
+                <li><strong>Regularization Techniques:</strong> Dropout (0.15), weight decay (5e-5), and stochastic weight averaging for enhanced generalization</li>
             </ul>
             <h3 style="margin-top: 1.5rem; color: var(--accent-tertiary);">Model Variants</h3>
             <p>
                 Two primary model variants were systematically explored:
             </p>
             <ol style="margin-left: 1.5rem; margin-top: 0.5rem;">
-                <li><strong>CBAM-ResNet18 v1:</strong> The initial implementation with baseline attention parameters</li>
-                <li><strong>CBAM-ResNet18 v2:</strong> An improved version with optimized attention parameters and enhanced data augmentation strategies</li>
+                <li><strong>CBAM-ResNet18 v1:</strong> The initial implementation with baseline attention parameters, trained for 150 epochs</li>
+                <li><strong>CBAM-ResNet18 v2:</strong> An improved version with optimized training parameters and a more efficient training schedule (100 epochs)</li>
             </ol>
             <p>
                 Both models were evaluated using a comprehensive set of metrics including accuracy, precision, recall, F1 score, confusion matrices, ROC curves, and precision-recall curves to provide a holistic performance assessment.
             </p>
             <div class="image-container">
-                <img src="outputs/cbam_only_resnet18_v1/reports/plots/training_history.png" alt="Training History" class="project-image">
+                <img src="outputs/cbam_only_resnet18_v1/reports/plots/training_history.png" alt="Training History" class="project-image" style="max-width: 900px;">
             </div>
         </section>
 
@@ -624,6 +783,7 @@
                 <li>Our approach achieves excellent accuracy (>97%) across 39 diverse plant disease classes</li>
                 <li>Attention mechanisms particularly improve performance on challenging cases with subtle symptoms or complex backgrounds</li>
                 <li>The model demonstrates strong generalization capabilities, maintaining high accuracy across varied imaging conditions</li>
+                <li>Model v2 offers a more efficient alternative with comparable performance but 3x faster training time</li>
             </ul>
             <p>
                 These results highlight the potential of attention-enhanced deep learning approaches for practical agricultural applications. By providing accurate, reliable disease identification, this system could significantly contribute to sustainable farming practices through early detection and targeted treatment of plant diseases.
@@ -639,7 +799,7 @@
                 <li>Integration with drone/robotic platforms for automated field scouting</li>
             </ul>
             <div class="image-container">
-                <img src="outputs/cbam_only_resnet18_v1/reports/plots/roc_curves.png" alt="ROC Curves" class="project-image">
+                <img src="outputs/cbam_only_resnet18_v1/reports/plots/roc_curves.png" alt="ROC Curves" class="project-image" style="max-width: 900px;">
             </div>
         </section>
 
@@ -673,7 +833,7 @@
                     <p>Detailed performance report for CBAM-augmented ResNet18 model trained for multi-class classification with 39 classes.</p>
                 </div>
                 <div class="report-footer">
-                    <a href="outputs/cbam_only_resnet18_v1/reports/training_report.html" class="btn btn-primary">
+                    <a href="outputs/cbam_only_resnet18_v1/training_report.html" class="btn btn-primary">
                         <i class="fas fa-chart-line"></i>
                         <span>View Report</span>
                     </a>
@@ -694,26 +854,65 @@
                     <div class="metrics">
                         <div class="metric">
                             <div class="metric-label">Accuracy</div>
-                            <div class="metric-value">98.12%</div>
+                            <div class="metric-value">96.71%</div>
                         </div>
                         <div class="metric">
                             <div class="metric-label">F1 Score</div>
-                            <div class="metric-value">99.35%</div>
+                            <div class="metric-value">99.17%</div>
                         </div>
                         <div class="metric">
                             <div class="metric-label">Precision</div>
-                            <div class="metric-value">99.41%</div>
+                            <div class="metric-value">99.19%</div>
                         </div>
                         <div class="metric">
                             <div class="metric-label">Recall</div>
-                            <div class="metric-value">99.33%</div>
+                            <div class="metric-value">99.16%</div>
                         </div>
                     </div>
-                    <p>Detailed performance report for improved CBAM-augmented ResNet18 model (v2) with enhanced data augmentation strategies.</p>
+                    <p>Detailed performance report for optimized CBAM-augmented ResNet18 model (v2) with faster training schedule (100 epochs vs 150).</p>
                 </div>
                 <div class="report-footer">
-                    <a href="outputs/cbam_only_resnet18_v2/reports/training_report.html" class="btn btn-primary">
+                    <a href="outputs/cbam_only_resnet18_v2/training_report.html" class="btn btn-primary">
                         <i class="fas fa-chart-line"></i>
+                        <span>View Report</span>
+                    </a>
+                    <button class="btn btn-outline">
+                        <i class="fas fa-download"></i>
+                        <span>Download</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Dataset Analysis Report -->
+            <div class="report-card">
+                <div class="report-header">
+                    <h2 class="report-title">Dataset Analysis</h2>
+                    <p class="report-subtitle">Plant Disease Dataset Characteristics</p>
+                </div>
+                <div class="report-body">
+                    <div class="metrics">
+                        <div class="metric">
+                            <div class="metric-label">Total Images</div>
+                            <div class="metric-value">61,486</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-label">Classes</div>
+                            <div class="metric-value">39</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-label">Class Imbalance</div>
+                            <div class="metric-value">5.5:1</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-label">Square Images</div>
+                            <div class="metric-value">97.84%</div>
+                        </div>
+                    </div>
+                    <p>Comprehensive analysis of dataset statistics, class distribution, image characteristics, and recommendations for model training.</p>
+                </div>
+                <div class="report-footer">
+                    <a href="outputs/dataset_analysis_report/summary_report.md" class="btn btn-primary">
+                        <i class="fas fa-database"></i>
                         <span>View Report</span>
                     </a>
                     <button class="btn btn-outline">
