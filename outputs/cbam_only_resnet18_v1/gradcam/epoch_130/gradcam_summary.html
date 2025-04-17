@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GradCAM Visualizations - Epoch 130</title>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <style>
+      :root {
+        --bg-primary: #09090b;
+        --bg-secondary: #09090b;
+        --bg-tertiary: #09090b;
+        --text-primary: #f8fafc;
+        --text-secondary: #cbd5e1;
+        --text-tertiary: #94a3b8;
+        --accent-primary: #777777;
+        --accent-secondary: #ffffffb3;
+        --accent-tertiary: #b5fdbc;
+        --success: #b5fdbc;
+        --warning: #f59e0b;
+        --danger: #ef4444;
+        --info: #3b82f6;
+        --border-radius: 8px;
+        --card-radius: 12px;
+        --shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        --transition: all 0.3s ease;
+        --border-color: #23272e;
+      }
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: "SF Pro Display", -apple-system, BlinkMacSystemFont,
+          "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
+        background-color: var(--bg-primary);
+        color: var(--text-primary);
+        line-height: 1.6;
+      }
+
+      .container {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 0 1.5rem;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: 240px 1fr;
+        gap: 1.5rem;
+        min-height: 100vh;
+      }
+
+      /* Sidebar */
+      .sidebar {
+        background-color: var(--bg-secondary);
+        border-right: 1px solid var(--border-color);
+        padding: 1.5rem 0;
+        position: sticky;
+        top: 0;
+        height: 100vh;
+        overflow-y: auto;
+      }
+
+      .sidebar-logo {
+        padding: 0 1.5rem;
+        margin-bottom: 2rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+      }
+
+      .logo-icon {
+        width: 2.5rem;
+        height: 2.5rem;
+        background: linear-gradient(135deg, #777777, #b5fdbc);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+        color: white;
+      }
+
+      .logo-text {
+        font-size: 1.25rem;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+        color: var(--text-primary);
+      }
+
+      .nav-section {
+        margin-bottom: 1.5rem;
+      }
+
+      .nav-heading {
+        padding: 0 1.5rem;
+        margin-bottom: 0.75rem;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: var(--text-tertiary);
+      }
+
+      .nav-items {
+        list-style-type: none;
+      }
+
+      .nav-item {
+        padding: 0.75rem 1.5rem;
+        cursor: pointer;
+        transition: var(--transition);
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        border-left: 3px solid transparent;
+      }
+
+      .nav-item:hover {
+        background-color: rgba(255, 255, 255, 0.05);
+      }
+
+      .nav-item.active {
+        background-color: #23272e;
+        border-left: 3px solid #b5fdbc;
+      }
+
+      .nav-item i {
+        font-size: 1.1rem;
+        color: #b5fdbc;
+      }
+
+      .nav-link {
+        color: var(--text-primary);
+        text-decoration: none;
+        font-size: 0.95rem;
+        font-weight: 500;
+      }
+
+      /* Main Content */
+      .main-content {
+        padding: 2rem 0;
+      }
+
+      .header {
+        margin-bottom: 2rem;
+      }
+
+      .header-title {
+        font-size: 2rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+        background: linear-gradient(
+          90deg,
+          var(--accent-primary),
+          var(--accent-tertiary)
+        );
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+
+      .header-subtitle {
+        color: var(--text-secondary);
+        font-size: 1.1rem;
+        max-width: 800px;
+      }
+
+      .sample-container {
+        background-color: var(--bg-secondary);
+        border-radius: var(--card-radius);
+        padding: 1.5rem;
+        box-shadow: var(--shadow);
+        margin-bottom: 2rem;
+      }
+
+      .sample-container h2 {
+        color: var(--accent-tertiary);
+        margin-bottom: 1.5rem;
+        font-size: 1.25rem;
+        border-bottom: 1px solid var(--border-color);
+        padding-bottom: 0.5rem;
+      }
+
+      .visualizations-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 1.5rem;
+      }
+
+      .visualization {
+        background-color: var(--bg-tertiary);
+        border-radius: var(--border-radius);
+        overflow: hidden;
+        transition: var(--transition);
+      }
+
+      .visualization:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.4);
+      }
+
+      .visualization img {
+        width: 100%;
+        display: block;
+        border-radius: var(--border-radius) var(--border-radius) 0 0;
+      }
+
+      .viz-info {
+        padding: 1rem;
+        background-color: var(--bg-tertiary);
+      }
+
+      .filename {
+        font-size: 0.9rem;
+        color: var(--text-secondary);
+        margin-top: 0.5rem;
+      }
+    </style>
+</head>
+<body>
+    <div class="grid">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-logo">
+                <div class="logo-icon">
+                    <i class="fas fa-eye"></i>
+                </div>
+                <div class="logo-text">GradCAM</div>
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-heading">Samples</div>
+                <ul class="nav-items">
+                    <li class="nav-item active">
+                        <i class="fas fa-image"></i>
+                        <a href="#sample_0" class="nav-link">sample_0</a>
+                    </li>
+                    <li class="nav-item ">
+                        <i class="fas fa-image"></i>
+                        <a href="#sample_1" class="nav-link">sample_1</a>
+                    </li>
+                    <li class="nav-item ">
+                        <i class="fas fa-image"></i>
+                        <a href="#sample_2" class="nav-link">sample_2</a>
+                    </li>
+                    <li class="nav-item ">
+                        <i class="fas fa-image"></i>
+                        <a href="#sample_3" class="nav-link">sample_3</a>
+                    </li>
+                    <li class="nav-item ">
+                        <i class="fas fa-image"></i>
+                        <a href="#sample_4" class="nav-link">sample_4</a>
+                    </li>
+                    <li class="nav-item ">
+                        <i class="fas fa-image"></i>
+                        <a href="#sample_5" class="nav-link">sample_5</a>
+                    </li>
+                    <li class="nav-item ">
+                        <i class="fas fa-image"></i>
+                        <a href="#sample_6" class="nav-link">sample_6</a>
+                    </li>
+                    <li class="nav-item ">
+                        <i class="fas fa-image"></i>
+                        <a href="#sample_7" class="nav-link">sample_7</a>
+                    </li>
+                    <li class="nav-item ">
+                        <i class="fas fa-image"></i>
+                        <a href="#sample_8" class="nav-link">sample_8</a>
+                    </li>
+                    <li class="nav-item ">
+                        <i class="fas fa-image"></i>
+                        <a href="#sample_9" class="nav-link">sample_9</a>
+                    </li>
+                </ul>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="container">
+                <header class="header">
+                    <h1 class="header-title">GradCAM Visualizations</h1>
+                    <p class="header-subtitle">
+                        Epoch visualization of model attention areas for classification predictions.
+                    </p>
+                </header>
+
+                <div class="sample-container" id="sample_0">
+                    <h2>sample_0</h2>
+                    <div class="visualizations-grid">
+
+                        <div class="visualization">
+                            <img src="sample_0/gradcam_pred_25.png" alt="gradcam_pred_25">
+                            <div class="viz-info">
+                                <div class="filename">gradcam_pred_25.png</div>
+                            </div>
+                        </div>
+
+                        <div class="visualization">
+                            <img src="sample_0/gradcam_top1_29.png" alt="gradcam_top1_29">
+                            <div class="viz-info">
+                                <div class="filename">gradcam_top1_29.png</div>
+                            </div>
+                        </div>
+
+                        <div class="visualization">
+                            <img src="sample_0/gradcam_top2_20.png" alt="gradcam_top2_20">
+                            <div class="viz-info">
+                                <div class="filename">gradcam_top2_20.png</div>
+                            </div>
+                        </div>
+
+                        <div class="visualization">
+                            <img src="sample_0/gradcam_true_25.png" alt="gradcam_true_25">
+                            <div class="viz-info">
+                                <div class="filename">gradcam_true_25.png</div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <div class="sample-container" id="sample_1">
+                    <h2>sample_1</h2>
+                    <div class="visualizations-grid">
+
+                        <div class="visualization">
+                            <img src="sample_1/gradcam_pred_11.png" alt="gradcam_pred_11">
+                            <div class="viz-info">
+                                <div class="filename">gradcam_pred_11.png</div>
+                            </div>
+                        </div>
+
+                        <div class="visualization">
+                            <img src="sample_1/gradcam_top1_10.png" alt="gradcam_top1_10">
+                            <div class="viz-info">
+                                <div class="filename">gradcam_top1_10.png</div>
+                            </div>
+                        </div>
+
+                        <div class="visualization">
+                            <img src="sample_1/gradcam_top2_8.png" alt="gradcam_top2_8">
+                            <div class="viz-info">
+                                <div class="filename">gradcam_top2_8.png</div>
+                            </div>
+                        </div>
+
+                        <div class="visualization">
+                            <img src="sample_1/gradcam_true_11.png" alt="gradcam_true_11">
+                            <div class="viz-info">
+                                <div class="filename">gradcam_true_11.png</div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <div class="sample-container" id="sample_2">
+                    <h2>sample_2</h2>
+                    <div class="visualizations-grid">
+
+                        <div class="visualization">
+                            <img src="sample_2/gradcam_pred_34.png" alt="gradcam_pred_34">
+                            <div class="viz-info">
+                                <div class="filename">gradcam_pred_34.png</div>
+                            </div>
+                        </div>
+
+                        <div class="visualization">
+                            <img src="sample_2/gradcam_top1_36.png" alt="gradcam_top1_36">
+                            <div class="viz-info">
+                                <div class="filename">gradcam_top1_36.png</div>
+                            </div>
+                        </div>
+
+                        <div class="visualization">
+                            <img src="sample_2/gradcam_top2_16.png" alt="gradcam_top2_16">
+                            <div class="viz-info">
+                                <div class="filename">gradcam_top2_16.png</div>
+                            </div>
+                        </div>
+
+                        <div class="visualization">
+                            <img src="sample_2/gradcam_true_34.png" alt="gradcam_true_34">
+                            <div class="viz-info">
+                                <div class="filename">gradcam_true_34.png</div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <div class="sample-container" id="sample_3">
+                    <h2>sample_3</h2>
+                    <div class="visualizations-grid">
+
+                        <div class="visualization">
+                            <img src="sample_3/gradcam_pred_25.png" alt="gradcam_pred_25">
+                            <div class="viz-info">
+                                <div class="filename">gradcam_pred_25.png</div>
+                            </div>
+                        </div>
+
+                        <div class="visualization">
+                            <img src="sample_3/gradcam_top1_7.png" alt="gradcam_top1_7">
+                            <div class="viz-info">
+                                <div class="filename">gradcam_top1_7.png</div>
+                            </div>
+                        </div>
+
+                        <div class="visualization">
+                            <img src="sample_3/gradcam_top2_20.png" alt="gradcam_top2_20">
+                            <div class="viz-info">
+                                <div class="filename">gradcam_top2_20.png</div>
+                            </div>
+                        </div>
+
+                        <div class="visualization">
+                            <img src="sample_3/gradcam_true_25.png" alt="gradcam_true_25">
+                            <div class="viz-info">
+                                <div class="filename">gradcam_true_25.png</div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <div class="sample-container" id="sample_4">
+                    <h2>sample_4</h2>
+                    <div class="visualizations-grid">
+
+                        <div class="visualization">
+                            <img src="sample_4/gradcam_pred_35.png" alt="gradcam_pred_35">
+                            <div class="viz-info">
+                                <div class="filename">gradcam_pred_35.png</div>
+                            </div>
+                        </div>
+
+                        <div class="visualization">
+                            <img src="sample_4/gradcam_top1_34.png" alt="gradcam_top1_34">
+                            <div class="viz-info">
+                                <div class="filename">gradcam_top1_34.png</div>
+                            </div>
+                        </div>
+
+                        <div class="visualization">
+                            <img src="sample_4/gradcam_top2_29.png" alt="gradcam_top2_29">
+                            <div class="viz-info">
+                                <div class="filename">gradcam_top2_29.png</div>
+                            </div>
+                        </div>
+
+                        <div class="visualization">
+                            <img src="sample_4/gradcam_true_35.png" alt="gradcam_true_35">
+                            <div class="viz-info">
+                                <div class="filename">gradcam_true_35.png</div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <div class="sample-container" id="sample_5">
+                    <h2>sample_5</h2>
+                    <div class="visualizations-grid">
+
+                        <div class="visualization">
+                            <img src="sample_5/gradcam_pred_8.png" alt="gradcam_pred_8">
+                            <div class="viz-info">
+                                <div class="filename">gradcam_pred_8.png</div>
+                            </div>
+                        </div>
+
+                        <div class="visualization">
+                            <img src="sample_5/gradcam_top1_10.png" alt="gradcam_top1_10">
+                            <div class="viz-info">
+                                <div class="filename">gradcam_top1_10.png</div>
+                            </div>
+                        </div>
+
+                        <div class="visualization">
+                            <img src="sample_5/gradcam_top2_13.png" alt="gradcam_top2_13">
+                            <div class="viz-info">
+                                <div class="filename">gradcam_top2_13.png</div>
+                            </div>
+                        </div>
+
+                        <div class="visualization">
+                            <img src="sample_5/gradcam_true_8.png" alt="gradcam_true_8">
+                            <div class="viz-info">
+                                <div class="filename">gradcam_true_8.png</div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <div class="sample-container" id="sample_6">
+                    <h2>sample_6</h2>
+                    <div class="visualizations-grid">
+
+                        <div class="visualization">
+                            <img src="sample_6/gradcam_pred_17.png" alt="gradcam_pred_17">
+                            <div class="viz-info">
+                                <div class="filename">gradcam_pred_17.png</div>
+                            </div>
+                        </div>
+
+                        <div class="visualization">
+                            <img src="sample_6/gradcam_top1_19.png" alt="gradcam_top1_19">
+                            <div class="viz-info">
+                                <div class="filename">gradcam_top1_19.png</div>
+                            </div>
+                        </div>
+
+                        <div class="visualization">
+                            <img src="sample_6/gradcam_top2_6.png" alt="gradcam_top2_6">
+                            <div class="viz-info">
+                                <div class="filename">gradcam_top2_6.png</div>
+                            </div>
+                        </div>
+
+                        <div class="visualization">
+                            <img src="sample_6/gradcam_true_17.png" alt="gradcam_true_17">
+                            <div class="viz-info">
+                                <div class="filename">gradcam_true_17.png</div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <div class="sample-container" id="sample_7">
+                    <h2>sample_7</h2>
+                    <div class="visualizations-grid">
+
+                        <div class="visualization">
+                            <img src="sample_7/gradcam_pred_27.png" alt="gradcam_pred_27">
+                            <div class="viz-info">
+                                <div class="filename">gradcam_pred_27.png</div>
+                            </div>
+                        </div>
+
+                        <div class="visualization">
+                            <img src="sample_7/gradcam_top1_36.png" alt="gradcam_top1_36">
+                            <div class="viz-info">
+                                <div class="filename">gradcam_top1_36.png</div>
+                            </div>
+                        </div>
+
+                        <div class="visualization">
+                            <img src="sample_7/gradcam_top2_28.png" alt="gradcam_top2_28">
+                            <div class="viz-info">
+                                <div class="filename">gradcam_top2_28.png</div>
+                            </div>
+                        </div>
+
+                        <div class="visualization">
+                            <img src="sample_7/gradcam_true_27.png" alt="gradcam_true_27">
+                            <div class="viz-info">
+                                <div class="filename">gradcam_true_27.png</div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <div class="sample-container" id="sample_8">
+                    <h2>sample_8</h2>
+                    <div class="visualizations-grid">
+
+                        <div class="visualization">
+                            <img src="sample_8/gradcam_pred_35.png" alt="gradcam_pred_35">
+                            <div class="viz-info">
+                                <div class="filename">gradcam_pred_35.png</div>
+                            </div>
+                        </div>
+
+                        <div class="visualization">
+                            <img src="sample_8/gradcam_top1_29.png" alt="gradcam_top1_29">
+                            <div class="viz-info">
+                                <div class="filename">gradcam_top1_29.png</div>
+                            </div>
+                        </div>
+
+                        <div class="visualization">
+                            <img src="sample_8/gradcam_top2_30.png" alt="gradcam_top2_30">
+                            <div class="viz-info">
+                                <div class="filename">gradcam_top2_30.png</div>
+                            </div>
+                        </div>
+
+                        <div class="visualization">
+                            <img src="sample_8/gradcam_true_35.png" alt="gradcam_true_35">
+                            <div class="viz-info">
+                                <div class="filename">gradcam_true_35.png</div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <div class="sample-container" id="sample_9">
+                    <h2>sample_9</h2>
+                    <div class="visualizations-grid">
+
+                        <div class="visualization">
+                            <img src="sample_9/gradcam_pred_1.png" alt="gradcam_pred_1">
+                            <div class="viz-info">
+                                <div class="filename">gradcam_pred_1.png</div>
+                            </div>
+                        </div>
+
+                        <div class="visualization">
+                            <img src="sample_9/gradcam_top1_2.png" alt="gradcam_top1_2">
+                            <div class="viz-info">
+                                <div class="filename">gradcam_top1_2.png</div>
+                            </div>
+                        </div>
+
+                        <div class="visualization">
+                            <img src="sample_9/gradcam_top2_3.png" alt="gradcam_top2_3">
+                            <div class="viz-info">
+                                <div class="filename">gradcam_top2_3.png</div>
+                            </div>
+                        </div>
+
+                        <div class="visualization">
+                            <img src="sample_9/gradcam_true_1.png" alt="gradcam_true_1">
+                            <div class="viz-info">
+                                <div class="filename">gradcam_true_1.png</div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+    <script>
+        // Add active class to sidebar items when clicked
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.addEventListener('click', () => {
+                document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+                item.classList.add('active');
+            });
+        });
+    </script>
+</body>
+</html>

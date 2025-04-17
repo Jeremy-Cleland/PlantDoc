@@ -1,0 +1,1845 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Training Report - cbam_only_resnet18</title>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <style>
+      :root {
+        --bg-primary: #09090b;
+        --bg-secondary: #111113;
+        --bg-tertiary: #1a1a1d;
+        --text-primary: #f8fafc;
+        --text-secondary: #cbd5e1;
+        --text-tertiary: #94a3b8;
+        --accent-primary: #7B3210;
+        --accent-secondary: #7B3210;
+        --accent-tertiary: #b5fdbc;
+        --success: #b5fdbc;
+        --warning: #f59e0b;
+        --danger: #ef4444;
+        --info: #7B3210;
+        --border-radius: 15px;
+        --card-radius: 15px;
+        --shadow: 0 4px 16px rgba(23,23,23,0.5);
+        --transition: all 0.3s ease;
+        --border-color: #281C16;
+      }
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: "SF Pro Display", -apple-system, BlinkMacSystemFont,
+          "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
+        background-color: var(--bg-primary);
+        color: var(--text-primary);
+        line-height: 1.6;
+      }
+
+      .container {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 0 1.5rem;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: 240px 1fr;
+        gap: 1.5rem;
+        min-height: 100vh;
+      }
+
+      /* Sidebar */
+      .sidebar {
+        background-color: var(--bg-secondary);
+        border-right: 1px solid var(--border-color);
+        padding: 1.5rem 0;
+        position: sticky;
+        top: 0;
+        height: 100vh;
+        overflow-y: auto;
+      }
+
+      .sidebar-logo {
+        padding: 0 1.5rem;
+        margin-bottom: 2rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+      }
+
+      .logo-icon {
+        width: 2.5rem;
+        height: 2.5rem;
+        background: linear-gradient(135deg, #777777, #281C16);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+        color: white;
+      }
+
+      .logo-text {
+        font-size: 1.25rem;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+      }
+
+      .nav-section {
+        margin-bottom: 1.5rem;
+      }
+
+      .nav-heading {
+        padding: 0 1.5rem;
+        margin-bottom: 0.75rem;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: var(--text-tertiary);
+      }
+
+      .nav-items {
+        list-style-type: none;
+      }
+
+      .nav-item {
+        padding: 0.75rem 1.5rem;
+        cursor: pointer;
+        transition: var(--transition);
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        border-left: 3px solid transparent;
+      }
+
+      .nav-item:hover {
+        background-color: rgba(255, 255, 255, 0.05);
+      }
+
+      .nav-item.active {
+        background-color: #23272e;
+        border-left: 3px solid var(--accent-primary);
+      }
+
+      .nav-item i {
+        font-size: 1.1rem;
+        color: #f6f6f6;
+      }
+
+      .nav-item.active i {
+        color: #f6f6f6;
+      }
+
+      .nav-link {
+        color: #f6f6f6;
+        text-decoration: none;
+        font-size: 0.95rem;
+        font-weight: 500;
+      }
+
+      .nav-item.active .nav-link {
+        color: var(--accent-primary);
+      }
+
+      /* Main Content */
+      .main-content {
+        padding: 2rem 0;
+      }
+
+      .header {
+        margin-bottom: 2rem;
+      }
+
+      .header-title {
+        font-size: 2rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+        background: linear-gradient(
+          90deg,
+          var(--accent-primary),
+          var(--accent-tertiary)
+        );
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+
+      .header-subtitle {
+        color: var(--text-secondary);
+        font-size: 1.1rem;
+        max-width: 800px;
+      }
+
+      .dashboard {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+      }
+
+      .metric-card {
+        background-color: var(--bg-secondary);
+        border-radius: var(--card-radius);
+        padding: 1.5rem;
+        box-shadow: var(--shadow);
+        display: flex;
+        flex-direction: column;
+      }
+
+      .metric-label {
+        font-size: 0.9rem;
+        color: var(--text-tertiary);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 0.75rem;
+      }
+
+      .metric-value {
+        font-size: 2.25rem;
+        font-weight: 700;
+        margin-bottom: 0.75rem;
+      }
+
+      .metric-info {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.875rem;
+        color: var(--success);
+      }
+
+      .metric-info.negative {
+        color: var(--danger);
+      }
+
+      .metric-info i {
+        font-size: 0.75rem;
+      }
+
+      .chart-section {
+        background-color: var(--bg-secondary);
+        border-radius: var(--card-radius);
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: var(--shadow);
+      }
+
+      .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+      }
+
+      .section-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+      }
+
+      .section-actions {
+        display: flex;
+        gap: 0.75rem;
+      }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        border-radius: var(--border-radius);
+        font-size: 0.875rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: var(--transition);
+        border: none;
+      }
+
+      .btn-outline {
+        background-color: transparent;
+        border: 1px solid var(--border-color);
+        color: var(--text-secondary);
+      }
+
+      .btn-outline:hover {
+        background-color: rgba(255, 255, 255, 0.05);
+      }
+
+      .btn-primary {
+        background-color: var(--accent-primary);
+        color: white;
+      }
+
+      .btn-primary:hover {
+        background-color: #7c3aed;
+      }
+
+      .chart-content {
+        position: relative;
+      }
+
+      .chart-image {
+        width: 100%;
+        border-radius: var(--border-radius);
+        border: 1px solid var(--border-color);
+      }
+
+      .chart-caption {
+        margin-top: 1rem;
+        font-size: 0.9rem;
+        color: var(--text-tertiary);
+      }
+
+      .data-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9rem;
+      }
+
+      .data-table th {
+        background-color: var(--bg-tertiary);
+        padding: 0.75rem 1rem;
+        text-align: left;
+        border-bottom: 1px solid var(--border-color);
+        color: var(--text-tertiary);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        font-size: 0.75rem;
+        font-weight: 600;
+      }
+
+      .data-table td {
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      }
+
+      .data-table tr:last-child td {
+        border-bottom: none;
+      }
+
+      .data-table tr:hover td {
+        background-color: rgba(255, 255, 255, 0.03);
+      }
+
+      .status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 0.25rem 0.5rem;
+        border-radius: 9999px;
+        font-size: 0.75rem;
+        font-weight: 500;
+      }
+
+      .status-success {
+        background-color: rgba(16, 185, 129, 0.2);
+        color: var(--success);
+      }
+
+      .status-warning {
+        background-color: rgba(245, 158, 11, 0.2);
+        color: var(--warning);
+      }
+
+      .grid-2 {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1.5rem;
+        margin-bottom: 1.5rem;
+      }
+
+      .model-details {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+      }
+
+      .detail-item {
+        padding: 1rem;
+        background-color: var(--bg-tertiary);
+        border-radius: var(--border-radius);
+      }
+
+      .detail-label {
+        font-size: 0.75rem;
+        color: var(--text-tertiary);
+        margin-bottom: 0.25rem;
+      }
+
+      .detail-value {
+        font-size: 1rem;
+        font-weight: 600;
+      }
+
+      .analysis-section {
+        background-color: var(--bg-secondary);
+        border-radius: var(--card-radius);
+        margin-bottom: 1.5rem;
+        overflow: hidden;
+      }
+
+      .analysis-header {
+        padding: 1.25rem 1.5rem;
+        background-color: rgba(255, 255, 255, 0.03);
+        border-bottom: 1px solid var(--border-color);
+        font-size: 1.1rem;
+        font-weight: 600;
+      }
+
+      .analysis-content {
+        padding: 1.5rem;
+      }
+
+      .insight-list {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+      }
+
+      .insight-item {
+        display: flex;
+        gap: 0.75rem;
+      }
+
+      .insight-icon {
+        width: 2rem;
+        height: 2rem;
+        background-color: rgba(181, 253, 188, 0.2);
+        color: #b5fdbc;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--accent-primary);
+        flex-shrink: 0;
+      }
+
+      .insight-content {
+        font-size: 0.95rem;
+      }
+
+      /* Scrollbar */
+      ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+      }
+
+      ::-webkit-scrollbar-track {
+        background: var(--bg-primary);
+      }
+
+      ::-webkit-scrollbar-thumb {
+        background: var(--bg-tertiary);
+        border-radius: 3px;
+      }
+
+      ::-webkit-scrollbar-thumb:hover {
+        background: var(--accent-primary);
+      }
+
+      /* Responsive */
+      @media (max-width: 1024px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
+
+        .sidebar {
+          display: none;
+        }
+
+        .grid-2 {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 768px) {
+        .dashboard {
+          grid-template-columns: 1fr;
+        }
+
+        .model-details {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      /* Performance gauge */
+      .gauge-container {
+        position: relative;
+        width: 100%;
+        height: 8px;
+        background-color: rgba(255, 255, 255, 0.1);
+        border-radius: 4px;
+        margin-top: 0.5rem;
+        overflow: hidden;
+      }
+
+      .gauge-fill {
+        height: 100%;
+        background: linear-gradient(
+          90deg,
+          var(--accent-primary),
+          var(--accent-tertiary)
+        );
+        border-radius: 4px;
+      }
+
+      /* Conclusion alert */
+      .alert {
+        padding: 1.25rem;
+        border-radius: var(--border-radius);
+        margin: 1.5rem 0;
+        display: flex;
+        gap: 1rem;
+        align-items: flex-start;
+      }
+
+      .alert-success {
+        background-color: rgba(16, 185, 129, 0.1);
+        border-left: 4px solid var(--success);
+      }
+
+      .alert-icon {
+        color: var(--success);
+        font-size: 1.5rem;
+      }
+
+      .alert-content h4 {
+        margin-bottom: 0.5rem;
+        color: var(--success);
+      }
+
+      .alert-content p {
+        color: var(--text-secondary);
+        font-size: 0.95rem;
+      }
+
+      /* Classification table */
+      .class-performance {
+        margin-top: 1rem;
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 0.75rem;
+      }
+
+      .class-item {
+        background-color: var(--bg-tertiary);
+        border-radius: var(--border-radius);
+        padding: 0.75rem;
+      }
+
+      .class-name {
+        font-size: 0.85rem;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .class-metrics {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+        font-size: 0.75rem;
+      }
+
+      .class-metric {
+        display: flex;
+        justify-content: space-between;
+      }
+
+      .class-metric-label {
+        color: var(--text-tertiary);
+      }
+
+      .class-metric-value {
+        font-weight: 600;
+        color: var(--text-primary);
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="grid">
+      <!-- Sidebar -->
+      <aside class="sidebar">
+        <div class="sidebar-logo">
+          <div class="logo-icon">
+            <i class="fas fa-brain"></i>
+          </div>
+          <div class="logo-text">PlantDL</div>
+        </div>
+
+        <div class="nav-section">
+          <div class="nav-heading">Dashboard</div>
+          <ul class="nav-items">
+            <li class="nav-item active" data-section="overview">
+              <i class="fas fa-chart-line"></i>
+              <a href="#overview" class="nav-link">Performance Overview</a>
+            </li>
+            <li class="nav-item" data-section="data-analysis">
+              <i class="fas fa-database"></i>
+              <a href="#data-analysis" class="nav-link">Data Analysis</a>
+            </li>
+            <li class="nav-item" data-section="configuration">
+              <i class="fas fa-cog"></i>
+              <a href="#configuration" class="nav-link">Model Configuration</a>
+            </li>
+            <li class="nav-item" data-section="training">
+              <i class="fas fa-chart-area"></i>
+              <a href="#training" class="nav-link">Training Metrics</a>
+            </li>
+            <li class="nav-item" data-section="confidence">
+              <i class="fas fa-check-circle"></i>
+              <a href="#confidence" class="nav-link">Confidence Analysis</a>
+            </li>
+            <li class="nav-item">
+              <i class="fas fa-chart-bar"></i>
+              <a href="#confusion-matrix" class="nav-link">Confusion Matrix</a>
+            </li>
+            <li class="nav-item" data-section="time">
+              <i class="fas fa-clock"></i>
+              <a href="#time" class="nav-link">Training Time</a>
+            </li>
+            <li class="nav-item">
+              <i class="fas fa-chart-line"></i>
+              <a href="#roc-curves" class="nav-link">ROC Curves</a>
+            </li>
+          </ul>
+        </div>
+
+        <div class="nav-section">
+          <div class="nav-heading">Analysis</div>
+          <ul class="nav-items">
+            <li class="nav-item" data-section="model-analysis">
+              <i class="fas fa-microscope"></i>
+              <a href="#model-analysis" class="nav-link">Model Analysis</a>
+            </li>
+            <li class="nav-item" data-section="classification-examples">
+              <i class="fas fa-images"></i>
+              <a href="#classification-examples" class="nav-link">Classification Examples</a>
+            </li>
+            <li class="nav-item" data-section="confidence-distribution">
+              <i class="fas fa-signal"></i>
+              <a href="#confidence-distribution" class="nav-link">Confidence Analysis</a>
+            </li>
+            <li class="nav-item" data-section="class-performance">
+              <i class="fas fa-layer-group"></i>
+              <a href="#class-performance" class="nav-link">Class Performance</a>
+            </li>
+            <li class="nav-item" data-section="insights">
+              <i class="fas fa-lightbulb"></i>
+              <a href="#insights" class="nav-link">Key Insights</a>
+            </li>
+            <li class="nav-item" data-section="conclusion">
+              <i class="fas fa-flag-checkered"></i>
+              <a href="#conclusion" class="nav-link">Conclusion</a>
+            </li>
+          </ul>
+        </div>
+
+        <div class="nav-section">
+          <div class="nav-heading">Resources</div>
+          <ul class="nav-items">
+            <li class="nav-item">
+              <i class="fas fa-code"></i>
+              <a href="#" class="nav-link">View Model Code</a>
+            </li>
+            <li class="nav-item">
+              <i class="fas fa-download"></i>
+              <a href="#" class="nav-link">Download Report</a>
+            </li>
+            <li class="nav-item">
+              <i class="fas fa-question-circle"></i>
+              <a href="#" class="nav-link">Documentation</a>
+            </li>
+          </ul>
+        </div>
+      </aside>
+
+      <!-- Main Content -->
+      <main class="main-content">
+        <div class="container">
+          <header class="header" id="overview">
+            <h1 class="header-title">cbam_only_resnet18 Performance Report</h1>
+            <p class="header-subtitle">
+              This report provides a comprehensive analysis of the
+              cbam_only_resnet18 model trained for multi-class classification
+              with 39 classes.
+            </p>
+          </header>
+
+          <!-- Performance Dashboard -->
+          <div class="dashboard">
+            <div class="metric-card">
+              <div class="metric-label">Accuracy</div>
+              <div class="metric-value">
+                  97.46%
+              </div>
+            </div>
+
+            <div class="metric-card">
+              <div class="metric-label">Precision</div>
+              <div class="metric-value">
+                  99.21%
+              </div>
+            </div>
+
+            <div class="metric-card">
+              <div class="metric-label">Recall</div>
+              <div class="metric-value">
+                  99.17%
+              </div>
+            </div>
+
+            <div class="metric-card">
+              <div class="metric-label">F1 Score</div>
+              <div class="metric-value">
+                  99.16%
+              </div>
+            </div>
+          </div>
+
+          <!-- Class Performance -->
+
+          <!-- SHAP Visualizations -->
+
+          <!-- Model Configuration -->
+          <section class="analysis-section" id="configuration">
+            <div class="analysis-header">
+              <i class="fas fa-cog"></i> Model Configuration
+            </div>
+            <div class="analysis-content">
+              <p class="mb-3">Detailed configuration of the cbam_only_resnet18 model and training process.</p>
+              
+              <!-- Model Architecture Details -->
+              <h4 class="mt-4 mb-3"><i class="fas fa-microchip"></i> Architecture</h4>
+              <div class="model-details">
+                <div class="detail-item">
+                  <div class="detail-label">Model Name</div>
+                  <div class="detail-value">cbam_only_resnet18</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-label">Num Classes</div>
+                  <div class="detail-value">39</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-label">Pretrained</div>
+                  <div class="detail-value">True</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-label">Input Size</div>
+                  <div class="detail-value">224 × 224</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-label">Head Type</div>
+                  <div class="detail-value">residual</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-label">Hidden Dim</div>
+                  <div class="detail-value">256</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-label">Dropout Rate</div>
+                  <div class="detail-value">0.15</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-label">Model Size</div>
+                  <div class="detail-value">48.82 MB</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-label">Parameters</div>
+                  <div class="detail-value">12,798,646</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-label">Layers</div>
+                  <div class="detail-value">1</div>
+                </div>
+              </div>
+
+              <!-- Training Parameters -->
+              <h4 class="mt-4 mb-3"><i class="fas fa-sliders-h"></i> Training Parameters</h4>
+              <div class="model-details">
+                <div class="detail-item">
+                  <div class="detail-label">Epochs</div>
+                  <div class="detail-value">150</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-label">Batch Size</div>
+                  <div class="detail-value">128</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-label">Mixed Precision</div>
+                  <div class="detail-value">True</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-label">Precision</div>
+                  <div class="detail-value">float16</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-label">Gradient Clip</div>
+                  <div class="detail-value">1.0</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-label">Total Time</div>
+                  <div class="detail-value">9h 46m 44s</div>
+                </div>
+              </div>
+
+              <!-- Optimizer Configuration -->
+              <h4 class="mt-4 mb-3"><i class="fas fa-chart-line"></i> Optimizer</h4>
+              <div class="model-details">
+                <div class="detail-item">
+                  <div class="detail-label">Name</div>
+                  <div class="detail-value">Adamw</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-label">Learning Rate</div>
+                  <div class="detail-value">0.0005</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-label">Weight Decay</div>
+                  <div class="detail-value">5e-5</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-label">Momentum</div>
+                  <div class="detail-value">0.9</div>
+                </div>
+              </div>
+
+              <!-- Scheduler Configuration -->
+              <h4 class="mt-4 mb-3"><i class="fas fa-temperature-low"></i> Scheduler</h4>
+              <div class="model-details">
+                <div class="detail-item">
+                  <div class="detail-label">Type</div>
+                  <div class="detail-value">Cosine Annealing Warm Restarts</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-label">Monitor</div>
+                  <div class="detail-value">None</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-label">Factor</div>
+                  <div class="detail-value">0.1</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-label">Patience</div>
+                  <div class="detail-value">10</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-label">Min LR</div>
+                  <div class="detail-value">0</div>
+                </div>
+              </div>
+
+              <!-- Loss Function -->
+              <h4 class="mt-4 mb-3"><i class="fas fa-tachometer-alt"></i> Loss Function</h4>
+              <div class="model-details">
+                <div class="detail-item">
+                  <div class="detail-label">Type</div>
+                  <div class="detail-value">Combined</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-label">Component 1</div>
+                  <div class="detail-value">Weighted Cross Entropy (w=0.7)</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-label">Component 2</div>
+                  <div class="detail-value">Focal (w=0.7)</div>
+                </div>
+              </div>
+
+              <!-- Data Processing -->
+              <h4 class="mt-4 mb-3"><i class="fas fa-database"></i> Data Processing</h4>
+              <div class="model-details">
+                <div class="detail-item">
+                  <div class="detail-label">Data Split</div>
+                  <div class="detail-value">0.7 / 0.15 / 0.15</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-label">Dataset</div>
+                  <div class="detail-value">PlantDisease</div>
+                </div>
+              </div>
+
+              <!-- Augmentations -->
+            </div>
+          </section>
+
+          <!-- Attention Visualizations -->
+
+          <!-- Augmentation Examples -->
+
+          <!-- Dataset Analysis -->
+
+          <!-- Confusion Flow -->
+
+          <!-- Confidence Analysis Detailed -->
+
+          <!-- Training History -->
+          <section class="chart-section" id="training">
+            <div class="section-header">
+              <h2 class="section-title">Training History</h2>
+              <div class="section-actions">
+                <button class="btn btn-outline">
+                  <i class="fas fa-download"></i>
+                  <span>Export</span>
+                </button>
+                <button class="btn btn-outline">
+                  <i class="fas fa-expand"></i>
+                  <span>Fullscreen</span>
+                </button>
+              </div>
+            </div>
+            <div class="chart-content">
+              <img
+                src="plots/training_history.png"
+                alt="Training History"
+                class="chart-image"
+              />
+              <div class="chart-caption">
+                <p>
+                  The training history shows convergence patterns for loss and
+                  accuracy metrics over time.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <!-- Confusion Matrix -->
+          <div id="confusion-matrix" class="chart-section">
+            <div class="section-header">
+              <h2 class="section-title">Confusion Matrix</h2>
+            </div>
+            <div class="chart-content">
+              <img
+                src="plots/confusion_matrix.png"
+                alt="Confusion Matrix"
+                class="chart-image"
+              />
+              <div class="chart-caption">
+                <p>
+                  The confusion matrix visualizes classification performance
+                  across 39 classes.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Training Time Analysis -->
+          <section class="chart-section" id="time">
+            <div class="section-header">
+              <h2 class="section-title">Training Time Analysis</h2>
+              <div class="section-actions">
+                <button class="btn btn-outline">
+                  <i class="fas fa-download"></i>
+                  <span>Export</span>
+                </button>
+                <button class="btn btn-outline">
+                  <i class="fas fa-expand"></i>
+                  <span>Fullscreen</span>
+                </button>
+              </div>
+            </div>
+            <div class="chart-content">
+              <img
+                src="plots/training_time.png"
+                alt="Training Time Analysis"
+                class="chart-image"
+              />
+              <div class="chart-caption">
+                <p>
+                  Analysis of per-epoch training time and cumulative training
+                  duration.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <!-- ROC Curves -->
+          <div id="roc-curves" class="chart-section">
+            <div class="section-header">
+              <h2 class="section-title">ROC Curves</h2>
+            </div>
+            <div class="chart-content">
+              <img
+                src="plots/roc_curves.png"
+                alt="ROC Curves"
+                class="chart-image"
+              />
+              <div class="chart-caption">
+                <p>
+                  ROC curves showing the trade-off between true positive rate and false positive rate for each class.
+                </p>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Precision-Recall Curves (if available) -->
+          <section class="chart-section" id="pr-curves">
+            <div class="section-header">
+              <h2 class="section-title">Precision-Recall Curves</h2>
+              <div class="section-actions">
+                <button class="btn btn-outline">
+                  <i class="fas fa-download"></i>
+                  <span>Export</span>
+                </button>
+                <button class="btn btn-outline">
+                  <i class="fas fa-expand"></i>
+                  <span>Fullscreen</span>
+                </button>
+              </div>
+            </div>
+            <div class="chart-content">
+              <img
+                src="plots/precision_recall_curves.png"
+                alt="Precision-Recall Curves"
+                class="chart-image"
+              />
+              <div class="chart-caption">
+                <p>
+                  Precision-recall curves showing the trade-off between precision and recall for each class.
+                </p>
+              </div>
+            </div>
+          </section>
+          
+          <!-- Classification Examples Grid (if available) -->
+          <section class="chart-section" id="classification-examples">
+            <div class="section-header">
+              <h2 class="section-title">Classification Examples</h2>
+              <div class="section-actions">
+                <button class="btn btn-outline">
+                  <i class="fas fa-download"></i>
+                  <span>Export</span>
+                </button>
+                <button class="btn btn-outline">
+                  <i class="fas fa-expand"></i>
+                  <span>Fullscreen</span>
+                </button>
+              </div>
+            </div>
+            <div class="chart-content">
+              <img
+                src="plots/classification_examples.png"
+                alt="Classification Examples"
+                class="chart-image"
+              />
+              <div class="chart-caption">
+                <p>
+                  Examples of model predictions on test images, with correct predictions in green and incorrect ones in red.
+                </p>
+              </div>
+            </div>
+          </section>
+          
+          <!-- Augmentation Visualization (if available) -->
+          
+          <!-- Feature Visualizations (if available) -->
+          
+          <!-- UMAP Visualization (if available) -->
+          
+          <!-- Confidence Distribution (if available) -->
+          <section class="chart-section" id="confidence-distribution">
+            <div class="section-header">
+              <h2 class="section-title">Prediction Confidence Analysis</h2>
+              <div class="section-actions">
+                <button class="btn btn-outline">
+                  <i class="fas fa-download"></i>
+                  <span>Export</span>
+                </button>
+                <button class="btn btn-outline">
+                  <i class="fas fa-expand"></i>
+                  <span>Fullscreen</span>
+                </button>
+              </div>
+            </div>
+            <div class="chart-content">
+              <img
+                src="plots/confidence_distribution.png"
+                alt="Confidence Distribution"
+                class="chart-image"
+              />
+              <div class="chart-caption">
+                <p>
+                  Histogram showing the distribution of prediction confidences across all test samples.
+                  The model shows a low average confidence of 
+N/A.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <!-- Class Performance -->
+          <section class="analysis-section" id="class-performance">
+            <div class="analysis-header">
+              <i class="fas fa-layer-group"></i> Class Performance
+            </div>
+            <div class="analysis-content">
+              <p style="margin-bottom: 1rem">
+                Performance metrics across all 39 classes.
+              </p>
+
+              <div class="class-performance">
+                <div class="class-item">
+                  <div class="class-name">Apple_scab</div>
+                  <div class="class-metrics">
+                    <div class="class-metric">
+                      <span class="class-metric-label">Mean Confidence:</span>
+                      <span class="class-metric-value">0.689</span>
+                    </div>
+                    <div class="class-metric">
+                      <span class="class-metric-label">Count:</span>
+                      <span class="class-metric-value">141</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="class-item">
+                  <div class="class-name">Apple_black_rot</div>
+                  <div class="class-metrics">
+                    <div class="class-metric">
+                      <span class="class-metric-label">Mean Confidence:</span>
+                      <span class="class-metric-value">0.807</span>
+                    </div>
+                    <div class="class-metric">
+                      <span class="class-metric-label">Count:</span>
+                      <span class="class-metric-value">136</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="class-item">
+                  <div class="class-name">Apple_cedar_apple_rust</div>
+                  <div class="class-metrics">
+                    <div class="class-metric">
+                      <span class="class-metric-label">Mean Confidence:</span>
+                      <span class="class-metric-value">0.884</span>
+                    </div>
+                    <div class="class-metric">
+                      <span class="class-metric-label">Count:</span>
+                      <span class="class-metric-value">147</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="class-item">
+                  <div class="class-name">Apple_healthy</div>
+                  <div class="class-metrics">
+                    <div class="class-metric">
+                      <span class="class-metric-label">Mean Confidence:</span>
+                      <span class="class-metric-value">0.760</span>
+                    </div>
+                    <div class="class-metric">
+                      <span class="class-metric-label">Count:</span>
+                      <span class="class-metric-value">228</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="class-item">
+                  <div class="class-name">Background_without_leaves</div>
+                  <div class="class-metrics">
+                    <div class="class-metric">
+                      <span class="class-metric-label">Mean Confidence:</span>
+                      <span class="class-metric-value">0.929</span>
+                    </div>
+                    <div class="class-metric">
+                      <span class="class-metric-label">Count:</span>
+                      <span class="class-metric-value">153</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="class-item">
+                  <div class="class-name">Blueberry_healthy</div>
+                  <div class="class-metrics">
+                    <div class="class-metric">
+                      <span class="class-metric-label">Mean Confidence:</span>
+                      <span class="class-metric-value">0.858</span>
+                    </div>
+                    <div class="class-metric">
+                      <span class="class-metric-label">Count:</span>
+                      <span class="class-metric-value">205</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="class-item">
+                  <div class="class-name">Cherry_powdery_mildew</div>
+                  <div class="class-metrics">
+                    <div class="class-metric">
+                      <span class="class-metric-label">Mean Confidence:</span>
+                      <span class="class-metric-value">0.823</span>
+                    </div>
+                    <div class="class-metric">
+                      <span class="class-metric-label">Count:</span>
+                      <span class="class-metric-value">127</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="class-item">
+                  <div class="class-name">Cherry_healthy</div>
+                  <div class="class-metrics">
+                    <div class="class-metric">
+                      <span class="class-metric-label">Mean Confidence:</span>
+                      <span class="class-metric-value">0.723</span>
+                    </div>
+                    <div class="class-metric">
+                      <span class="class-metric-label">Count:</span>
+                      <span class="class-metric-value">121</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="class-item">
+                  <div class="class-name">Corn_gray_leaf_spot</div>
+                  <div class="class-metrics">
+                    <div class="class-metric">
+                      <span class="class-metric-label">Mean Confidence:</span>
+                      <span class="class-metric-value">0.641</span>
+                    </div>
+                    <div class="class-metric">
+                      <span class="class-metric-label">Count:</span>
+                      <span class="class-metric-value">89</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="class-item">
+                  <div class="class-name">Corn_common_rust</div>
+                  <div class="class-metrics">
+                    <div class="class-metric">
+                      <span class="class-metric-label">Mean Confidence:</span>
+                      <span class="class-metric-value">0.878</span>
+                    </div>
+                    <div class="class-metric">
+                      <span class="class-metric-label">Count:</span>
+                      <span class="class-metric-value">174</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="class-item">
+                  <div class="class-name">Corn_northern_leaf_blight</div>
+                  <div class="class-metrics">
+                    <div class="class-metric">
+                      <span class="class-metric-label">Mean Confidence:</span>
+                      <span class="class-metric-value">0.932</span>
+                    </div>
+                    <div class="class-metric">
+                      <span class="class-metric-label">Count:</span>
+                      <span class="class-metric-value">155</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="class-item">
+                  <div class="class-name">Corn_healthy</div>
+                  <div class="class-metrics">
+                    <div class="class-metric">
+                      <span class="class-metric-label">Mean Confidence:</span>
+                      <span class="class-metric-value">0.932</span>
+                    </div>
+                    <div class="class-metric">
+                      <span class="class-metric-label">Count:</span>
+                      <span class="class-metric-value">155</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="class-item">
+                  <div class="class-name">Grape_black_rot</div>
+                  <div class="class-metrics">
+                    <div class="class-metric">
+                      <span class="class-metric-label">Mean Confidence:</span>
+                      <span class="class-metric-value">0.932</span>
+                    </div>
+                    <div class="class-metric">
+                      <span class="class-metric-label">Count:</span>
+                      <span class="class-metric-value">155</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="class-item">
+                  <div class="class-name">Grape_black_measles</div>
+                  <div class="class-metrics">
+                    <div class="class-metric">
+                      <span class="class-metric-label">Mean Confidence:</span>
+                      <span class="class-metric-value">0.932</span>
+                    </div>
+                    <div class="class-metric">
+                      <span class="class-metric-label">Count:</span>
+                      <span class="class-metric-value">155</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="class-item">
+                  <div class="class-name">Grape_leaf_blight</div>
+                  <div class="class-metrics">
+                    <div class="class-metric">
+                      <span class="class-metric-label">Mean Confidence:</span>
+                      <span class="class-metric-value">0.932</span>
+                    </div>
+                    <div class="class-metric">
+                      <span class="class-metric-label">Count:</span>
+                      <span class="class-metric-value">155</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="class-item">
+                  <div class="class-name">Grape_healthy</div>
+                  <div class="class-metrics">
+                    <div class="class-metric">
+                      <span class="class-metric-label">Mean Confidence:</span>
+                      <span class="class-metric-value">0.932</span>
+                    </div>
+                    <div class="class-metric">
+                      <span class="class-metric-label">Count:</span>
+                      <span class="class-metric-value">155</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="class-item">
+                  <div class="class-name">Orange_haunglongbing</div>
+                  <div class="class-metrics">
+                    <div class="class-metric">
+                      <span class="class-metric-label">Mean Confidence:</span>
+                      <span class="class-metric-value">0.932</span>
+                    </div>
+                    <div class="class-metric">
+                      <span class="class-metric-label">Count:</span>
+                      <span class="class-metric-value">155</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="class-item">
+                  <div class="class-name">Peach_bacterial_spot</div>
+                  <div class="class-metrics">
+                    <div class="class-metric">
+                      <span class="class-metric-label">Mean Confidence:</span>
+                      <span class="class-metric-value">0.932</span>
+                    </div>
+                    <div class="class-metric">
+                      <span class="class-metric-label">Count:</span>
+                      <span class="class-metric-value">155</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="class-item">
+                  <div class="class-name">Peach_healthy</div>
+                  <div class="class-metrics">
+                    <div class="class-metric">
+                      <span class="class-metric-label">Mean Confidence:</span>
+                      <span class="class-metric-value">0.932</span>
+                    </div>
+                    <div class="class-metric">
+                      <span class="class-metric-label">Count:</span>
+                      <span class="class-metric-value">155</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="class-item">
+                  <div class="class-name">Pepper_bacterial_spot</div>
+                  <div class="class-metrics">
+                    <div class="class-metric">
+                      <span class="class-metric-label">Mean Confidence:</span>
+                      <span class="class-metric-value">0.932</span>
+                    </div>
+                    <div class="class-metric">
+                      <span class="class-metric-label">Count:</span>
+                      <span class="class-metric-value">155</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="class-item">
+                  <div class="class-name">Pepper_healthy</div>
+                  <div class="class-metrics">
+                    <div class="class-metric">
+                      <span class="class-metric-label">Mean Confidence:</span>
+                      <span class="class-metric-value">0.932</span>
+                    </div>
+                    <div class="class-metric">
+                      <span class="class-metric-label">Count:</span>
+                      <span class="class-metric-value">155</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="class-item">
+                  <div class="class-name">Potato_early_blight</div>
+                  <div class="class-metrics">
+                    <div class="class-metric">
+                      <span class="class-metric-label">Mean Confidence:</span>
+                      <span class="class-metric-value">0.932</span>
+                    </div>
+                    <div class="class-metric">
+                      <span class="class-metric-label">Count:</span>
+                      <span class="class-metric-value">155</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="class-item">
+                  <div class="class-name">Potato_healthy</div>
+                  <div class="class-metrics">
+                    <div class="class-metric">
+                      <span class="class-metric-label">Mean Confidence:</span>
+                      <span class="class-metric-value">0.932</span>
+                    </div>
+                    <div class="class-metric">
+                      <span class="class-metric-label">Count:</span>
+                      <span class="class-metric-value">155</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="class-item">
+                  <div class="class-name">Potato_late_blight</div>
+                  <div class="class-metrics">
+                    <div class="class-metric">
+                      <span class="class-metric-label">Mean Confidence:</span>
+                      <span class="class-metric-value">0.932</span>
+                    </div>
+                    <div class="class-metric">
+                      <span class="class-metric-label">Count:</span>
+                      <span class="class-metric-value">155</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="class-item">
+                  <div class="class-name">Raspberry_healthy</div>
+                  <div class="class-metrics">
+                    <div class="class-metric">
+                      <span class="class-metric-label">Mean Confidence:</span>
+                      <span class="class-metric-value">0.932</span>
+                    </div>
+                    <div class="class-metric">
+                      <span class="class-metric-label">Count:</span>
+                      <span class="class-metric-value">155</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="class-item">
+                  <div class="class-name">Soybean_healthy</div>
+                  <div class="class-metrics">
+                    <div class="class-metric">
+                      <span class="class-metric-label">Mean Confidence:</span>
+                      <span class="class-metric-value">0.932</span>
+                    </div>
+                    <div class="class-metric">
+                      <span class="class-metric-label">Count:</span>
+                      <span class="class-metric-value">155</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="class-item">
+                  <div class="class-name">Squash_powdery_mildew</div>
+                  <div class="class-metrics">
+                    <div class="class-metric">
+                      <span class="class-metric-label">Mean Confidence:</span>
+                      <span class="class-metric-value">0.932</span>
+                    </div>
+                    <div class="class-metric">
+                      <span class="class-metric-label">Count:</span>
+                      <span class="class-metric-value">155</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="class-item">
+                  <div class="class-name">Strawberry_healthy</div>
+                  <div class="class-metrics">
+                    <div class="class-metric">
+                      <span class="class-metric-label">Mean Confidence:</span>
+                      <span class="class-metric-value">0.932</span>
+                    </div>
+                    <div class="class-metric">
+                      <span class="class-metric-label">Count:</span>
+                      <span class="class-metric-value">155</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="class-item">
+                  <div class="class-name">Strawberry_leaf_scorch</div>
+                  <div class="class-metrics">
+                    <div class="class-metric">
+                      <span class="class-metric-label">Mean Confidence:</span>
+                      <span class="class-metric-value">0.932</span>
+                    </div>
+                    <div class="class-metric">
+                      <span class="class-metric-label">Count:</span>
+                      <span class="class-metric-value">155</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="class-item">
+                  <div class="class-name">Tomato_bacterial_spot</div>
+                  <div class="class-metrics">
+                    <div class="class-metric">
+                      <span class="class-metric-label">Mean Confidence:</span>
+                      <span class="class-metric-value">0.932</span>
+                    </div>
+                    <div class="class-metric">
+                      <span class="class-metric-label">Count:</span>
+                      <span class="class-metric-value">155</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="class-item">
+                  <div class="class-name">Tomato_early_blight</div>
+                  <div class="class-metrics">
+                    <div class="class-metric">
+                      <span class="class-metric-label">Mean Confidence:</span>
+                      <span class="class-metric-value">0.932</span>
+                    </div>
+                    <div class="class-metric">
+                      <span class="class-metric-label">Count:</span>
+                      <span class="class-metric-value">155</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="class-item">
+                  <div class="class-name">Tomato_healthy</div>
+                  <div class="class-metrics">
+                    <div class="class-metric">
+                      <span class="class-metric-label">Mean Confidence:</span>
+                      <span class="class-metric-value">0.932</span>
+                    </div>
+                    <div class="class-metric">
+                      <span class="class-metric-label">Count:</span>
+                      <span class="class-metric-value">155</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="class-item">
+                  <div class="class-name">Tomato_late_blight</div>
+                  <div class="class-metrics">
+                    <div class="class-metric">
+                      <span class="class-metric-label">Mean Confidence:</span>
+                      <span class="class-metric-value">0.932</span>
+                    </div>
+                    <div class="class-metric">
+                      <span class="class-metric-label">Count:</span>
+                      <span class="class-metric-value">155</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="class-item">
+                  <div class="class-name">Tomato_leaf_mold</div>
+                  <div class="class-metrics">
+                    <div class="class-metric">
+                      <span class="class-metric-label">Mean Confidence:</span>
+                      <span class="class-metric-value">0.932</span>
+                    </div>
+                    <div class="class-metric">
+                      <span class="class-metric-label">Count:</span>
+                      <span class="class-metric-value">155</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="class-item">
+                  <div class="class-name">Tomato_septoria_leaf_spot</div>
+                  <div class="class-metrics">
+                    <div class="class-metric">
+                      <span class="class-metric-label">Mean Confidence:</span>
+                      <span class="class-metric-value">0.932</span>
+                    </div>
+                    <div class="class-metric">
+                      <span class="class-metric-label">Count:</span>
+                      <span class="class-metric-value">155</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="class-item">
+                  <div class="class-name">Tomato_spider_mites_two-spotted_spider_mite</div>
+                  <div class="class-metrics">
+                    <div class="class-metric">
+                      <span class="class-metric-label">Mean Confidence:</span>
+                      <span class="class-metric-value">0.932</span>
+                    </div>
+                    <div class="class-metric">
+                      <span class="class-metric-label">Count:</span>
+                      <span class="class-metric-value">155</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="class-item">
+                  <div class="class-name">Tomato_target_spot</div>
+                  <div class="class-metrics">
+                    <div class="class-metric">
+                      <span class="class-metric-label">Mean Confidence:</span>
+                      <span class="class-metric-value">0.932</span>
+                    </div>
+                    <div class="class-metric">
+                      <span class="class-metric-label">Count:</span>
+                      <span class="class-metric-value">155</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="class-item">
+                  <div class="class-name">Tomato_mosaic_virus</div>
+                  <div class="class-metrics">
+                    <div class="class-metric">
+                      <span class="class-metric-label">Mean Confidence:</span>
+                      <span class="class-metric-value">0.932</span>
+                    </div>
+                    <div class="class-metric">
+                      <span class="class-metric-label">Count:</span>
+                      <span class="class-metric-value">155</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="class-item">
+                  <div class="class-name">Tomato_yellow_leaf_curl_virus</div>
+                  <div class="class-metrics">
+                    <div class="class-metric">
+                      <span class="class-metric-label">Mean Confidence:</span>
+                      <span class="class-metric-value">0.932</span>
+                    </div>
+                    <div class="class-metric">
+                      <span class="class-metric-label">Count:</span>
+                      <span class="class-metric-value">155</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Conclusion -->
+          <section class="analysis-section" id="conclusion">
+            <div class="analysis-header">
+              <i class="fas fa-flag-checkered"></i> Conclusion & Recommendations
+            </div>
+            <div class="analysis-content">
+              <p>
+                The cbam_only_resnet18 model achieves 
+                  97.46%
+ accuracy for
+                the classification task with 39 classes.
+              </p>
+
+              <!-- Performance Summary -->
+              <div class="model-details mt-3" style="grid-template-columns: repeat(2, 1fr);">
+                <div class="detail-item">
+                  <div class="detail-label">Accuracy</div>
+                  <div class="detail-value">97.46%</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-label">Precision</div>
+                  <div class="detail-value">99.21%</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-label">Recall</div>
+                  <div class="detail-value">99.17%</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-label">F1 Score</div>
+                  <div class="detail-value">99.16%</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-label">Training Time</div>
+                  <div class="detail-value">9h 46m 44s</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-label">Model Size</div>
+                  <div class="detail-value">48.82 MB</div>
+                </div>
+              </div>
+
+              <!-- Key Findings -->
+              <h4 class="mt-4 mb-3"><i class="fas fa-search"></i> Key Findings</h4>
+              <div class="insight-list">
+                <!-- Strengths -->
+                <div class="insight-item">
+                  <div class="insight-icon">
+                    <i class="fas fa-check"></i>
+                  </div>
+                  <div class="insight-content">
+                    <strong>Model Strengths:</strong> The model demonstrates 
+                      excellent
+                    performance on the 39-class classification task. 
+                    It performs particularly well on 
+                      the majority of classes
+                    classes.
+                  </div>
+                </div>
+                
+                <!-- Areas for Improvement -->
+                <div class="insight-item">
+                  <div class="insight-icon">
+                    <i class="fas fa-exclamation-triangle"></i>
+                  </div>
+                  <div class="insight-content">
+                    <strong>Areas for Improvement:</strong> 
+                      Some classes show lower performance metrics, which could be addressed with class-specific data augmentation or model fine-tuning.
+                  </div>
+                </div>
+                
+                <!-- Confidence Analysis -->
+                <div class="insight-item">
+                  <div class="insight-icon">
+                    <i class="fas fa-chart-line"></i>
+                  </div>
+                  <div class="insight-content">
+                    <strong>Confidence Analysis:</strong> The model shows
+                      limited ability to distinguish between correct and incorrect predictions through confidence scores alone.
+                  </div>
+                </div>
+                
+                <!-- Training Process -->
+                <div class="insight-item">
+                  <div class="insight-icon">
+                    <i class="fas fa-cogs"></i>
+                  </div>
+                  <div class="insight-content">
+                    <strong>Training Process:</strong> The model was trained for 150 epochs using
+                    Adamw optimizer with a learning rate of 0.0005. 
+                      A combined loss function incorporating 
+                        Weighted Cross Entropy and                         Focal                      was used to optimize for both accuracy and robustness.
+                  </div>
+                </div>
+                
+                <!-- Data Insights -->
+                <div class="insight-item">
+                  <div class="insight-icon">
+                    <i class="fas fa-database"></i>
+                  </div>
+                  <div class="insight-content">
+                    <strong>Data Utilization:</strong> The model was trained using
+                      standard preprocessing techniques including resizing and normalization.
+                  </div>
+                </div>
+              </div>
+
+              <!-- Recommendations -->
+              <h4 class="mt-4 mb-3"><i class="fas fa-lightbulb"></i> Recommendations</h4>
+              <div class="insight-list">
+                <!-- Recommendation 1 -->
+                <div class="insight-item">
+                  <div class="insight-icon">
+                    <i class="fas fa-arrow-circle-up"></i>
+                  </div>
+                  <div class="insight-content">
+                    <strong>Improve Low-Performing Classes:</strong> Consider collecting additional training data or applying targeted augmentation for
+                      classes with lower performance metrics
+                    to increase their classification accuracy.
+                  </div>
+                </div>
+                
+                <!-- Recommendation 2 -->
+                <div class="insight-item">
+                  <div class="insight-icon">
+                    <i class="fas fa-balance-scale"></i>
+                  </div>
+                  <div class="insight-content">
+                    <strong>Calibration Improvements:</strong> 
+                      Apply temperature scaling or other calibration techniques to better align the model's confidence with its actual accuracy.
+                  </div>
+                </div>
+                
+                <!-- Recommendation 3 -->
+                <div class="insight-item">
+                  <div class="insight-icon">
+                    <i class="fas fa-rocket"></i>
+                  </div>
+                  <div class="insight-content">
+                    <strong>Model Deployment:</strong> This model is 
+                      lightweight (48.82 MB) and suitable for mobile or edge deployment.
+                    Consider using 
+                      model optimization techniques 
+                    to further improve inference speed if needed.
+                  </div>
+                </div>
+                
+                <!-- Recommendation 4 -->
+                <div class="insight-item">
+                  <div class="insight-icon">
+                    <i class="fas fa-tools"></i>
+                  </div>
+                  <div class="insight-content">
+                    <strong>Advanced Techniques:</strong> For further improvements, consider exploring
+                      feature fusion techniques, advanced attention mechanisms, or ensemble methods
+                    to enhance model performance while maintaining efficiency.
+                  </div>
+                </div>
+              </div>
+
+              <!-- Overall Assessment -->
+              <div class="alert alert-success mt-4">
+                <div class="alert-icon">
+                  <i class="fas fa-check-circle"></i>
+                </div>
+                <div class="alert-content">
+                  <h4>Overall Assessment</h4>
+                  <p>
+                    The cbam_only_resnet18 demonstrates 
+                      excellent
+                    performance for the plant disease classification task. With comprehensive metrics analysis and visualizations,
+                    we have identified both strengths and opportunities for improvement. The model is 
+                      ready for production deployment
+                    based on its overall metrics and analysis.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        // Get all sections and nav items
+        const sections = document.querySelectorAll("section[id], header[id]");
+        const navItems = document.querySelectorAll(".nav-item");
+
+        // Create an observer to watch sections
+        const observerOptions = {
+          root: null,
+          rootMargin: "0px",
+          threshold: 0.3,
+        };
+
+        // When a section is visible, update the active nav item
+        const observer = new IntersectionObserver((entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              const id = entry.target.getAttribute("id");
+              navItems.forEach((item) => {
+                item.classList.remove("active");
+                if (item.dataset.section === id) {
+                  item.classList.add("active");
+                }
+              });
+            }
+          });
+        }, observerOptions);
+
+        // Observe all sections
+        sections.forEach((section) => {
+          if (section.getAttribute("id")) {
+            observer.observe(section);
+          }
+        });
+
+        // Smooth scrolling for navigation links
+        navItems.forEach((item) => {
+          const link = item.querySelector(".nav-link");
+          if (link) {
+            link.addEventListener("click", (e) => {
+              e.preventDefault();
+              const targetId = link.getAttribute("href").substring(1);
+              const targetElement = document.getElementById(targetId);
+              if (targetElement) {
+                window.scrollTo({
+                  top: targetElement.offsetTop - 20,
+                  behavior: "smooth",
+                });
+                
+                // Update active item on click
+                navItems.forEach(navItem => navItem.classList.remove("active"));
+                item.classList.add("active");
+              }
+            });
+          }
+        });
+      });
+    </script>
+  </body>
+</html>
