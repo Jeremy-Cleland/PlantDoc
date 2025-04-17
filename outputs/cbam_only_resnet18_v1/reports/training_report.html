@@ -565,6 +565,20 @@
         font-weight: 600;
         color: var(--text-primary);
       }
+        /* Mobile responsiveness */
+        @media (max-width: 768px) {
+          .grid { grid-template-columns: 1fr; }
+          .sidebar { display: none; }
+          .main-content { padding: 1rem 0; }
+          .container { padding: 0 1rem; }
+          .header-title { font-size: 1.5rem; }
+          .header-subtitle { font-size: 1rem; max-width: 100%; }
+          .dashboard { grid-template-columns: 1fr !important; }
+          .metric-card { padding: 1rem; }
+          .section-header, .analysis-header { flex-direction: column; align-items: flex-start; }
+          .chart-content { display: flex; flex-direction: column; }
+          .chart-image { width: 100%; height: auto; }
+        }
     </style>
   </head>
 
