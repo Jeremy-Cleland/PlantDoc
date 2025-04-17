@@ -402,9 +402,20 @@
         /* Main content with sidebar */
         .with-sidebar {
             margin-left: 250px;
+            width: calc(100% - 250px);
+            max-width: 1200px;
             transition: var(--transition);
-            max-width: calc(100% - 250px);
-            margin: 0 auto;
+        }
+
+        .container {
+            max-width: 1000px;
+            width: 100%;
+            padding: 0 2rem;
+        }
+
+        .data-table-container {
+            overflow-x: auto;
+            margin: 1.5rem 0;
         }
 
         @media (max-width: 992px) {
@@ -461,19 +472,6 @@
             .reports-grid { grid-template-columns: 1fr; }
             .metrics-grid { grid-template-columns: 1fr; }
             .btn { font-size: 0.8rem; padding: 0.5rem; }
-        }
-
-        /* Center the content and sidebar better */
-        .with-sidebar {
-            margin-left: 250px;
-            transition: var(--transition);
-            max-width: calc(100% - 250px);
-            margin: 0 auto;
-        }
-
-        .data-table-container {
-            overflow-x: auto;
-            margin: 1.5rem 0;
         }
 
         .class-table {
