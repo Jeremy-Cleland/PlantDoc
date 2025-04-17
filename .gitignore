@@ -65,14 +65,14 @@ data/external/*
 
 # Model outputs - Modify to allow specific website images
 
-/Users/jeremy/plantdoc/outputs/cbam_only_resnet18_v1/checkpoints
-/Users/jeremy/plantdoc/outputs/cbam_only_resnet18_v2/checkpoints
-/Users/jeremy/plantdoc/outputs/cbam_only_resnet18_v1/evaluation_artifacts
-/Users/jeremy/plantdoc/outputs/cbam_only_resnet18_v2/evaluation_artifacts
-/Users/jeremy/plantdoc/outputs/cbam_only_resnet18_v1/metrics/evaluation_artifacts
-/Users/jeremy/plantdoc/outputs/cbam_only_resnet18_v2/metrics/evaluation_artifacts
-/Users/jeremy/plantdoc/outputs/cbam_only_resnet18_v1/gradcam
-/Users/jeremy/plantdoc/outputs/cbam_only_resnet18_v2/gradcam
+outputs/cbam_only_resnet18_v1/checkpoints
+outputs/cbam_only_resnet18_v2/checkpoints
+outputs/cbam_only_resnet18_v1/evaluation_artifacts
+outputs/cbam_only_resnet18_v2/evaluation_artifacts
+outputs/cbam_only_resnet18_v1/metrics/evaluation_artifacts
+outputs/cbam_only_resnet18_v2/metrics/evaluation_artifacts
+outputs/cbam_only_resnet18_v1/gradcam
+outputs/cbam_only_resnet18_v2/gradcam
 # Exceptions for website images
 !outputs/dataset_analysis_report/
 !outputs/cbam_only_resnet18_v1/reports/
