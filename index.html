@@ -79,7 +79,7 @@
 
         .reports-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            grid-template-columns: repeat(2, 1fr);
             gap: 1.5rem;
             margin-top: 2rem;
         }
@@ -231,7 +231,7 @@
 
         .metrics-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            grid-template-columns: repeat(3, 1fr);
             gap: 1rem;
             margin: 1.5rem 0;
         }
@@ -293,6 +293,111 @@
             border-radius: var(--border-radius);
         }
 
+        /* Sidebar */
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 250px;
+            height: 100vh;
+            background-color: var(--bg-secondary);
+            border-right: 1px solid var(--border-color);
+            padding: 2rem 0;
+            overflow-y: auto;
+            z-index: 100;
+            transition: var(--transition);
+        }
+
+        .sidebar-logo {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .logo-icon {
+            width: 2.5rem;
+            height: 2.5rem;
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.25rem;
+        }
+
+        .logo-text {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .nav-section {
+            margin-bottom: 1.5rem;
+        }
+
+        .nav-heading {
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            color: var(--text-tertiary);
+            padding: 0 1.5rem;
+            margin-bottom: 0.5rem;
+            letter-spacing: 1px;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            padding: 0.75rem 1.5rem;
+            color: var(--text-secondary);
+            text-decoration: none;
+            transition: var(--transition);
+            border-left: 3px solid transparent;
+        }
+
+        .nav-item:hover {
+            background-color: rgba(255, 255, 255, 0.05);
+            color: var(--text-primary);
+        }
+
+        .nav-item.active {
+            background-color: rgba(255, 255, 255, 0.05);
+            border-left: 3px solid var(--accent-primary);
+            color: var(--accent-tertiary);
+        }
+
+        .nav-item i {
+            margin-right: 0.75rem;
+            font-size: 1rem;
+        }
+
+        .nav-text {
+            font-size: 0.95rem;
+            font-weight: 500;
+        }
+
+        /* Main content with sidebar */
+        .with-sidebar {
+            margin-left: 250px;
+            transition: var(--transition);
+        }
+
+        @media (max-width: 992px) {
+            .sidebar {
+                transform: translateX(-100%);
+            }
+            
+            .with-sidebar {
+                margin-left: 0;
+            }
+            
+            .sidebar-toggle {
+                display: block;
+            }
+        }
+
         @media (max-width: 768px) {
             .reports-grid {
                 grid-template-columns: 1fr;
@@ -306,11 +411,94 @@
                 grid-template-columns: 1fr;
             }
         }
+
+        .model-section {
+            margin-bottom: 2rem;
+            background-color: var(--bg-tertiary);
+            border-radius: var(--border-radius);
+            padding: 1.5rem;
+        }
+
+        .model-metrics {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+            margin: 1rem 0;
+        }
     </style>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
-    <div class="container">
+    <div class="sidebar">
+        <div class="sidebar-logo">
+            <div class="logo-icon">
+                <i class="fas fa-leaf"></i>
+            </div>
+            <div class="logo-text">PlantDoc</div>
+        </div>
+        
+        <div class="nav-section">
+            <div class="nav-heading">Overview</div>
+            <a href="#introduction" class="nav-item active">
+                <i class="fas fa-home"></i>
+                <span class="nav-text">Introduction</span>
+            </a>
+            <a href="#dataset" class="nav-item">
+                <i class="fas fa-database"></i>
+                <span class="nav-text">Dataset Overview</span>
+            </a>
+            <a href="#methodology" class="nav-item">
+                <i class="fas fa-cogs"></i>
+                <span class="nav-text">Methodology</span>
+            </a>
+        </div>
+        
+        <div class="nav-section">
+            <div class="nav-heading">Models</div>
+            <a href="#model-v1" class="nav-item">
+                <i class="fas fa-chart-line"></i>
+                <span class="nav-text">CBAM-ResNet18 v1</span>
+            </a>
+            <a href="#model-v2" class="nav-item">
+                <i class="fas fa-chart-bar"></i>
+                <span class="nav-text">CBAM-ResNet18 v2</span>
+            </a>
+            <a href="#performance" class="nav-item">
+                <i class="fas fa-tachometer-alt"></i>
+                <span class="nav-text">Performance</span>
+            </a>
+        </div>
+        
+        <div class="nav-section">
+            <div class="nav-heading">Analysis</div>
+            <a href="#class-metrics" class="nav-item">
+                <i class="fas fa-list-ol"></i>
+                <span class="nav-text">Class Metrics</span>
+            </a>
+            <a href="#training-progression" class="nav-item">
+                <i class="fas fa-graduation-cap"></i>
+                <span class="nav-text">Training Progression</span>
+            </a>
+            <a href="#conclusion" class="nav-item">
+                <i class="fas fa-flag-checkered"></i>
+                <span class="nav-text">Conclusion</span>
+            </a>
+        </div>
+        
+        <div class="nav-section">
+            <div class="nav-heading">Resources</div>
+            <a href="#reports" class="nav-item">
+                <i class="fas fa-file-alt"></i>
+                <span class="nav-text">Reports</span>
+            </a>
+            <a href="https://github.com/Jeremy-Cleland/PlantDoc" class="nav-item">
+                <i class="fab fa-github"></i>
+                <span class="nav-text">GitHub</span>
+            </a>
+        </div>
+    </div>
+
+    <div class="container with-sidebar">
         <header>
             <h1>PlantDoc: Plant Disease Classification</h1>
             <p class="subtitle">
@@ -319,7 +507,7 @@
         </header>
 
         <!-- Introduction Section -->
-        <section class="content-section">
+        <section id="introduction" class="content-section">
             <h2 class="section-title">Introduction</h2>
             <p>
                 PlantDoc is a complete implementation of a plant disease classification system using a CBAM (Convolutional Block Attention Module) augmented ResNet18 architecture. The system is designed to accurately identify various plant diseases from images, leveraging attention mechanisms to focus on the most relevant features for diagnosis.
@@ -343,7 +531,7 @@
         </section>
 
         <!-- Dataset Statistics Section -->
-        <section class="content-section">
+        <section id="dataset" class="content-section">
             <h2 class="section-title">Dataset Overview</h2>
             <p>
                 The PlantDoc project utilizes a comprehensive plant disease dataset with the following characteristics:
@@ -365,6 +553,14 @@
                 <div class="metric">
                     <div class="metric-label">Median Resolution</div>
                     <div class="metric-value">256×256 px</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">Class Imbalance</div>
+                    <div class="metric-value">5.5:1</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">Square Images</div>
+                    <div class="metric-value">97.84%</div>
                 </div>
             </div>
             
@@ -486,7 +682,7 @@
         </section>
 
         <!-- Methodology Section -->
-        <section class="content-section">
+        <section id="methodology" class="content-section">
             <h2 class="section-title">Methodology</h2>
             <p>
                 The PlantDoc system leverages a dual-attention enhanced architecture to significantly improve classification performance. The key components of our methodology include:
@@ -529,79 +725,97 @@
         </section>
 
         <!-- Class Performance Metrics Section -->
-        <section class="content-section">
+        <section id="performance" class="content-section">
             <h2 class="section-title">Class Performance Metrics</h2>
             <p>
                 Our models demonstrate excellent performance across all evaluated metrics. The training process shows consistent improvement in accuracy and confidence over time.
             </p>
 
-            <div class="metrics-grid">
-                <div class="metric">
-                    <div class="metric-label">Accuracy (v1)</div>
-                    <div class="metric-value">97.46%</div>
+            <div id="model-v1" class="model-section">
+                <h3 style="color: var(--accent-tertiary);">CBAM-ResNet18 v1 Performance</h3>
+                <div class="model-metrics">
+                    <div class="metric">
+                        <div class="metric-label">Accuracy</div>
+                        <div class="metric-value">97.46%</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Precision</div>
+                        <div class="metric-value">99.21%</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Recall</div>
+                        <div class="metric-value">99.17%</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">F1 Score</div>
+                        <div class="metric-value">99.16%</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Training Time</div>
+                        <div class="metric-value">9h 46m 44s</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Epochs</div>
+                        <div class="metric-value">150</div>
+                    </div>
                 </div>
-                <div class="metric">
-                    <div class="metric-label">Accuracy (v2)</div>
-                    <div class="metric-value">96.71%</div>
+            </div>
+
+            <div id="model-v2" class="model-section">
+                <h3 style="color: var(--accent-tertiary);">CBAM-ResNet18 v2 Performance</h3>
+                <div class="model-metrics">
+                    <div class="metric">
+                        <div class="metric-label">Accuracy</div>
+                        <div class="metric-value">96.71%</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Precision</div>
+                        <div class="metric-value">99.19%</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Recall</div>
+                        <div class="metric-value">99.16%</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">F1 Score</div>
+                        <div class="metric-value">99.17%</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Training Time</div>
+                        <div class="metric-value">3h 14m 43s</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Epochs</div>
+                        <div class="metric-value">100</div>
+                    </div>
                 </div>
-                <div class="metric">
-                    <div class="metric-label">Precision (v1)</div>
-                    <div class="metric-value">99.21%</div>
-                </div>
-                <div class="metric">
-                    <div class="metric-label">Precision (v2)</div>
-                    <div class="metric-value">99.19%</div>
-                </div>
-                <div class="metric">
-                    <div class="metric-label">Recall (v1)</div>
-                    <div class="metric-value">99.17%</div>
-                </div>
-                <div class="metric">
-                    <div class="metric-label">Recall (v2)</div>
-                    <div class="metric-value">99.16%</div>
-                </div>
-                <div class="metric">
-                    <div class="metric-label">F1 Score (v1)</div>
-                    <div class="metric-value">99.16%</div>
-                </div>
-                <div class="metric">
-                    <div class="metric-label">F1 Score (v2)</div>
-                    <div class="metric-value">99.17%</div>
+            </div>
+
+            <div class="model-section">
+                <h3 style="color: var(--accent-tertiary);">Model Architecture</h3>
+                <div class="model-metrics">
+                    <div class="metric">
+                        <div class="metric-label">Model Size</div>
+                        <div class="metric-value">48.82 MB</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Parameters</div>
+                        <div class="metric-value">12,798,646</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Base Model</div>
+                        <div class="metric-value">ResNet18</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Input Size</div>
+                        <div class="metric-value">224×224</div>
+                    </div>
                 </div>
             </div>
             
-            <h3 style="margin-top: 1.5rem; color: var(--accent-tertiary);">Training Comparison</h3>
+            <h3 id="training-progression" style="margin-top: 1.5rem; color: var(--accent-tertiary);">Training Progression</h3>
             
-            <div class="metrics-grid">
-                <div class="metric">
-                    <div class="metric-label">Training Time (v1)</div>
-                    <div class="metric-value">9h 46m 44s</div>
-                </div>
-                <div class="metric">
-                    <div class="metric-label">Training Time (v2)</div>
-                    <div class="metric-value">3h 14m 43s</div>
-                </div>
-                <div class="metric">
-                    <div class="metric-label">Epochs (v1)</div>
-                    <div class="metric-value">150</div>
-                </div>
-                <div class="metric">
-                    <div class="metric-label">Epochs (v2)</div>
-                    <div class="metric-value">100</div>
-                </div>
-                <div class="metric">
-                    <div class="metric-label">Model Size</div>
-                    <div class="metric-value">48.82 MB</div>
-                </div>
-                <div class="metric">
-                    <div class="metric-label">Parameters</div>
-                    <div class="metric-value">12,798,646</div>
-                </div>
-            </div>
-            
-            <h3 style="margin-top: 1.5rem; color: var(--accent-tertiary);">Training Progression</h3>
-            
-            <div class="metrics-grid">
+            <div class="grid-2">
                 <div class="chart-container">
                     <h4 style="margin-bottom: 1rem;">Model v1 Metrics</h4>
                     <table class="data-table">
@@ -687,7 +901,7 @@
                 Both models demonstrate similar training patterns, with v1 achieving a slightly higher final accuracy (97.46% vs 96.71%) but requiring 50% more training time than v2. The shorter training time of v2 makes it more efficient for rapid development cycles.
             </p>
             
-            <h3 style="margin-top: 1.5rem; color: var(--accent-tertiary);">Confidence Distribution</h3>
+            <h3 id="class-metrics" style="margin-top: 1.5rem; color: var(--accent-tertiary);">Confidence Distribution</h3>
             <p>
                 The models become increasingly well-calibrated over time, as shown by the decreasing Expected Calibration Error (ECE). This indicates that the predicted confidence levels closely match the actual accuracy of predictions.
             </p>
@@ -773,7 +987,7 @@
         </section>
 
         <!-- Conclusion Section -->
-        <section class="content-section">
+        <section id="conclusion" class="content-section">
             <h2 class="section-title">Conclusion</h2>
             <p>
                 The CBAM-augmented ResNet18 architecture demonstrates significant improvements over standard classification approaches for plant disease identification. Key findings include:
@@ -803,7 +1017,7 @@
             </div>
         </section>
 
-        <h2 class="section-title" style="margin-top: 2rem;">Model Training Reports</h2>
+        <h2 id="reports" class="section-title" style="margin-top: 2rem;">Model Training Reports</h2>
         <div class="reports-grid">
             <!-- Version 1 Report -->
             <div class="report-card">
@@ -882,45 +1096,6 @@
                     </button>
                 </div>
             </div>
-
-            <!-- Dataset Analysis Report -->
-            <div class="report-card">
-                <div class="report-header">
-                    <h2 class="report-title">Dataset Analysis</h2>
-                    <p class="report-subtitle">Plant Disease Dataset Characteristics</p>
-                </div>
-                <div class="report-body">
-                    <div class="metrics">
-                        <div class="metric">
-                            <div class="metric-label">Total Images</div>
-                            <div class="metric-value">61,486</div>
-                        </div>
-                        <div class="metric">
-                            <div class="metric-label">Classes</div>
-                            <div class="metric-value">39</div>
-                        </div>
-                        <div class="metric">
-                            <div class="metric-label">Class Imbalance</div>
-                            <div class="metric-value">5.5:1</div>
-                        </div>
-                        <div class="metric">
-                            <div class="metric-label">Square Images</div>
-                            <div class="metric-value">97.84%</div>
-                        </div>
-                    </div>
-                    <p>Comprehensive analysis of dataset statistics, class distribution, image characteristics, and recommendations for model training.</p>
-                </div>
-                <div class="report-footer">
-                    <a href="outputs/dataset_analysis_report/summary_report.md" class="btn btn-primary">
-                        <i class="fas fa-database"></i>
-                        <span>View Report</span>
-                    </a>
-                    <button class="btn btn-outline">
-                        <i class="fas fa-download"></i>
-                        <span>Download</span>
-                    </button>
-                </div>
-            </div>
         </div>
 
         <a href="https://github.com/Jeremy-Cleland/PlantDoc" class="github-link">
@@ -928,5 +1103,38 @@
             <span>View on GitHub</span>
         </a>
     </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Add active class to sidebar links when clicked
+            const navItems = document.querySelectorAll('.nav-item');
+            navItems.forEach(item => {
+                item.addEventListener('click', function() {
+                    navItems.forEach(i => i.classList.remove('active'));
+                    this.classList.add('active');
+                });
+            });
+
+            // Highlight sidebar links based on scroll position
+            const sections = document.querySelectorAll('section[id]');
+            window.addEventListener('scroll', function() {
+                let current = '';
+                sections.forEach(section => {
+                    const sectionTop = section.offsetTop;
+                    const sectionHeight = section.clientHeight;
+                    if(pageYOffset >= (sectionTop - 300)) {
+                        current = section.getAttribute('id');
+                    }
+                });
+
+                navItems.forEach(item => {
+                    item.classList.remove('active');
+                    if(item.getAttribute('href').substring(1) === current) {
+                        item.classList.add('active');
+                    }
+                });
+            });
+        });
+    </script>
 </body>
 </html>
