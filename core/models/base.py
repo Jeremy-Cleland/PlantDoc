@@ -4,7 +4,6 @@
 Base model for the plant disease classification models.
 """
 
-
 import torch.nn as nn
 
 from utils.logger import get_logger
