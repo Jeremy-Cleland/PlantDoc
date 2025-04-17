@@ -64,11 +64,22 @@ data/external/*
 !data/external/.gitkeep
 
 # Model outputs - Modify to allow specific website images
-outputs/
+
+/Users/jeremy/plantdoc/outputs/cbam_only_resnet18_v1/checkpoints
+/Users/jeremy/plantdoc/outputs/cbam_only_resnet18_v2/checkpoints
+/Users/jeremy/plantdoc/outputs/cbam_only_resnet18_v1/evaluation_artifacts
+/Users/jeremy/plantdoc/outputs/cbam_only_resnet18_v2/evaluation_artifacts
+/Users/jeremy/plantdoc/outputs/cbam_only_resnet18_v1/metrics/evaluation_artifacts
+/Users/jeremy/plantdoc/outputs/cbam_only_resnet18_v2/metrics/evaluation_artifacts
+/Users/jeremy/plantdoc/outputs/cbam_only_resnet18_v1/gradcam
+/Users/jeremy/plantdoc/outputs/cbam_only_resnet18_v2/gradcam
 # Exceptions for website images
 !outputs/dataset_analysis_report/
 !outputs/cbam_only_resnet18_v1/reports/
+!outputs/cbam_only_resnet18_v1/reports/**
 !outputs/cbam_only_resnet18_v2/reports/
+!outputs/cbam_only_resnet18_v2/reports/**
+
 
 # Re-exclude large files within those directories
 outputs/**/*.pth
@@ -118,8 +129,7 @@ multirun/
 # GitHub recommends keeping files under 5MB
 
 # Reports and large documents
-reports/plots/
-reports/figures/
+
 *.pdf
 *.pptx
 *.xlsx
