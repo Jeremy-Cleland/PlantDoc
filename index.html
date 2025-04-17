@@ -229,8 +229,64 @@
             box-shadow: var(--shadow);
         }
 
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 1rem;
+            margin: 1.5rem 0;
+        }
+
+        .chart-container {
+            background-color: var(--bg-tertiary);
+            padding: 1rem;
+            border-radius: var(--border-radius);
+            margin-bottom: 1.5rem;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1.5rem 0;
+        }
+
+        .data-table th, .data-table td {
+            padding: 0.75rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .data-table th {
+            background-color: var(--bg-tertiary);
+            color: var(--text-tertiary);
+            font-weight: 500;
+            font-size: 0.875rem;
+        }
+
+        .data-table tbody tr:hover {
+            background-color: rgba(255, 255, 255, 0.03);
+        }
+
+        .progress-container {
+            width: 100%;
+            height: 8px;
+            background-color: var(--bg-tertiary);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 0.5rem;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent-primary), var(--accent-tertiary));
+            border-radius: 4px;
+        }
+
         @media (max-width: 768px) {
             .reports-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .metrics-grid {
                 grid-template-columns: 1fr;
             }
         }
@@ -270,6 +326,111 @@
             </div>
         </section>
 
+        <!-- Dataset Statistics Section -->
+        <section class="content-section">
+            <h2 class="section-title">Dataset Overview</h2>
+            <p>
+                The PlantDoc project utilizes a comprehensive plant disease dataset with the following characteristics:
+            </p>
+            
+            <div class="metrics-grid">
+                <div class="metric">
+                    <div class="metric-label">Total Classes</div>
+                    <div class="metric-value">39</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">Total Images</div>
+                    <div class="metric-value">61,486</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">Image Format</div>
+                    <div class="metric-value">JPEG (100%)</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">Median Resolution</div>
+                    <div class="metric-value">256×256 px</div>
+                </div>
+            </div>
+            
+            <h3 style="margin-top: 1.5rem; color: var(--accent-tertiary);">Class Distribution</h3>
+            <p>
+                The dataset exhibits a significant class imbalance, with the largest class containing 5,507 images (Orange_Haunglongbing_Citrus_greening) and the smallest containing around 1,000 images. The ratio of largest to smallest class is approximately 5.5:1.
+            </p>
+            
+            <div class="chart-container">
+                <p>Top 5 largest classes:</p>
+                <div style="margin-top: 1rem;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+                        <span>Orange_Haunglongbing_Citrus_greening (8.96%)</span>
+                        <span>5,507</span>
+                    </div>
+                    <div class="progress-container">
+                        <div class="progress-bar" style="width: 89.6%;"></div>
+                    </div>
+                </div>
+                <div style="margin-top: 1rem;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+                        <span>Tomato_Yellow_Leaf_Curl_Virus (8.71%)</span>
+                        <span>5,357</span>
+                    </div>
+                    <div class="progress-container">
+                        <div class="progress-bar" style="width: 87.1%;"></div>
+                    </div>
+                </div>
+                <div style="margin-top: 1rem;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+                        <span>Soybean_healthy (8.28%)</span>
+                        <span>5,090</span>
+                    </div>
+                    <div class="progress-container">
+                        <div class="progress-bar" style="width: 82.8%;"></div>
+                    </div>
+                </div>
+                <div style="margin-top: 1rem;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+                        <span>Peach_Bacterial_spot (3.74%)</span>
+                        <span>2,297</span>
+                    </div>
+                    <div class="progress-container">
+                        <div class="progress-bar" style="width: 37.4%;"></div>
+                    </div>
+                </div>
+                <div style="margin-top: 1rem;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+                        <span>Tomato_Bacterial_spot (3.46%)</span>
+                        <span>2,127</span>
+                    </div>
+                    <div class="progress-container">
+                        <div class="progress-bar" style="width: 34.6%;"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <h3 style="margin-top: 1.5rem; color: var(--accent-tertiary);">Image Properties</h3>
+            <div class="metrics-grid">
+                <div class="metric">
+                    <div class="metric-label">Width Range</div>
+                    <div class="metric-value">204-350 px</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">Height Range</div>
+                    <div class="metric-value">192-350 px</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">Square Images</div>
+                    <div class="metric-value">97.84%</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">Avg. File Size</div>
+                    <div class="metric-value">14.96 KB</div>
+                </div>
+            </div>
+            
+            <p style="margin-top: 1.5rem;">
+                The relatively consistent image dimensions and predominantly square aspect ratios make this dataset well-suited for deep learning approaches without requiring extensive preprocessing for size normalization.
+            </p>
+        </section>
+
         <!-- Methodology Section -->
         <section class="content-section">
             <h2 class="section-title">Methodology</h2>
@@ -301,6 +462,127 @@
             <div class="image-container">
                 <img src="outputs/cbam_only_resnet18_v1/reports/plots/confusion_matrix.png" alt="Confusion Matrix" class="project-image">
             </div>
+        </section>
+
+        <!-- Class Performance Metrics Section -->
+        <section class="content-section">
+            <h2 class="section-title">Class Performance Metrics</h2>
+            <p>
+                Our models demonstrate excellent performance across all evaluated metrics. The training process shows consistent improvement in accuracy and confidence over time.
+            </p>
+            
+            <h3 style="margin-top: 1.5rem; color: var(--accent-tertiary);">Training Progression</h3>
+            
+            <div class="metrics-grid">
+                <div class="chart-container">
+                    <h4 style="margin-bottom: 1rem;">Model v1 Metrics</h4>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Epoch</th>
+                                <th>Accuracy</th>
+                                <th>Mean Confidence</th>
+                                <th>ECE</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>1</td>
+                                <td>77.38%</td>
+                                <td>41.23%</td>
+                                <td>0.362</td>
+                            </tr>
+                            <tr>
+                                <td>10</td>
+                                <td>93.98%</td>
+                                <td>82.32%</td>
+                                <td>0.117</td>
+                            </tr>
+                            <tr>
+                                <td>20</td>
+                                <td>95.92%</td>
+                                <td>85.79%</td>
+                                <td>0.101</td>
+                            </tr>
+                            <tr>
+                                <td>30</td>
+                                <td>96.43%</td>
+                                <td>87.14%</td>
+                                <td>0.093</td>
+                            </tr>
+                            <tr>
+                                <td>Final</td>
+                                <td>97.46%</td>
+                                <td>89.25%</td>
+                                <td>0.082</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="chart-container">
+                    <h4 style="margin-bottom: 1rem;">Model v2 Metrics</h4>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Epoch</th>
+                                <th>Accuracy</th>
+                                <th>Mean Confidence</th>
+                                <th>ECE</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>1</td>
+                                <td>77.88%</td>
+                                <td>42.70%</td>
+                                <td>0.352</td>
+                            </tr>
+                            <tr>
+                                <td>10</td>
+                                <td>94.22%</td>
+                                <td>81.98%</td>
+                                <td>0.123</td>
+                            </tr>
+                            <tr>
+                                <td>20</td>
+                                <td>96.05%</td>
+                                <td>85.92%</td>
+                                <td>0.101</td>
+                            </tr>
+                            <tr>
+                                <td>30</td>
+                                <td>96.39%</td>
+                                <td>87.39%</td>
+                                <td>0.090</td>
+                            </tr>
+                            <tr>
+                                <td>Final</td>
+                                <td>98.12%</td>
+                                <td>90.12%</td>
+                                <td>0.078</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <p>
+                Both models demonstrate similar training patterns, with v2 achieving a slightly higher final accuracy (98.12% vs 97.46%) and mean confidence (90.12% vs 89.25%).
+            </p>
+            
+            <h3 style="margin-top: 1.5rem; color: var(--accent-tertiary);">Confidence Distribution</h3>
+            <p>
+                The models become increasingly well-calibrated over time, as shown by the decreasing Expected Calibration Error (ECE). This indicates that the predicted confidence levels closely match the actual accuracy of predictions.
+            </p>
+            
+            <div class="image-container">
+                <img src="outputs/cbam_only_resnet18_v1/reports/plots/confidence_distribution.png" alt="Confidence Distribution" class="project-image">
+            </div>
+            
+            <p>
+                By the final epoch, both models show high confidence (>85%) for the vast majority of predictions, with minimal low-confidence predictions. This demonstrates the models' ability to make decisive classifications with high certainty.
+            </p>
         </section>
 
         <!-- Experiments Section -->
