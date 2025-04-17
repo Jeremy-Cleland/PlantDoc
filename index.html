@@ -34,6 +34,8 @@
             color: var(--text-primary);
             line-height: 1.6;
             padding: 2rem;
+            display: flex;
+            justify-content: center;
         }
 
         .container {
@@ -401,6 +403,8 @@
         .with-sidebar {
             margin-left: 250px;
             transition: var(--transition);
+            max-width: calc(100% - 250px);
+            margin: 0 auto;
         }
 
         @media (max-width: 992px) {
@@ -458,6 +462,65 @@
             .metrics-grid { grid-template-columns: 1fr; }
             .btn { font-size: 0.8rem; padding: 0.5rem; }
         }
+
+        /* Center the content and sidebar better */
+        .with-sidebar {
+            margin-left: 250px;
+            transition: var(--transition);
+            max-width: calc(100% - 250px);
+            margin: 0 auto;
+        }
+
+        .data-table-container {
+            overflow-x: auto;
+            margin: 1.5rem 0;
+        }
+
+        .class-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1.5rem 0;
+            font-size: 0.9rem;
+        }
+
+        .class-table th, .class-table td {
+            padding: 0.5rem 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .class-table th {
+            background-color: var(--bg-tertiary);
+            color: var(--text-tertiary);
+            font-weight: 500;
+        }
+
+        .class-table tr:hover {
+            background-color: rgba(255, 255, 255, 0.03);
+        }
+
+        .dataset-stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+            margin: 1.5rem 0;
+        }
+
+        .dataset-viz {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1.5rem;
+            margin: 1.5rem 0;
+        }
+
+        @media (max-width: 768px) {
+            .dataset-stats {
+                grid-template-columns: 1fr;
+            }
+            .dataset-viz {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
@@ -479,6 +542,10 @@
             <a href="#methodology" class="nav-item">
                 <i class="fas fa-cogs"></i>
                 <span class="nav-text">Methodology</span>
+            </a>
+            <a href="#dataset" class="nav-item">
+                <i class="fas fa-database"></i>
+                <span class="nav-text">Dataset</span>
             </a>
             <a href="#experiments" class="nav-item">
                 <i class="fas fa-flask"></i>
@@ -555,31 +622,14 @@
             </div>
         </section>
 
-        <!-- Dataset Statistics Section - Now part of Methodology -->
-        <section id="methodology" class="content-section">
-            <h2 class="section-title">Methodology</h2>
-            <p>
-                The PlantDoc system leverages a dual-attention enhanced architecture to significantly improve classification performance. The key components of our methodology include:
-            </p>
-            <h3 style="margin-top: 1.5rem; color: var(--accent-tertiary);">CBAM: Dual Attention Mechanism</h3>
-            <p>
-                CBAM sequentially infers attention maps along two separate dimensions:
-            </p>
-            <ol style="margin-left: 1.5rem; margin-top: 0.5rem;">
-                <li><strong>Channel Attention Module:</strong> Focuses on "what" is meaningful in the input image channels by applying attention weights to emphasize important feature channels using average and max pooling operations processed through shared MLPs.</li>
-                <li><strong>Spatial Attention Module:</strong> Focuses on "where" the informative parts are located in the feature map, generating 2D spatial attention using aggregated channel information through convolutional layers.</li>
-                <li><strong>Integration with ResNet:</strong> CBAM blocks are inserted after each residual block in the ResNet18 architecture, refining feature representations at multiple levels of abstraction.</li>
-            </ol>
-            <p>
-                This dual attention mechanism allows the model to dynamically emphasize salient features in both channel and spatial dimensions, leading to improved performance, especially on images with complex backgrounds or subtle disease symptoms.
-            </p>
-
-            <h3 style="margin-top: 1.5rem; color: var(--accent-tertiary);">Dataset Description</h3>
+        <!-- Dataset Section - New section -->
+        <section id="dataset" class="content-section">
+            <h2 class="section-title">Dataset Overview</h2>
             <p>
                 The PlantDoc project utilizes a comprehensive plant disease dataset with the following characteristics:
             </p>
             
-            <div class="metrics-grid">
+            <div class="dataset-stats">
                 <div class="metric">
                     <div class="metric-label">Total Classes</div>
                     <div class="metric-value">39</div>
@@ -610,9 +660,39 @@
                 <img src="outputs/dataset_analysis_report/analysis_dashboard.png" alt="Dataset Analysis Dashboard" class="project-image" style="max-width: 900px;">
             </div>
             
+            <h3 style="margin-top: 1.5rem; color: var(--accent-tertiary);">Class Distribution</h3>
+            <p>
+                The dataset contains 39 classes representing different plant diseases and healthy plants, with some class imbalance:
+            </p>
+            
+            <div class="dataset-viz">
+                <div>
+                    <img src="outputs/dataset_analysis_report/class_distribution_pie.png" alt="Class Distribution Pie Chart" class="chart-image" style="width: 100%; border-radius: var(--border-radius);">
+                </div>
+                <div>
+                    <img src="outputs/dataset_analysis_report/file_size_by_class.png" alt="File Size by Class" class="chart-image" style="width: 100%; border-radius: var(--border-radius);">
+                </div>
+            </div>
+            
+            <p>
+                The largest classes include Orange_Haunglongbing_Citrus_greening (8.96%), Tomato_Tomato_Yellow_Leaf_Curl_Virus (8.71%), and Soybean_healthy (8.28%), while many classes have approximately 1.63% of the total dataset (about 1,000 images each).
+            </p>
+            
+            <h3 style="margin-top: 1.5rem; color: var(--accent-tertiary);">Image Properties</h3>
+            <ul style="margin-left: 1.5rem; margin-top: 0.5rem;">
+                <li><strong>Image Dimensions:</strong> Width and height range from 192-350 pixels, with median 256×256</li>
+                <li><strong>Aspect Ratio:</strong> Nearly all images (97.84%) are square with a 1:1 aspect ratio</li>
+                <li><strong>File Sizes:</strong> Range from 4.11 KB to 28.60 KB, with a median of 14.96 KB</li>
+                <li><strong>Color Information:</strong> Average RGB values of R=118.45, G=124.62, B=104.63</li>
+            </ul>
+            
+            <div class="image-container">
+                <img src="outputs/dataset_analysis_report/correlation_matrix.png" alt="Feature Correlation Matrix" class="project-image" style="max-width: 900px;">
+            </div>
+            
             <h3 style="margin-top: 1.5rem; color: var(--accent-tertiary);">Data Preprocessing and Augmentation</h3>
             <p>
-                The project implements a comprehensive data pipeline including:
+                To address class imbalance and improve model generalization, the project implements a comprehensive data pipeline including:
             </p>
             <ul style="margin-left: 1.5rem; margin-top: 0.5rem;">
                 <li>Advanced preprocessing with the Albumentations library</li>
@@ -624,6 +704,26 @@
             <div class="image-container">
                 <img src="outputs/dataset_analysis_report/augmentation_examples.png" alt="Augmentation Examples" class="project-image" style="max-width: 900px;">
             </div>
+        </section>
+
+        <!-- Methodology Section -->
+        <section id="methodology" class="content-section">
+            <h2 class="section-title">Methodology</h2>
+            <p>
+                The PlantDoc system leverages a dual-attention enhanced architecture to significantly improve classification performance. The key components of our methodology include:
+            </p>
+            <h3 style="margin-top: 1.5rem; color: var(--accent-tertiary);">CBAM: Dual Attention Mechanism</h3>
+            <p>
+                CBAM sequentially infers attention maps along two separate dimensions:
+            </p>
+            <ol style="margin-left: 1.5rem; margin-top: 0.5rem;">
+                <li><strong>Channel Attention Module:</strong> Focuses on "what" is meaningful in the input image channels by applying attention weights to emphasize important feature channels using average and max pooling operations processed through shared MLPs.</li>
+                <li><strong>Spatial Attention Module:</strong> Focuses on "where" the informative parts are located in the feature map, generating 2D spatial attention using aggregated channel information through convolutional layers.</li>
+                <li><strong>Integration with ResNet:</strong> CBAM blocks are inserted after each residual block in the ResNet18 architecture, refining feature representations at multiple levels of abstraction.</li>
+            </ol>
+            <p>
+                This dual attention mechanism allows the model to dynamically emphasize salient features in both channel and spatial dimensions, leading to improved performance, especially on images with complex backgrounds or subtle disease symptoms.
+            </p>
 
             <h3 style="margin-top: 1.5rem; color: var(--accent-tertiary);">Feature Visualization</h3>
             <div class="image-container">

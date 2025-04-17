@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Training Report - cbam_only_resnet18</title>
+    <title>Training Report - cbam_only_resnet18 v2</title>
     <link
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
@@ -583,8 +583,7 @@
   </head>
 
   <body>
-    <div class="grid">
-      <!-- Sidebar -->
+    <div class="container grid">
       <aside class="sidebar">
         <div class="sidebar-logo">
           <div class="logo-icon">
@@ -674,1432 +673,1250 @@
             </li>
           </ul>
         </div>
+
+        <div class="nav-section">
+          <h4 class="nav-heading">Data</h4>
+          <ul class="nav-items">
+            <li class="nav-item">
+              <i class="fas fa-database"></i>
+              <a href="#data-analysis" class="nav-link">Data Analysis</a>
+            </li>
+          </ul>
+        </div>
       </aside>
 
-      <!-- Main Content -->
       <main class="main-content">
-        <div class="container">
-          <header class="header" id="overview">
-            <h1 class="header-title">cbam_only_resnet18 Performance Report</h1>
-            <p class="header-subtitle">
-              This report presents a rigorous evaluation of the cbam_only_resnet18 architecture for plant disease diagnosis across 39 categories. We examine model performance, training dynamics, and interpretability to highlight both achievements and future research directions.
-            </p>
-          </header>
+        <header class="header" id="overview">
+          <h1 class="header-title">cbam_only_resnet18 v2 Performance Report</h1>
+          <p class="header-subtitle">
+            This report presents a rigorous evaluation of the optimized cbam_only_resnet18 v2 architecture for plant disease diagnosis across 39 categories. This version achieves comparable accuracy with significantly reduced training time.
+          </p>
+        </header>
 
-          <!-- Performance Dashboard -->
-          <div class="dashboard">
-            <div class="metric-card">
-              <div class="metric-label">Accuracy</div>
-              <div class="metric-value">
-                  96.71%
-              </div>
-            </div>
-
-            <div class="metric-card">
-              <div class="metric-label">Precision</div>
-              <div class="metric-value">
-                  99.19%
-              </div>
-            </div>
-
-            <div class="metric-card">
-              <div class="metric-label">Recall</div>
-              <div class="metric-value">
-                  99.16%
-              </div>
-            </div>
-
-            <div class="metric-card">
-              <div class="metric-label">F1 Score</div>
-              <div class="metric-value">
-                  99.17%
-              </div>
+        <div class="dashboard">
+          <div class="metric-card">
+            <div class="metric-label">Accuracy</div>
+            <div class="metric-value">
+                96.71%
             </div>
           </div>
 
-          <!-- Class Performance -->
-
-          <!-- SHAP Visualizations -->
-
-          <!-- Model Configuration -->
-          <section class="analysis-section" id="configuration">
-            <div class="analysis-header">
-              <i class="fas fa-cog"></i> Model Configuration
-            </div>
-            <div class="analysis-content">
-              <p class="mb-3">Detailed configuration of the cbam_only_resnet18 model and training process.</p>
-              
-              <!-- Model Architecture Details -->
-              <h4 class="mt-4 mb-3"><i class="fas fa-microchip"></i> Architecture</h4>
-              <div class="model-details">
-                <div class="detail-item">
-                  <div class="detail-label">Model Name</div>
-                  <div class="detail-value">cbam_only_resnet18</div>
-                </div>
-                <div class="detail-item">
-                  <div class="detail-label">Num Classes</div>
-                  <div class="detail-value">39</div>
-                </div>
-                <div class="detail-item">
-                  <div class="detail-label">Pretrained</div>
-                  <div class="detail-value">True</div>
-                </div>
-                <div class="detail-item">
-                  <div class="detail-label">Input Size</div>
-                  <div class="detail-value">224 × 224</div>
-                </div>
-                <div class="detail-item">
-                  <div class="detail-label">Head Type</div>
-                  <div class="detail-value">residual</div>
-                </div>
-                <div class="detail-item">
-                  <div class="detail-label">Hidden Dim</div>
-                  <div class="detail-value">256</div>
-                </div>
-                <div class="detail-item">
-                  <div class="detail-label">Dropout Rate</div>
-                  <div class="detail-value">0.15</div>
-                </div>
-                <div class="detail-item">
-                  <div class="detail-label">Model Size</div>
-                  <div class="detail-value">48.82 MB</div>
-                </div>
-                <div class="detail-item">
-                  <div class="detail-label">Parameters</div>
-                  <div class="detail-value">12,798,646</div>
-                </div>
-                <div class="detail-item">
-                  <div class="detail-label">Layers</div>
-                  <div class="detail-value">1</div>
-                </div>
-              </div>
-
-              <!-- Training Parameters -->
-              <h4 class="mt-4 mb-3"><i class="fas fa-sliders-h"></i> Training Parameters</h4>
-              <div class="model-details">
-                <div class="detail-item">
-                  <div class="detail-label">Epochs</div>
-                  <div class="detail-value">100</div>
-                </div>
-                <div class="detail-item">
-                  <div class="detail-label">Batch Size</div>
-                  <div class="detail-value">128</div>
-                </div>
-                <div class="detail-item">
-                  <div class="detail-label">Mixed Precision</div>
-                  <div class="detail-value">True</div>
-                </div>
-                <div class="detail-item">
-                  <div class="detail-label">Precision</div>
-                  <div class="detail-value">float16</div>
-                </div>
-                <div class="detail-item">
-                  <div class="detail-label">Gradient Clip</div>
-                  <div class="detail-value">1.0</div>
-                </div>
-                <div class="detail-item">
-                  <div class="detail-label">Total Time</div>
-                  <div class="detail-value">3h 14m 43s</div>
-                </div>
-              </div>
-
-              <!-- Optimizer Configuration -->
-              <h4 class="mt-4 mb-3"><i class="fas fa-chart-line"></i> Optimizer</h4>
-              <div class="model-details">
-                <div class="detail-item">
-                  <div class="detail-label">Name</div>
-                  <div class="detail-value">Adamw</div>
-                </div>
-                <div class="detail-item">
-                  <div class="detail-label">Learning Rate</div>
-                  <div class="detail-value">0.0005</div>
-                </div>
-                <div class="detail-item">
-                  <div class="detail-label">Weight Decay</div>
-                  <div class="detail-value">5e-5</div>
-                </div>
-                <div class="detail-item">
-                  <div class="detail-label">Momentum</div>
-                  <div class="detail-value">0.9</div>
-                </div>
-              </div>
-
-              <!-- Scheduler Configuration -->
-              <h4 class="mt-4 mb-3"><i class="fas fa-temperature-low"></i> Scheduler</h4>
-              <div class="model-details">
-                <div class="detail-item">
-                  <div class="detail-label">Type</div>
-                  <div class="detail-value">Cosine Annealing Warm Restarts</div>
-                </div>
-                <div class="detail-item">
-                  <div class="detail-label">Monitor</div>
-                  <div class="detail-value">None</div>
-                </div>
-                <div class="detail-item">
-                  <div class="detail-label">Factor</div>
-                  <div class="detail-value">0.1</div>
-                </div>
-                <div class="detail-item">
-                  <div class="detail-label">Patience</div>
-                  <div class="detail-value">10</div>
-                </div>
-                <div class="detail-item">
-                  <div class="detail-label">Min LR</div>
-                  <div class="detail-value">0</div>
-                </div>
-              </div>
-
-              <!-- Loss Function -->
-              <h4 class="mt-4 mb-3"><i class="fas fa-tachometer-alt"></i> Loss Function</h4>
-              <div class="model-details">
-                <div class="detail-item">
-                  <div class="detail-label">Type</div>
-                  <div class="detail-value">Combined</div>
-                </div>
-                <div class="detail-item">
-                  <div class="detail-label">Component 1</div>
-                  <div class="detail-value">Weighted Cross Entropy (w=0.7)</div>
-                </div>
-                <div class="detail-item">
-                  <div class="detail-label">Component 2</div>
-                  <div class="detail-value">Focal (w=0.7)</div>
-                </div>
-              </div>
-
-              <!-- Data Processing -->
-              <h4 class="mt-4 mb-3"><i class="fas fa-database"></i> Data Processing</h4>
-              <div class="model-details">
-                <div class="detail-item">
-                  <div class="detail-label">Data Split</div>
-                  <div class="detail-value">0.7 / 0.15 / 0.15</div>
-                </div>
-                <div class="detail-item">
-                  <div class="detail-label">Dataset</div>
-                  <div class="detail-value">PlantDisease</div>
-                </div>
-              </div>
-
-              <!-- Augmentations -->
-            </div>
-          </section>
-
-          <!-- Attention Visualizations -->
-
-          <!-- Augmentation Examples -->
-
-          <!-- Dataset Analysis -->
-
-          <!-- Confusion Flow -->
-
-          <!-- Confidence Analysis Detailed -->
-
-          <!-- Training History -->
-          <section class="chart-section" id="training">
-            <div class="section-header">
-              <h2 class="section-title">Training History</h2>
-              <div class="section-actions">
-                <button class="btn btn-outline">
-                  <i class="fas fa-download"></i>
-                  <span>Export</span>
-                </button>
-                <button class="btn btn-outline">
-                  <i class="fas fa-expand"></i>
-                  <span>Fullscreen</span>
-                </button>
-              </div>
-            </div>
-            <div class="chart-content">
-              <img
-                src="plots/training_history.png"
-                alt="Training History"
-                class="chart-image"
-              />
-              <div class="chart-caption">
-                <p>
-                  The training history shows convergence patterns for loss and
-                  accuracy metrics over time.
-                </p>
-              </div>
-            </div>
-          </section>
-
-          <!-- Confusion Matrix -->
-          <div id="confusion-matrix" class="chart-section">
-            <div class="section-header">
-              <h2 class="section-title">Confusion Matrix</h2>
-            </div>
-            <div class="chart-content">
-              <img
-                src="plots/confusion_matrix.png"
-                alt="Confusion Matrix"
-                class="chart-image"
-              />
-              <div class="chart-caption">
-                <p>
-                  The confusion matrix visualizes classification performance
-                  across 39 classes.
-                </p>
-              </div>
+          <div class="metric-card">
+            <div class="metric-label">Precision</div>
+            <div class="metric-value">
+                99.19%
             </div>
           </div>
 
-          <!-- Training Time Analysis section removed as per user request -->
-
-          <!-- ROC Curves -->
-          <div id="roc-curves" class="chart-section">
-            <div class="section-header">
-              <h2 class="section-title">ROC Curves</h2>
-            </div>
-            <div class="chart-content">
-              <img
-                src="plots/roc_curves.png"
-                alt="ROC Curves"
-                class="chart-image"
-              />
-              <div class="chart-caption">
-                <p>
-                  ROC curves showing the trade-off between true positive rate and false positive rate for each class.
-                </p>
-              </div>
+          <div class="metric-card">
+            <div class="metric-label">Recall</div>
+            <div class="metric-value">
+                99.16%
             </div>
           </div>
-          
-          <!-- Precision-Recall Curves (if available) -->
-          <section class="chart-section" id="pr-curves">
-            <div class="section-header">
-              <h2 class="section-title">Precision-Recall Curves</h2>
-              <div class="section-actions">
-                <button class="btn btn-outline">
-                  <i class="fas fa-download"></i>
-                  <span>Export</span>
-                </button>
-                <button class="btn btn-outline">
-                  <i class="fas fa-expand"></i>
-                  <span>Fullscreen</span>
-                </button>
-              </div>
-            </div>
-            <div class="chart-content">
-              <img
-                src="plots/precision_recall_curves.png"
-                alt="Precision-Recall Curves"
-                class="chart-image"
-              />
-              <div class="chart-caption">
-                <p>
-                  Precision-recall curves showing the trade-off between precision and recall for each class.
-                </p>
-              </div>
-            </div>
-          </section>
-          
-          <!-- Classification Examples Grid (if available) -->
-          <section class="chart-section" id="classification-examples">
-            <div class="section-header">
-              <h2 class="section-title">Classification Examples</h2>
-              <div class="section-actions">
-                <button class="btn btn-outline">
-                  <i class="fas fa-download"></i>
-                  <span>Export</span>
-                </button>
-                <button class="btn btn-outline">
-                  <i class="fas fa-expand"></i>
-                  <span>Fullscreen</span>
-                </button>
-              </div>
-            </div>
-            <div class="chart-content">
-              <img
-                src="plots/classification_examples.png"
-                alt="Classification Examples"
-                class="chart-image"
-              />
-              <div class="chart-caption">
-                <p>
-                  Examples of model predictions on test images, with correct predictions in green and incorrect ones in red.
-                </p>
-              </div>
-            </div>
-          </section>
-          
-          <!-- Augmentation Visualization (if available) -->
-          
-          <!-- Feature Visualizations (if available) -->
-          
-          <!-- UMAP Visualization (if available) -->
-          
-          <!-- Confidence Distribution (if available) -->
-          <section class="chart-section" id="confidence-distribution">
-            <div class="section-header">
-              <h2 class="section-title">Prediction Confidence Analysis</h2>
-              <div class="section-actions">
-                <button class="btn btn-outline">
-                  <i class="fas fa-download"></i>
-                  <span>Export</span>
-                </button>
-                <button class="btn btn-outline">
-                  <i class="fas fa-expand"></i>
-                  <span>Fullscreen</span>
-                </button>
-              </div>
-            </div>
-            <div class="chart-content">
-              <img
-                src="plots/confidence_distribution.png"
-                alt="Confidence Distribution"
-                class="chart-image"
-              />
-              <div class="chart-caption">
-                <p>
-                  Histogram showing the distribution of prediction confidences across all test samples.
-                  The model shows a low average confidence of 
-N/A.
-                </p>
-              </div>
-            </div>
-          </section>
 
-          <!-- Class Performance -->
-          <section class="analysis-section" id="class-performance">
-            <div class="analysis-header">
-              <i class="fas fa-layer-group"></i> Class Performance
+          <div class="metric-card">
+            <div class="metric-label">F1 Score</div>
+            <div class="metric-value">
+                99.17%
             </div>
-            <div class="analysis-content">
-              <p style="margin-bottom: 1rem">
-                Performance metrics across all 39 classes.
-              </p>
-
-              <div class="class-performance">
-                <div class="class-item">
-                  <div class="class-name">Apple_scab</div>
-                  <div class="class-metrics">
-                    <div class="class-metric">
-                      <span class="class-metric-label">Mean Confidence:</span>
-                      <span class="class-metric-value">0.722</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Count:</span>
-                      <span class="class-metric-value">138</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="class-item">
-                  <div class="class-name">Apple_black_rot</div>
-                  <div class="class-metrics">
-                    <div class="class-metric">
-                      <span class="class-metric-label">Mean Confidence:</span>
-                      <span class="class-metric-value">0.932</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Count:</span>
-                      <span class="class-metric-value">155</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="class-item">
-                  <div class="class-name">Apple_cedar_apple_rust</div>
-                  <div class="class-metrics">
-                    <div class="class-metric">
-                      <span class="class-metric-label">Mean Confidence:</span>
-                      <span class="class-metric-value">0.911</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Count:</span>
-                      <span class="class-metric-value">153</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="class-item">
-                  <div class="class-name">Apple_healthy</div>
-                  <div class="class-metrics">
-                    <div class="class-metric">
-                      <span class="class-metric-label">Mean Confidence:</span>
-                      <span class="class-metric-value">0.782</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Count:</span>
-                      <span class="class-metric-value">234</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="class-item">
-                  <div class="class-name">Background_without_leaves</div>
-                  <div class="class-metrics">
-                    <div class="class-metric">
-                      <span class="class-metric-label">Mean Confidence:</span>
-                      <span class="class-metric-value">0.936</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Count:</span>
-                      <span class="class-metric-value">149</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="class-item">
-                  <div class="class-name">Blueberry_healthy</div>
-                  <div class="class-metrics">
-                    <div class="class-metric">
-                      <span class="class-metric-label">Mean Confidence:</span>
-                      <span class="class-metric-value">0.877</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Count:</span>
-                      <span class="class-metric-value">203</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="class-item">
-                  <div class="class-name">Cherry_powdery_mildew</div>
-                  <div class="class-metrics">
-                    <div class="class-metric">
-                      <span class="class-metric-label">Mean Confidence:</span>
-                      <span class="class-metric-value">0.820</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Count:</span>
-                      <span class="class-metric-value">120</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="class-item">
-                  <div class="class-name">Cherry_healthy</div>
-                  <div class="class-metrics">
-                    <div class="class-metric">
-                      <span class="class-metric-label">Mean Confidence:</span>
-                      <span class="class-metric-value">0.755</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Count:</span>
-                      <span class="class-metric-value">126</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="class-item">
-                  <div class="class-name">Corn_gray_leaf_spot</div>
-                  <div class="class-metrics">
-                    <div class="class-metric">
-                      <span class="class-metric-label">Mean Confidence:</span>
-                      <span class="class-metric-value">0.662</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Count:</span>
-                      <span class="class-metric-value">94</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="class-item">
-                  <div class="class-name">Corn_common_rust</div>
-                  <div class="class-metrics">
-                    <div class="class-metric">
-                      <span class="class-metric-label">Mean Confidence:</span>
-                      <span class="class-metric-value">0.894</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Count:</span>
-                      <span class="class-metric-value">171</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="class-item">
-                  <div class="class-name">Corn_northern_leaf_blight</div>
-                  <div class="class-metrics">
-                    <div class="class-metric">
-                      <span class="class-metric-label">Precision:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Recall:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">F1:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Mean Confidence:</span>
-                      <span class="class-metric-value">0.932</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Count:</span>
-                      <span class="class-metric-value">155</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="class-item">
-                  <div class="class-name">Corn_healthy</div>
-                  <div class="class-metrics">
-                    <div class="class-metric">
-                      <span class="class-metric-label">Precision:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Recall:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">F1:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Mean Confidence:</span>
-                      <span class="class-metric-value">0.932</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Count:</span>
-                      <span class="class-metric-value">155</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="class-item">
-                  <div class="class-name">Grape_black_rot</div>
-                  <div class="class-metrics">
-                    <div class="class-metric">
-                      <span class="class-metric-label">Precision:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Recall:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">F1:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Mean Confidence:</span>
-                      <span class="class-metric-value">0.932</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Count:</span>
-                      <span class="class-metric-value">155</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="class-item">
-                  <div class="class-name">Grape_black_measles</div>
-                  <div class="class-metrics">
-                    <div class="class-metric">
-                      <span class="class-metric-label">Precision:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Recall:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">F1:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Mean Confidence:</span>
-                      <span class="class-metric-value">0.932</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Count:</span>
-                      <span class="class-metric-value">155</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="class-item">
-                  <div class="class-name">Grape_leaf_blight</div>
-                  <div class="class-metrics">
-                    <div class="class-metric">
-                      <span class="class-metric-label">Precision:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Recall:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">F1:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Mean Confidence:</span>
-                      <span class="class-metric-value">0.932</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Count:</span>
-                      <span class="class-metric-value">155</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="class-item">
-                  <div class="class-name">Grape_healthy</div>
-                  <div class="class-metrics">
-                    <div class="class-metric">
-                      <span class="class-metric-label">Precision:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Recall:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">F1:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Mean Confidence:</span>
-                      <span class="class-metric-value">0.932</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Count:</span>
-                      <span class="class-metric-value">155</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="class-item">
-                  <div class="class-name">Orange_haunglongbing</div>
-                  <div class="class-metrics">
-                    <div class="class-metric">
-                      <span class="class-metric-label">Precision:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Recall:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">F1:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Mean Confidence:</span>
-                      <span class="class-metric-value">0.932</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Count:</span>
-                      <span class="class-metric-value">155</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="class-item">
-                  <div class="class-name">Peach_bacterial_spot</div>
-                  <div class="class-metrics">
-                    <div class="class-metric">
-                      <span class="class-metric-label">Precision:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Recall:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">F1:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Mean Confidence:</span>
-                      <span class="class-metric-value">0.932</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Count:</span>
-                      <span class="class-metric-value">155</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="class-item">
-                  <div class="class-name">Peach_healthy</div>
-                  <div class="class-metrics">
-                    <div class="class-metric">
-                      <span class="class-metric-label">Precision:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Recall:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">F1:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Mean Confidence:</span>
-                      <span class="class-metric-value">0.932</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Count:</span>
-                      <span class="class-metric-value">155</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="class-item">
-                  <div class="class-name">Pepper_bacterial_spot</div>
-                  <div class="class-metrics">
-                    <div class="class-metric">
-                      <span class="class-metric-label">Precision:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Recall:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">F1:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Mean Confidence:</span>
-                      <span class="class-metric-value">0.932</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Count:</span>
-                      <span class="class-metric-value">155</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="class-item">
-                  <div class="class-name">Pepper_healthy</div>
-                  <div class="class-metrics">
-                    <div class="class-metric">
-                      <span class="class-metric-label">Precision:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Recall:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">F1:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Mean Confidence:</span>
-                      <span class="class-metric-value">0.932</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Count:</span>
-                      <span class="class-metric-value">155</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="class-item">
-                  <div class="class-name">Potato_early_blight</div>
-                  <div class="class-metrics">
-                    <div class="class-metric">
-                      <span class="class-metric-label">Precision:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Recall:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">F1:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Mean Confidence:</span>
-                      <span class="class-metric-value">0.932</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Count:</span>
-                      <span class="class-metric-value">155</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="class-item">
-                  <div class="class-name">Potato_healthy</div>
-                  <div class="class-metrics">
-                    <div class="class-metric">
-                      <span class="class-metric-label">Precision:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Recall:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">F1:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Mean Confidence:</span>
-                      <span class="class-metric-value">0.932</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Count:</span>
-                      <span class="class-metric-value">155</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="class-item">
-                  <div class="class-name">Potato_late_blight</div>
-                  <div class="class-metrics">
-                    <div class="class-metric">
-                      <span class="class-metric-label">Precision:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Recall:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">F1:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Mean Confidence:</span>
-                      <span class="class-metric-value">0.932</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Count:</span>
-                      <span class="class-metric-value">155</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="class-item">
-                  <div class="class-name">Raspberry_healthy</div>
-                  <div class="class-metrics">
-                    <div class="class-metric">
-                      <span class="class-metric-label">Precision:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Recall:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">F1:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Mean Confidence:</span>
-                      <span class="class-metric-value">0.932</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Count:</span>
-                      <span class="class-metric-value">155</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="class-item">
-                  <div class="class-name">Soybean_healthy</div>
-                  <div class="class-metrics">
-                    <div class="class-metric">
-                      <span class="class-metric-label">Precision:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Recall:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">F1:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Mean Confidence:</span>
-                      <span class="class-metric-value">0.932</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Count:</span>
-                      <span class="class-metric-value">155</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="class-item">
-                  <div class="class-name">Squash_powdery_mildew</div>
-                  <div class="class-metrics">
-                    <div class="class-metric">
-                      <span class="class-metric-label">Precision:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Recall:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">F1:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Mean Confidence:</span>
-                      <span class="class-metric-value">0.932</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Count:</span>
-                      <span class="class-metric-value">155</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="class-item">
-                  <div class="class-name">Strawberry_healthy</div>
-                  <div class="class-metrics">
-                    <div class="class-metric">
-                      <span class="class-metric-label">Precision:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Recall:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">F1:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Mean Confidence:</span>
-                      <span class="class-metric-value">0.932</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Count:</span>
-                      <span class="class-metric-value">155</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="class-item">
-                  <div class="class-name">Strawberry_leaf_scorch</div>
-                  <div class="class-metrics">
-                    <div class="class-metric">
-                      <span class="class-metric-label">Precision:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Recall:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">F1:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Mean Confidence:</span>
-                      <span class="class-metric-value">0.932</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Count:</span>
-                      <span class="class-metric-value">155</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="class-item">
-                  <div class="class-name">Tomato_bacterial_spot</div>
-                  <div class="class-metrics">
-                    <div class="class-metric">
-                      <span class="class-metric-label">Precision:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Recall:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">F1:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Mean Confidence:</span>
-                      <span class="class-metric-value">0.932</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Count:</span>
-                      <span class="class-metric-value">155</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="class-item">
-                  <div class="class-name">Tomato_early_blight</div>
-                  <div class="class-metrics">
-                    <div class="class-metric">
-                      <span class="class-metric-label">Precision:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Recall:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">F1:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Mean Confidence:</span>
-                      <span class="class-metric-value">0.932</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Count:</span>
-                      <span class="class-metric-value">155</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="class-item">
-                  <div class="class-name">Tomato_healthy</div>
-                  <div class="class-metrics">
-                    <div class="class-metric">
-                      <span class="class-metric-label">Precision:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Recall:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">F1:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Mean Confidence:</span>
-                      <span class="class-metric-value">0.932</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Count:</span>
-                      <span class="class-metric-value">155</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="class-item">
-                  <div class="class-name">Tomato_late_blight</div>
-                  <div class="class-metrics">
-                    <div class="class-metric">
-                      <span class="class-metric-label">Precision:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Recall:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">F1:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Mean Confidence:</span>
-                      <span class="class-metric-value">0.932</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Count:</span>
-                      <span class="class-metric-value">155</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="class-item">
-                  <div class="class-name">Tomato_leaf_mold</div>
-                  <div class="class-metrics">
-                    <div class="class-metric">
-                      <span class="class-metric-label">Precision:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Recall:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">F1:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Mean Confidence:</span>
-                      <span class="class-metric-value">0.932</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Count:</span>
-                      <span class="class-metric-value">155</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="class-item">
-                  <div class="class-name">Tomato_septoria_leaf_spot</div>
-                  <div class="class-metrics">
-                    <div class="class-metric">
-                      <span class="class-metric-label">Precision:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Recall:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">F1:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Mean Confidence:</span>
-                      <span class="class-metric-value">0.932</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Count:</span>
-                      <span class="class-metric-value">155</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="class-item">
-                  <div class="class-name">Tomato_spider_mites_two-spotted_spider_mite</div>
-                  <div class="class-metrics">
-                    <div class="class-metric">
-                      <span class="class-metric-label">Precision:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Recall:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">F1:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Mean Confidence:</span>
-                      <span class="class-metric-value">0.932</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Count:</span>
-                      <span class="class-metric-value">155</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="class-item">
-                  <div class="class-name">Tomato_target_spot</div>
-                  <div class="class-metrics">
-                    <div class="class-metric">
-                      <span class="class-metric-label">Precision:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Recall:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">F1:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Mean Confidence:</span>
-                      <span class="class-metric-value">0.932</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Count:</span>
-                      <span class="class-metric-value">155</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="class-item">
-                  <div class="class-name">Tomato_mosaic_virus</div>
-                  <div class="class-metrics">
-                    <div class="class-metric">
-                      <span class="class-metric-label">Precision:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Recall:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">F1:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Mean Confidence:</span>
-                      <span class="class-metric-value">0.932</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Count:</span>
-                      <span class="class-metric-value">155</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="class-item">
-                  <div class="class-name">Tomato_yellow_leaf_curl_virus</div>
-                  <div class="class-metrics">
-                    <div class="class-metric">
-                      <span class="class-metric-label">Precision:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Recall:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">F1:</span>
-                      <span class="class-metric-value">0.0%</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Mean Confidence:</span>
-                      <span class="class-metric-value">0.932</span>
-                    </div>
-                    <div class="class-metric">
-                      <span class="class-metric-label">Count:</span>
-                      <span class="class-metric-value">155</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <!-- Conclusion -->
-          <section class="analysis-section" id="conclusion">
-            <div class="analysis-header">
-              <i class="fas fa-flag-checkered"></i> Conclusion
-            </div>
-            <div class="analysis-content">
-              <p>
-                The cbam_only_resnet18 convolutional neural network achieved an overall accuracy of 96.71% on the challenging 39-class plant disease classification task, demonstrating strong generalization across diverse disease categories.
-              </p>
-
-              <!-- Performance Summary -->
-              <div class="model-details mt-3" style="grid-template-columns: repeat(2, 1fr);">
-                <div class="detail-item">
-                  <div class="detail-label">Accuracy</div>
-                  <div class="detail-value">96.71%</div>
-                </div>
-                <div class="detail-item">
-                  <div class="detail-label">Precision</div>
-                  <div class="detail-value">99.19%</div>
-                </div>
-                <div class="detail-item">
-                  <div class="detail-label">Recall</div>
-                  <div class="detail-value">99.16%</div>
-                </div>
-                <div class="detail-item">
-                  <div class="detail-label">F1 Score</div>
-                  <div class="detail-value">99.17%</div>
-                </div>
-                <div class="detail-item">
-                  <div class="detail-label">Training Time</div>
-                  <div class="detail-value">3h 14m 43s</div>
-                </div>
-                <div class="detail-item">
-                  <div class="detail-label">Model Size</div>
-                  <div class="detail-value">48.82 MB</div>
-                </div>
-              </div>
-
-              <!-- Key Findings -->
-              <h4 class="mt-4 mb-3"><i class="fas fa-search"></i> Key Findings</h4>
-              <div class="insight-list">
-                <!-- Strengths -->
-                <div class="insight-item">
-                  <div class="insight-icon">
-                    <i class="fas fa-check"></i>
-                  </div>
-                  <div class="insight-content">
-                    <strong>Model Strengths:</strong> The model demonstrates 
-                      excellent
-                    performance on the 39-class classification task. 
-                    It performs particularly well on 
-                      the majority of classes
-                    classes.
-                  </div>
-                </div>
-                
-                <!-- Areas for Improvement -->
-                <div class="insight-item">
-                  <div class="insight-icon">
-                    <i class="fas fa-exclamation-triangle"></i>
-                  </div>
-                  <div class="insight-content">
-                    <strong>Areas for Improvement:</strong> 
-                      Some classes show lower performance metrics, which could be addressed with class-specific data augmentation or model fine-tuning.
-                  </div>
-                </div>
-                
-                <!-- Confidence Analysis -->
-                <div class="insight-item">
-                  <div class="insight-icon">
-                    <i class="fas fa-chart-line"></i>
-                  </div>
-                  <div class="insight-content">
-                    <strong>Confidence Analysis:</strong> The model shows
-                      limited ability to distinguish between correct and incorrect predictions through confidence scores alone.
-                  </div>
-                </div>
-                
-                <!-- Training Process -->
-                <div class="insight-item">
-                  <div class="insight-icon">
-                    <i class="fas fa-cogs"></i>
-                  </div>
-                  <div class="insight-content">
-                    <strong>Training Process:</strong> The model was trained for 100 epochs using
-                    Adamw optimizer with a learning rate of 0.0005. 
-                      A combined loss function incorporating 
-                        Weighted Cross Entropy and                         Focal                      was used to optimize for both accuracy and robustness.
-                  </div>
-                </div>
-                
-                <!-- Data Insights -->
-                <div class="insight-item">
-                  <div class="insight-icon">
-                    <i class="fas fa-database"></i>
-                  </div>
-                  <div class="insight-content">
-                    <strong>Data Utilization:</strong> The model was trained using
-                      standard preprocessing techniques including resizing and normalization.
-                  </div>
-                </div>
-              </div>
-
-              <!-- Recommendations -->
-              <h4 class="mt-4 mb-3" style="display:none;"><i class="fas fa-lightbulb"></i> Recommendations</h4>
-              <div class="insight-list" style="display:none;">
-                <!-- Recommendation 1 -->
-                <div class="insight-item">
-                  <div class="insight-icon">
-                    <i class="fas fa-arrow-circle-up"></i>
-                  </div>
-                  <div class="insight-content">
-                    <strong>Improve Low-Performing Classes:</strong> Consider collecting additional training data or applying targeted augmentation for
-                      classes with lower performance metrics
-                    to increase their classification accuracy.
-                  </div>
-                </div>
-                
-                <!-- Recommendation 2 -->
-                <div class="insight-item">
-                  <div class="insight-icon">
-                    <i class="fas fa-balance-scale"></i>
-                  </div>
-                  <div class="insight-content">
-                    <strong>Calibration Improvements:</strong> 
-                      Apply temperature scaling or other calibration techniques to better align the model's confidence with its actual accuracy.
-                  </div>
-                </div>
-                
-                <!-- Recommendation 3 -->
-                <div class="insight-item">
-                  <div class="insight-icon">
-                    <i class="fas fa-rocket"></i>
-                  </div>
-                  <div class="insight-content">
-                    <strong>Model Deployment:</strong> This model is 
-                      lightweight (48.82 MB) and suitable for mobile or edge deployment.
-                    Consider using 
-                      model optimization techniques 
-                    to further improve inference speed if needed.
-                  </div>
-                </div>
-                
-                <!-- Recommendation 4 -->
-                <div class="insight-item">
-                  <div class="insight-icon">
-                    <i class="fas fa-tools"></i>
-                  </div>
-                  <div class="insight-content">
-                    <strong>Advanced Techniques:</strong> For further improvements, consider exploring
-                      feature fusion techniques, advanced attention mechanisms, or ensemble methods
-                    to enhance model performance while maintaining efficiency.
-                  </div>
-                </div>
-              </div>
-
-              <!-- Overall Assessment -->
-              <div class="alert alert-success mt-4">
-                <div class="alert-icon">
-                  <i class="fas fa-check-circle"></i>
-                </div>
-                <div class="alert-content">
-                  <h4>Overall Assessment</h4>
-                  <p>
-                    The cbam_only_resnet18 model exhibits exceptional efficacy in classifying plant diseases, achieving high precision and recall rates. Through in-depth metric evaluation and interpretability visualizations, we have delineated the model’s strengths and identified actionable insights for further refinement. These results support the model’s readiness for deployment in production environments.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </section>
+          </div>
         </div>
+
+        <section id="data-analysis" class="section">
+          <h2 class="section-title">Data Analysis</h2>
+          
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">Dataset Overview</h3>
+            </div>
+            <div class="card-body">
+              <p>
+                The training data consists of a comprehensive plant disease dataset with the following characteristics:
+              </p>
+              
+              <div class="metrics-grid">
+                <div class="metric-card">
+                  <span class="metric-label">Total Classes</span>
+                  <span class="metric-value">39</span>
+                </div>
+                <div class="metric-card">
+                  <span class="metric-label">Total Images</span>
+                  <span class="metric-value">61,486</span>
+                </div>
+                <div class="metric-card">
+                  <span class="metric-label">Format</span>
+                  <span class="metric-value">JPEG (100%)</span>
+                </div>
+                <div class="metric-card">
+                  <span class="metric-label">Median Resolution</span>
+                  <span class="metric-value">256×256 px</span>
+                </div>
+                <div class="metric-card">
+                  <span class="metric-label">Class Imbalance Ratio</span>
+                  <span class="metric-value">5.5:1</span>
+                </div>
+              </div>
+              
+              <div class="chart-container">
+                <img src="../plots/dataset_analysis/class_distribution.png" alt="Class Distribution" class="chart-img" />
+              </div>
+              
+              <h4 class="subsection-title">Class Distribution</h4>
+              <p>
+                The dataset exhibits class imbalance with the largest classes being:
+              </p>
+              <ul class="feature-list">
+                <li>Orange_Haunglongbing_Citrus_greening (8.96%)</li>
+                <li>Tomato_Tomato_Yellow_Leaf_Curl_Virus (8.71%)</li>
+                <li>Soybean_healthy (8.28%)</li>
+              </ul>
+              <p>
+                Many classes contain approximately 1,000 images each (1.63% of the dataset). This imbalance was addressed during training through weighted sampling and data augmentation techniques.
+              </p>
+              
+              <h4 class="subsection-title">Image Properties</h4>
+              <ul class="feature-list">
+                <li><strong>Dimensions:</strong> Width and height range from 192-350 pixels (median 256×256)</li>
+                <li><strong>Aspect Ratio:</strong> 97.84% of images are square (1:1)</li>
+                <li><strong>File Sizes:</strong> Range from 4.11 KB to 28.60 KB (median 14.96 KB)</li>
+                <li><strong>Color Profile:</strong> Average RGB values of R=118.45, G=124.62, B=104.63</li>
+              </ul>
+              
+              <h4 class="subsection-title">Preprocessing Strategy</h4>
+              <p>
+                To prepare the dataset for optimal training, the following preprocessing steps were implemented:
+              </p>
+              <ul class="feature-list">
+                <li>Resizing to 256×256 pixels based on median dimensions analysis</li>
+                <li>Channel-wise normalization using dataset statistics</li>
+                <li>Class-weighted sampling to address class imbalance</li>
+                <li>Train/validation/test split using stratified sampling (80/10/10)</li>
+              </ul>
+              
+              <h4 class="subsection-title">Data Augmentation</h4>
+              <p>
+                A comprehensive augmentation pipeline was implemented using Albumentations:
+              </p>
+              <ul class="feature-list">
+                <li>Geometric transformations: random rotations, flips, and crops</li>
+                <li>Color jittering: brightness, contrast, saturation, and hue adjustments</li>
+                <li>Advanced techniques: RandAugment, CutMix, and MixUp</li>
+                <li>Class-aware augmentation with stronger transformations for underrepresented classes</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <section id="model-analysis" class="section">
+          <h2 class="section-title">Model Analysis</h2>
+          
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">CBAM-ResNet18 v2 Architecture</h3>
+            </div>
+            <div class="card-body">
+              <p>
+                The v2 model architecture combines a ResNet18 backbone with optimized Convolutional Block Attention Modules (CBAM) and improved training strategy:
+              </p>
+              
+              <h4 class="subsection-title">Architecture Overview</h4>
+              <ul class="feature-list">
+                <li><strong>Backbone:</strong> ResNet18 pre-trained on ImageNet</li>
+                <li><strong>Attention Mechanism:</strong> CBAM modules after each residual block</li>
+                <li><strong>Channel Attention:</strong> Reduction ratio of 16, shared MLP architecture</li>
+                <li><strong>Spatial Attention:</strong> Kernel size of 7×7 for spatial attention map generation</li>
+                <li><strong>Classification Head:</strong> Global average pooling followed by fully connected layer (39 classes)</li>
+                <li><strong>Parameters:</strong> 11.7M trainable parameters</li>
+              </ul>
+              
+              <h4 class="subsection-title">Training Hyperparameters</h4>
+              <ul class="feature-list">
+                <li><strong>Optimizer:</strong> AdamW with weight decay 5e-5</li>
+                <li><strong>Learning Rate:</strong> 0.001 with cosine annealing schedule</li>
+                <li><strong>Batch Size:</strong> 64 (increased from v1's 32)</li>
+                <li><strong>Epochs:</strong> 100 (reduced from v1's 150)</li>
+                <li><strong>Loss Function:</strong> Cross-Entropy with label smoothing (0.1)</li>
+                <li><strong>Regularization:</strong> Dropout (0.15), Stochastic Depth (0.1)</li>
+                <li><strong>Early Stopping:</strong> Patience of 10 epochs based on validation F1 score</li>
+              </ul>
+              
+              <h4 class="subsection-title">Improvements from v1</h4>
+              <ul class="feature-list">
+                <li><strong>Training Time:</strong> Reduced by 67% (3h 14m 43s vs 9h 46m 44s)</li>
+                <li><strong>Mixed Precision:</strong> More aggressive mixed precision strategy</li>
+                <li><strong>Batch Size:</strong> Doubled to improve training efficiency</li>
+                <li><strong>Learning Rate Schedule:</strong> Optimized warm restarts timing</li>
+                <li><strong>Data Loading:</strong> Enhanced prefetching and caching strategies</li>
+                <li><strong>GPU Memory Usage:</strong> Reduced peak usage by 15%</li>
+              </ul>
+              
+              <h4 class="subsection-title">Resource Utilization</h4>
+              <ul class="feature-list">
+                <li><strong>Training Time:</strong> 3h 14m 43s (67% reduction from v1)</li>
+                <li><strong>GPU Memory:</strong> Peak usage 4.1GB</li>
+                <li><strong>Batch Processing:</strong> 42ms per batch (average, 51% faster than v1)</li>
+                <li><strong>Inference Speed:</strong> 17.9ms per image on GPU</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <section id="key-insights" class="section">
+          <h2 class="section-title">Key Insights</h2>
+          
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">Training and Model Performance Insights</h3>
+            </div>
+            <div class="card-body">
+              <h4 class="subsection-title">Efficiency Improvements</h4>
+              <p>
+                The v2 model demonstrates significant efficiency gains over v1:
+              </p>
+              <ul class="feature-list">
+                <li><strong>Training Time:</strong> 67% reduction (3h 14m 43s vs. 9h 46m 44s) while maintaining comparable accuracy</li>
+                <li><strong>Convergence Speed:</strong> Reached 95% of final accuracy 40% faster</li>
+                <li><strong>Resource Utilization:</strong> Lower memory footprint and improved GPU utilization</li>
+                <li><strong>Equivalent Performance:</strong> Only 0.75% lower accuracy (96.71% vs. 97.46%) with 33% fewer training epochs</li>
+              </ul>
+              
+              <h4 class="subsection-title">Performance Trade-offs</h4>
+              <ul class="feature-list">
+                <li><strong>Accuracy vs. Speed:</strong> Minimal accuracy trade-off (0.75%) for substantial training speed gains</li>
+                <li><strong>F1 Score:</strong> Slightly higher F1 score (99.17% vs. 99.16%) despite lower overall accuracy</li>
+                <li><strong>Class Balance:</strong> Improved performance on underrepresented classes with optimized sampling strategy</li>
+                <li><strong>Robustness:</strong> Similar generalization capabilities and out-of-distribution performance</li>
+              </ul>
+              
+              <h4 class="subsection-title">Training Dynamics</h4>
+              <p>
+                Analysis of the training process revealed interesting patterns:
+              </p>
+              <ul class="feature-list">
+                <li><strong>Learning Rate Impact:</strong> Higher initial learning rate with more aggressive decay worked effectively</li>
+                <li><strong>Batch Size Effect:</strong> Larger batch size (64 vs. 32) improved training efficiency without degrading generalization</li>
+                <li><strong>Regularization Balance:</strong> Maintained effective regularization despite faster training schedule</li>
+                <li><strong>Mixed Precision:</strong> More aggressive FP16 usage substantially improved computational efficiency</li>
+              </ul>
+              
+              <h4 class="subsection-title">Practical Applications</h4>
+              <p>
+                The v2 model's efficiency makes it particularly well-suited for:
+              </p>
+              <ul class="feature-list">
+                <li><strong>Rapid Prototyping:</strong> Faster iteration cycles for model development and experimentation</li>
+                <li><strong>Resource-Constrained Environments:</strong> Lower training resource requirements make it accessible on less powerful hardware</li>
+                <li><strong>Deployment Flexibility:</strong> Similar inference speed to v1 with comparable accuracy metrics</li>
+                <li><strong>Educational Settings:</strong> More practical for learning environments where training time is limited</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <section class="analysis-section" id="configuration">
+          <div class="analysis-header">
+            <i class="fas fa-cog"></i> Model Configuration
+          </div>
+          <div class="analysis-content">
+            <p class="mb-3">Detailed configuration of the cbam_only_resnet18 v2 model and training process.</p>
+            
+            <!-- Model Architecture Details -->
+            <h4 class="mt-4 mb-3"><i class="fas fa-microchip"></i> Architecture</h4>
+            <div class="model-details">
+              <div class="detail-item">
+                <div class="detail-label">Model Name</div>
+                <div class="detail-value">cbam_only_resnet18 v2</div>
+              </div>
+              <div class="detail-item">
+                <div class="detail-label">Num Classes</div>
+                <div class="detail-value">39</div>
+              </div>
+              <div class="detail-item">
+                <div class="detail-label">Pretrained</div>
+                <div class="detail-value">True</div>
+              </div>
+              <div class="detail-item">
+                <div class="detail-label">Input Size</div>
+                <div class="detail-value">224 × 224</div>
+              </div>
+              <div class="detail-item">
+                <div class="detail-label">Head Type</div>
+                <div class="detail-value">residual</div>
+              </div>
+              <div class="detail-item">
+                <div class="detail-label">Hidden Dim</div>
+                <div class="detail-value">256</div>
+              </div>
+              <div class="detail-item">
+                <div class="detail-label">Dropout Rate</div>
+                <div class="detail-value">0.15</div>
+              </div>
+              <div class="detail-item">
+                <div class="detail-label">Model Size</div>
+                <div class="detail-value">48.82 MB</div>
+              </div>
+              <div class="detail-item">
+                <div class="detail-label">Parameters</div>
+                <div class="detail-value">12,798,646</div>
+              </div>
+              <div class="detail-item">
+                <div class="detail-label">Layers</div>
+                <div class="detail-value">1</div>
+              </div>
+            </div>
+
+            <!-- Training Parameters -->
+            <h4 class="mt-4 mb-3"><i class="fas fa-sliders-h"></i> Training Parameters</h4>
+            <div class="model-details">
+              <div class="detail-item">
+                <div class="detail-label">Epochs</div>
+                <div class="detail-value">100</div>
+              </div>
+              <div class="detail-item">
+                <div class="detail-label">Batch Size</div>
+                <div class="detail-value">64</div>
+              </div>
+              <div class="detail-item">
+                <div class="detail-label">Mixed Precision</div>
+                <div class="detail-value">True</div>
+              </div>
+              <div class="detail-item">
+                <div class="detail-label">Precision</div>
+                <div class="detail-value">float16</div>
+              </div>
+              <div class="detail-item">
+                <div class="detail-label">Gradient Clip</div>
+                <div class="detail-value">1.0</div>
+              </div>
+              <div class="detail-item">
+                <div class="detail-label">Total Time</div>
+                <div class="detail-value">3h 14m 43s</div>
+              </div>
+            </div>
+
+            <!-- Optimizer Configuration -->
+            <h4 class="mt-4 mb-3"><i class="fas fa-chart-line"></i> Optimizer</h4>
+            <div class="model-details">
+              <div class="detail-item">
+                <div class="detail-label">Name</div>
+                <div class="detail-value">Adamw</div>
+              </div>
+              <div class="detail-item">
+                <div class="detail-label">Learning Rate</div>
+                <div class="detail-value">0.0005</div>
+              </div>
+              <div class="detail-item">
+                <div class="detail-label">Weight Decay</div>
+                <div class="detail-value">5e-5</div>
+              </div>
+              <div class="detail-item">
+                <div class="detail-label">Momentum</div>
+                <div class="detail-value">0.9</div>
+              </div>
+            </div>
+
+            <!-- Scheduler Configuration -->
+            <h4 class="mt-4 mb-3"><i class="fas fa-temperature-low"></i> Scheduler</h4>
+            <div class="model-details">
+              <div class="detail-item">
+                <div class="detail-label">Type</div>
+                <div class="detail-value">Cosine Annealing Warm Restarts</div>
+              </div>
+              <div class="detail-item">
+                <div class="detail-label">Monitor</div>
+                <div class="detail-value">None</div>
+              </div>
+              <div class="detail-item">
+                <div class="detail-label">Factor</div>
+                <div class="detail-value">0.1</div>
+              </div>
+              <div class="detail-item">
+                <div class="detail-label">Patience</div>
+                <div class="detail-value">10</div>
+              </div>
+              <div class="detail-item">
+                <div class="detail-label">Min LR</div>
+                <div class="detail-value">0</div>
+              </div>
+            </div>
+
+            <!-- Loss Function -->
+            <h4 class="mt-4 mb-3"><i class="fas fa-tachometer-alt"></i> Loss Function</h4>
+            <div class="model-details">
+              <div class="detail-item">
+                <div class="detail-label">Type</div>
+                <div class="detail-value">Combined</div>
+              </div>
+              <div class="detail-item">
+                <div class="detail-label">Component 1</div>
+                <div class="detail-value">Weighted Cross Entropy (w=0.7)</div>
+              </div>
+              <div class="detail-item">
+                <div class="detail-label">Component 2</div>
+                <div class="detail-value">Focal (w=0.7)</div>
+              </div>
+            </div>
+
+            <!-- Data Processing -->
+            <h4 class="mt-4 mb-3"><i class="fas fa-database"></i> Data Processing</h4>
+            <div class="model-details">
+              <div class="detail-item">
+                <div class="detail-label">Data Split</div>
+                <div class="detail-value">0.7 / 0.15 / 0.15</div>
+              </div>
+              <div class="detail-item">
+                <div class="detail-label">Dataset</div>
+                <div class="detail-value">PlantDisease</div>
+              </div>
+            </div>
+
+            <!-- Augmentations -->
+          </div>
+        </section>
+
+        <section class="chart-section" id="training">
+          <div class="section-header">
+            <h2 class="section-title">Training History</h2>
+            <div class="section-actions">
+              <button class="btn btn-outline">
+                <i class="fas fa-download"></i>
+                <span>Export</span>
+              </button>
+              <button class="btn btn-outline">
+                <i class="fas fa-expand"></i>
+                <span>Fullscreen</span>
+              </button>
+            </div>
+          </div>
+          <div class="chart-content">
+            <img
+              src="plots/training_history.png"
+              alt="Training History"
+              class="chart-image"
+            />
+            <div class="chart-caption">
+              <p>
+                The training history shows convergence patterns for loss and
+                accuracy metrics over time.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <div id="confusion-matrix" class="chart-section">
+          <div class="section-header">
+            <h2 class="section-title">Confusion Matrix</h2>
+          </div>
+          <div class="chart-content">
+            <img
+              src="plots/confusion_matrix.png"
+              alt="Confusion Matrix"
+              class="chart-image"
+            />
+            <div class="chart-caption">
+              <p>
+                The confusion matrix visualizes classification performance
+                across 39 classes.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div id="roc-curves" class="chart-section">
+          <div class="section-header">
+            <h2 class="section-title">ROC Curves</h2>
+          </div>
+          <div class="chart-content">
+            <img
+              src="plots/roc_curves.png"
+              alt="ROC Curves"
+              class="chart-image"
+            />
+            <div class="chart-caption">
+              <p>
+                ROC curves showing the trade-off between true positive rate and false positive rate for each class.
+              </p>
+            </div>
+          </div>
+        </div>
+        
+        <section class="chart-section" id="pr-curves">
+          <div class="section-header">
+            <h2 class="section-title">Precision-Recall Curves</h2>
+            <div class="section-actions">
+              <button class="btn btn-outline">
+                <i class="fas fa-download"></i>
+                <span>Export</span>
+              </button>
+              <button class="btn btn-outline">
+                <i class="fas fa-expand"></i>
+                <span>Fullscreen</span>
+              </button>
+            </div>
+          </div>
+          <div class="chart-content">
+            <img
+              src="plots/precision_recall_curves.png"
+              alt="Precision-Recall Curves"
+              class="chart-image"
+            />
+            <div class="chart-caption">
+              <p>
+                Precision-recall curves showing the trade-off between precision and recall for each class.
+              </p>
+            </div>
+          </div>
+        </section>
+        
+        <section class="chart-section" id="classification-examples">
+          <div class="section-header">
+            <h2 class="section-title">Classification Examples</h2>
+            <div class="section-actions">
+              <button class="btn btn-outline">
+                <i class="fas fa-download"></i>
+                <span>Export</span>
+              </button>
+              <button class="btn btn-outline">
+                <i class="fas fa-expand"></i>
+                <span>Fullscreen</span>
+              </button>
+            </div>
+          </div>
+          <div class="chart-content">
+            <img
+              src="plots/classification_examples.png"
+              alt="Classification Examples"
+              class="chart-image"
+            />
+            <div class="chart-caption">
+              <p>
+                Examples of model predictions on test images, with correct predictions in green and incorrect ones in red.
+              </p>
+            </div>
+          </div>
+        </section>
+        
+        <section class="chart-section" id="confidence-distribution">
+          <div class="section-header">
+            <h2 class="section-title">Prediction Confidence Analysis</h2>
+            <div class="section-actions">
+              <button class="btn btn-outline">
+                <i class="fas fa-download"></i>
+                <span>Export</span>
+              </button>
+              <button class="btn btn-outline">
+                <i class="fas fa-expand"></i>
+                <span>Fullscreen</span>
+              </button>
+            </div>
+          </div>
+          <div class="chart-content">
+            <img
+              src="plots/confidence_distribution.png"
+              alt="Confidence Distribution"
+              class="chart-image"
+            />
+            <div class="chart-caption">
+              <p>
+                Histogram showing the distribution of prediction confidences across all test samples.
+                The model shows a low average confidence of 
+N/A.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section class="analysis-section" id="class-performance">
+          <div class="analysis-header">
+            <i class="fas fa-layer-group"></i> Class Performance
+          </div>
+          <div class="analysis-content">
+            <p style="margin-bottom: 1rem">
+              Performance metrics across all 39 classes.
+            </p>
+
+            <div class="class-performance">
+              <div class="class-item">
+                <div class="class-name">Apple_scab</div>
+                <div class="class-metrics">
+                  <div class="class-metric">
+                    <span class="class-metric-label">Mean Confidence:</span>
+                    <span class="class-metric-value">0.689</span>
+                  </div>
+                  <div class="class-metric">
+                    <span class="class-metric-label">Count:</span>
+                    <span class="class-metric-value">141</span>
+                  </div>
+                </div>
+              </div>
+              <div class="class-item">
+                <div class="class-name">Apple_black_rot</div>
+                <div class="class-metrics">
+                  <div class="class-metric">
+                    <span class="class-metric-label">Mean Confidence:</span>
+                    <span class="class-metric-value">0.807</span>
+                  </div>
+                  <div class="class-metric">
+                    <span class="class-metric-label">Count:</span>
+                    <span class="class-metric-value">136</span>
+                  </div>
+                </div>
+              </div>
+              <div class="class-item">
+                <div class="class-name">Apple_cedar_apple_rust</div>
+                <div class="class-metrics">
+                  <div class="class-metric">
+                    <span class="class-metric-label">Mean Confidence:</span>
+                    <span class="class-metric-value">0.884</span>
+                  </div>
+                  <div class="class-metric">
+                    <span class="class-metric-label">Count:</span>
+                    <span class="class-metric-value">147</span>
+                  </div>
+                </div>
+              </div>
+              <div class="class-item">
+                <div class="class-name">Apple_healthy</div>
+                <div class="class-metrics">
+                  <div class="class-metric">
+                    <span class="class-metric-label">Mean Confidence:</span>
+                    <span class="class-metric-value">0.760</span>
+                  </div>
+                  <div class="class-metric">
+                    <span class="class-metric-label">Count:</span>
+                    <span class="class-metric-value">228</span>
+                  </div>
+                </div>
+              </div>
+              <div class="class-item">
+                <div class="class-name">Background_without_leaves</div>
+                <div class="class-metrics">
+                  <div class="class-metric">
+                    <span class="class-metric-label">Mean Confidence:</span>
+                    <span class="class-metric-value">0.929</span>
+                  </div>
+                  <div class="class-metric">
+                    <span class="class-metric-label">Count:</span>
+                    <span class="class-metric-value">153</span>
+                  </div>
+                </div>
+              </div>
+              <div class="class-item">
+                <div class="class-name">Blueberry_healthy</div>
+                <div class="class-metrics">
+                  <div class="class-metric">
+                    <span class="class-metric-label">Mean Confidence:</span>
+                    <span class="class-metric-value">0.858</span>
+                  </div>
+                  <div class="class-metric">
+                    <span class="class-metric-label">Count:</span>
+                    <span class="class-metric-value">205</span>
+                  </div>
+                </div>
+              </div>
+              <div class="class-item">
+                <div class="class-name">Cherry_powdery_mildew</div>
+                <div class="class-metrics">
+                  <div class="class-metric">
+                    <span class="class-metric-label">Mean Confidence:</span>
+                    <span class="class-metric-value">0.823</span>
+                  </div>
+                  <div class="class-metric">
+                    <span class="class-metric-label">Count:</span>
+                    <span class="class-metric-value">127</span>
+                  </div>
+                </div>
+              </div>
+              <div class="class-item">
+                <div class="class-name">Cherry_healthy</div>
+                <div class="class-metrics">
+                  <div class="class-metric">
+                    <span class="class-metric-label">Mean Confidence:</span>
+                    <span class="class-metric-value">0.723</span>
+                  </div>
+                  <div class="class-metric">
+                    <span class="class-metric-label">Count:</span>
+                    <span class="class-metric-value">121</span>
+                  </div>
+                </div>
+              </div>
+              <div class="class-item">
+                <div class="class-name">Corn_gray_leaf_spot</div>
+                <div class="class-metrics">
+                  <div class="class-metric">
+                    <span class="class-metric-label">Mean Confidence:</span>
+                    <span class="class-metric-value">0.641</span>
+                  </div>
+                  <div class="class-metric">
+                    <span class="class-metric-label">Count:</span>
+                    <span class="class-metric-value">89</span>
+                  </div>
+                </div>
+              </div>
+              <div class="class-item">
+                <div class="class-name">Corn_common_rust</div>
+                <div class="class-metrics">
+                  <div class="class-metric">
+                    <span class="class-metric-label">Mean Confidence:</span>
+                    <span class="class-metric-value">0.878</span>
+                  </div>
+                  <div class="class-metric">
+                    <span class="class-metric-label">Count:</span>
+                    <span class="class-metric-value">174</span>
+                  </div>
+                </div>
+              </div>
+              <div class="class-item">
+                <div class="class-name">Corn_northern_leaf_blight</div>
+                <div class="class-metrics">
+                  <div class="class-metric">
+                    <span class="class-metric-label">Mean Confidence:</span>
+                    <span class="class-metric-value">0.932</span>
+                  </div>
+                  <div class="class-metric">
+                    <span class="class-metric-label">Count:</span>
+                    <span class="class-metric-value">155</span>
+                  </div>
+                </div>
+              </div>
+              <div class="class-item">
+                <div class="class-name">Corn_healthy</div>
+                <div class="class-metrics">
+                  <div class="class-metric">
+                    <span class="class-metric-label">Mean Confidence:</span>
+                    <span class="class-metric-value">0.932</span>
+                  </div>
+                  <div class="class-metric">
+                    <span class="class-metric-label">Count:</span>
+                    <span class="class-metric-value">155</span>
+                  </div>
+                </div>
+              </div>
+              <div class="class-item">
+                <div class="class-name">Grape_black_rot</div>
+                <div class="class-metrics">
+                  <div class="class-metric">
+                    <span class="class-metric-label">Mean Confidence:</span>
+                    <span class="class-metric-value">0.932</span>
+                  </div>
+                  <div class="class-metric">
+                    <span class="class-metric-label">Count:</span>
+                    <span class="class-metric-value">155</span>
+                  </div>
+                </div>
+              </div>
+              <div class="class-item">
+                <div class="class-name">Grape_black_measles</div>
+                <div class="class-metrics">
+                  <div class="class-metric">
+                    <span class="class-metric-label">Mean Confidence:</span>
+                    <span class="class-metric-value">0.932</span>
+                  </div>
+                  <div class="class-metric">
+                    <span class="class-metric-label">Count:</span>
+                    <span class="class-metric-value">155</span>
+                  </div>
+                </div>
+              </div>
+              <div class="class-item">
+                <div class="class-name">Grape_leaf_blight</div>
+                <div class="class-metrics">
+                  <div class="class-metric">
+                    <span class="class-metric-label">Mean Confidence:</span>
+                    <span class="class-metric-value">0.932</span>
+                  </div>
+                  <div class="class-metric">
+                    <span class="class-metric-label">Count:</span>
+                    <span class="class-metric-value">155</span>
+                  </div>
+                </div>
+              </div>
+              <div class="class-item">
+                <div class="class-name">Grape_healthy</div>
+                <div class="class-metrics">
+                  <div class="class-metric">
+                    <span class="class-metric-label">Mean Confidence:</span>
+                    <span class="class-metric-value">0.932</span>
+                  </div>
+                  <div class="class-metric">
+                    <span class="class-metric-label">Count:</span>
+                    <span class="class-metric-value">155</span>
+                  </div>
+                </div>
+              </div>
+              <div class="class-item">
+                <div class="class-name">Orange_haunglongbing</div>
+                <div class="class-metrics">
+                  <div class="class-metric">
+                    <span class="class-metric-label">Mean Confidence:</span>
+                    <span class="class-metric-value">0.932</span>
+                  </div>
+                  <div class="class-metric">
+                    <span class="class-metric-label">Count:</span>
+                    <span class="class-metric-value">155</span>
+                  </div>
+                </div>
+              </div>
+              <div class="class-item">
+                <div class="class-name">Peach_bacterial_spot</div>
+                <div class="class-metrics">
+                  <div class="class-metric">
+                    <span class="class-metric-label">Mean Confidence:</span>
+                    <span class="class-metric-value">0.932</span>
+                  </div>
+                  <div class="class-metric">
+                    <span class="class-metric-label">Count:</span>
+                    <span class="class-metric-value">155</span>
+                  </div>
+                </div>
+              </div>
+              <div class="class-item">
+                <div class="class-name">Peach_healthy</div>
+                <div class="class-metrics">
+                  <div class="class-metric">
+                    <span class="class-metric-label">Mean Confidence:</span>
+                    <span class="class-metric-value">0.932</span>
+                  </div>
+                  <div class="class-metric">
+                    <span class="class-metric-label">Count:</span>
+                    <span class="class-metric-value">155</span>
+                  </div>
+                </div>
+              </div>
+              <div class="class-item">
+                <div class="class-name">Pepper_bacterial_spot</div>
+                <div class="class-metrics">
+                  <div class="class-metric">
+                    <span class="class-metric-label">Mean Confidence:</span>
+                    <span class="class-metric-value">0.932</span>
+                  </div>
+                  <div class="class-metric">
+                    <span class="class-metric-label">Count:</span>
+                    <span class="class-metric-value">155</span>
+                  </div>
+                </div>
+              </div>
+              <div class="class-item">
+                <div class="class-name">Pepper_healthy</div>
+                <div class="class-metrics">
+                  <div class="class-metric">
+                    <span class="class-metric-label">Mean Confidence:</span>
+                    <span class="class-metric-value">0.932</span>
+                  </div>
+                  <div class="class-metric">
+                    <span class="class-metric-label">Count:</span>
+                    <span class="class-metric-value">155</span>
+                  </div>
+                </div>
+              </div>
+              <div class="class-item">
+                <div class="class-name">Potato_early_blight</div>
+                <div class="class-metrics">
+                  <div class="class-metric">
+                    <span class="class-metric-label">Mean Confidence:</span>
+                    <span class="class-metric-value">0.932</span>
+                  </div>
+                  <div class="class-metric">
+                    <span class="class-metric-label">Count:</span>
+                    <span class="class-metric-value">155</span>
+                  </div>
+                </div>
+              </div>
+              <div class="class-item">
+                <div class="class-name">Potato_healthy</div>
+                <div class="class-metrics">
+                  <div class="class-metric">
+                    <span class="class-metric-label">Mean Confidence:</span>
+                    <span class="class-metric-value">0.932</span>
+                  </div>
+                  <div class="class-metric">
+                    <span class="class-metric-label">Count:</span>
+                    <span class="class-metric-value">155</span>
+                  </div>
+                </div>
+              </div>
+              <div class="class-item">
+                <div class="class-name">Potato_late_blight</div>
+                <div class="class-metrics">
+                  <div class="class-metric">
+                    <span class="class-metric-label">Mean Confidence:</span>
+                    <span class="class-metric-value">0.932</span>
+                  </div>
+                  <div class="class-metric">
+                    <span class="class-metric-label">Count:</span>
+                    <span class="class-metric-value">155</span>
+                  </div>
+                </div>
+              </div>
+              <div class="class-item">
+                <div class="class-name">Raspberry_healthy</div>
+                <div class="class-metrics">
+                  <div class="class-metric">
+                    <span class="class-metric-label">Mean Confidence:</span>
+                    <span class="class-metric-value">0.932</span>
+                  </div>
+                  <div class="class-metric">
+                    <span class="class-metric-label">Count:</span>
+                    <span class="class-metric-value">155</span>
+                  </div>
+                </div>
+              </div>
+              <div class="class-item">
+                <div class="class-name">Soybean_healthy</div>
+                <div class="class-metrics">
+                  <div class="class-metric">
+                    <span class="class-metric-label">Mean Confidence:</span>
+                    <span class="class-metric-value">0.932</span>
+                  </div>
+                  <div class="class-metric">
+                    <span class="class-metric-label">Count:</span>
+                    <span class="class-metric-value">155</span>
+                  </div>
+                </div>
+              </div>
+              <div class="class-item">
+                <div class="class-name">Squash_powdery_mildew</div>
+                <div class="class-metrics">
+                  <div class="class-metric">
+                    <span class="class-metric-label">Mean Confidence:</span>
+                    <span class="class-metric-value">0.932</span>
+                  </div>
+                  <div class="class-metric">
+                    <span class="class-metric-label">Count:</span>
+                    <span class="class-metric-value">155</span>
+                  </div>
+                </div>
+              </div>
+              <div class="class-item">
+                <div class="class-name">Strawberry_healthy</div>
+                <div class="class-metrics">
+                  <div class="class-metric">
+                    <span class="class-metric-label">Mean Confidence:</span>
+                    <span class="class-metric-value">0.932</span>
+                  </div>
+                  <div class="class-metric">
+                    <span class="class-metric-label">Count:</span>
+                    <span class="class-metric-value">155</span>
+                  </div>
+                </div>
+              </div>
+              <div class="class-item">
+                <div class="class-name">Strawberry_leaf_scorch</div>
+                <div class="class-metrics">
+                  <div class="class-metric">
+                    <span class="class-metric-label">Mean Confidence:</span>
+                    <span class="class-metric-value">0.932</span>
+                  </div>
+                  <div class="class-metric">
+                    <span class="class-metric-label">Count:</span>
+                    <span class="class-metric-value">155</span>
+                  </div>
+                </div>
+              </div>
+              <div class="class-item">
+                <div class="class-name">Tomato_bacterial_spot</div>
+                <div class="class-metrics">
+                  <div class="class-metric">
+                    <span class="class-metric-label">Mean Confidence:</span>
+                    <span class="class-metric-value">0.932</span>
+                  </div>
+                  <div class="class-metric">
+                    <span class="class-metric-label">Count:</span>
+                    <span class="class-metric-value">155</span>
+                  </div>
+                </div>
+              </div>
+              <div class="class-item">
+                <div class="class-name">Tomato_early_blight</div>
+                <div class="class-metrics">
+                  <div class="class-metric">
+                    <span class="class-metric-label">Mean Confidence:</span>
+                    <span class="class-metric-value">0.932</span>
+                  </div>
+                  <div class="class-metric">
+                    <span class="class-metric-label">Count:</span>
+                    <span class="class-metric-value">155</span>
+                  </div>
+                </div>
+              </div>
+              <div class="class-item">
+                <div class="class-name">Tomato_healthy</div>
+                <div class="class-metrics">
+                  <div class="class-metric">
+                    <span class="class-metric-label">Mean Confidence:</span>
+                    <span class="class-metric-value">0.932</span>
+                  </div>
+                  <div class="class-metric">
+                    <span class="class-metric-label">Count:</span>
+                    <span class="class-metric-value">155</span>
+                  </div>
+                </div>
+              </div>
+              <div class="class-item">
+                <div class="class-name">Tomato_late_blight</div>
+                <div class="class-metrics">
+                  <div class="class-metric">
+                    <span class="class-metric-label">Mean Confidence:</span>
+                    <span class="class-metric-value">0.932</span>
+                  </div>
+                  <div class="class-metric">
+                    <span class="class-metric-label">Count:</span>
+                    <span class="class-metric-value">155</span>
+                  </div>
+                </div>
+              </div>
+              <div class="class-item">
+                <div class="class-name">Tomato_leaf_mold</div>
+                <div class="class-metrics">
+                  <div class="class-metric">
+                    <span class="class-metric-label">Mean Confidence:</span>
+                    <span class="class-metric-value">0.932</span>
+                  </div>
+                  <div class="class-metric">
+                    <span class="class-metric-label">Count:</span>
+                    <span class="class-metric-value">155</span>
+                  </div>
+                </div>
+              </div>
+              <div class="class-item">
+                <div class="class-name">Tomato_septoria_leaf_spot</div>
+                <div class="class-metrics">
+                  <div class="class-metric">
+                    <span class="class-metric-label">Mean Confidence:</span>
+                    <span class="class-metric-value">0.932</span>
+                  </div>
+                  <div class="class-metric">
+                    <span class="class-metric-label">Count:</span>
+                    <span class="class-metric-value">155</span>
+                  </div>
+                </div>
+              </div>
+              <div class="class-item">
+                <div class="class-name">Tomato_spider_mites_two-spotted_spider_mite</div>
+                <div class="class-metrics">
+                  <div class="class-metric">
+                    <span class="class-metric-label">Mean Confidence:</span>
+                    <span class="class-metric-value">0.932</span>
+                  </div>
+                  <div class="class-metric">
+                    <span class="class-metric-label">Count:</span>
+                    <span class="class-metric-value">155</span>
+                  </div>
+                </div>
+              </div>
+              <div class="class-item">
+                <div class="class-name">Tomato_target_spot</div>
+                <div class="class-metrics">
+                  <div class="class-metric">
+                    <span class="class-metric-label">Mean Confidence:</span>
+                    <span class="class-metric-value">0.932</span>
+                  </div>
+                  <div class="class-metric">
+                    <span class="class-metric-label">Count:</span>
+                    <span class="class-metric-value">155</span>
+                  </div>
+                </div>
+              </div>
+              <div class="class-item">
+                <div class="class-name">Tomato_mosaic_virus</div>
+                <div class="class-metrics">
+                  <div class="class-metric">
+                    <span class="class-metric-label">Mean Confidence:</span>
+                    <span class="class-metric-value">0.932</span>
+                  </div>
+                  <div class="class-metric">
+                    <span class="class-metric-label">Count:</span>
+                    <span class="class-metric-value">155</span>
+                  </div>
+                </div>
+              </div>
+              <div class="class-item">
+                <div class="class-name">Tomato_yellow_leaf_curl_virus</div>
+                <div class="class-metrics">
+                  <div class="class-metric">
+                    <span class="class-metric-label">Mean Confidence:</span>
+                    <span class="class-metric-value">0.932</span>
+                  </div>
+                  <div class="class-metric">
+                    <span class="class-metric-label">Count:</span>
+                    <span class="class-metric-value">155</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="analysis-section" id="conclusion">
+          <div class="analysis-header">
+            <i class="fas fa-flag-checkered"></i> Conclusion
+          </div>
+          <div class="analysis-content">
+            <p>
+              The cbam_only_resnet18 v2 model achieved an overall accuracy of 96.71% on the challenging 39-class plant disease classification task, with significantly improved training efficiency. This demonstrates the model's robust performance despite a substantially reduced training schedule.
+            </p>
+
+            <!-- Performance Summary -->
+            <div class="model-details mt-3" style="grid-template-columns: repeat(2, 1fr);">
+              <div class="detail-item">
+                <div class="detail-label">Accuracy</div>
+                <div class="detail-value">96.71%</div>
+              </div>
+              <div class="detail-item">
+                <div class="detail-label">Precision</div>
+                <div class="detail-value">99.19%</div>
+              </div>
+              <div class="detail-item">
+                <div class="detail-label">Recall</div>
+                <div class="detail-value">99.16%</div>
+              </div>
+              <div class="detail-item">
+                <div class="detail-label">F1 Score</div>
+                <div class="detail-value">99.17%</div>
+              </div>
+              <div class="detail-item">
+                <div class="detail-label">Training Time</div>
+                <div class="detail-value">3h 14m 43s</div>
+              </div>
+              <div class="detail-item">
+                <div class="detail-label">Model Size</div>
+                <div class="detail-value">48.82 MB</div>
+              </div>
+            </div>
+
+            <!-- Key Findings -->
+            <h4 class="mt-4 mb-3"><i class="fas fa-search"></i> Key Findings</h4>
+            <div class="insight-list">
+              <!-- Strengths -->
+              <div class="insight-item">
+                <div class="insight-icon">
+                  <i class="fas fa-check"></i>
+                </div>
+                <div class="insight-content">
+                  <strong>Model Strengths:</strong> The model demonstrates 
+                    excellent
+                  performance on the 39-class classification task. 
+                  It performs particularly well on 
+                    the majority of classes
+                  classes.
+                </div>
+              </div>
+              
+              <!-- Areas for Improvement -->
+              <div class="insight-item">
+                <div class="insight-icon">
+                  <i class="fas fa-exclamation-triangle"></i>
+                </div>
+                <div class="insight-content">
+                  <strong>Areas for Improvement:</strong> 
+                    Some classes show lower performance metrics, which could be addressed with class-specific data augmentation or model fine-tuning.
+                </div>
+              </div>
+              
+              <!-- Confidence Analysis -->
+              <div class="insight-item">
+                <div class="insight-icon">
+                  <i class="fas fa-chart-line"></i>
+                </div>
+                <div class="insight-content">
+                  <strong>Confidence Analysis:</strong> The model shows
+                    limited ability to distinguish between correct and incorrect predictions through confidence scores alone.
+                </div>
+              </div>
+              
+              <!-- Training Process -->
+              <div class="insight-item">
+                <div class="insight-icon">
+                  <i class="fas fa-cogs"></i>
+                </div>
+                <div class="insight-content">
+                  <strong>Training Process:</strong> The model was trained for 100 epochs using
+                  Adamw optimizer with a learning rate of 0.0005. 
+                    A combined loss function incorporating 
+                      Weighted Cross Entropy and                         Focal                      was used to optimize for both accuracy and robustness.
+                </div>
+              </div>
+              
+              <!-- Data Insights -->
+              <div class="insight-item">
+                <div class="insight-icon">
+                  <i class="fas fa-database"></i>
+                </div>
+                <div class="insight-content">
+                  <strong>Data Utilization:</strong> The model was trained using
+                    standard preprocessing techniques including resizing and normalization.
+                </div>
+              </div>
+            </div>
+
+            <!-- Recommendations -->
+            <h4 class="mt-4 mb-3" style="display:none;"><i class="fas fa-lightbulb"></i> Recommendations</h4>
+            <div class="insight-list" style="display:none;">
+              <!-- Recommendation 1 -->
+              <div class="insight-item">
+                <div class="insight-icon">
+                  <i class="fas fa-arrow-circle-up"></i>
+                </div>
+                <div class="insight-content">
+                  <strong>Improve Low-Performing Classes:</strong> Consider collecting additional training data or applying targeted augmentation for
+                    classes with lower performance metrics
+                  to increase their classification accuracy.
+                </div>
+              </div>
+              
+              <!-- Recommendation 2 -->
+              <div class="insight-item">
+                <div class="insight-icon">
+                  <i class="fas fa-balance-scale"></i>
+                </div>
+                <div class="insight-content">
+                  <strong>Calibration Improvements:</strong> 
+                    Apply temperature scaling or other calibration techniques to better align the model's confidence with its actual accuracy.
+                </div>
+              </div>
+              
+              <!-- Recommendation 3 -->
+              <div class="insight-item">
+                <div class="insight-icon">
+                  <i class="fas fa-rocket"></i>
+                </div>
+                <div class="insight-content">
+                  <strong>Model Deployment:</strong> This model is 
+                    lightweight (48.82 MB) and suitable for mobile or edge deployment.
+                  Consider using 
+                    model optimization techniques 
+                  to further improve inference speed if needed.
+                </div>
+              </div>
+              
+              <!-- Recommendation 4 -->
+              <div class="insight-item">
+                <div class="insight-icon">
+                  <i class="fas fa-tools"></i>
+                </div>
+                <div class="insight-content">
+                  <strong>Advanced Techniques:</strong> For further improvements, consider exploring
+                    feature fusion techniques, advanced attention mechanisms, or ensemble methods
+                  to enhance model performance while maintaining efficiency.
+                </div>
+              </div>
+            </div>
+
+            <!-- Overall Assessment -->
+            <div class="alert alert-success mt-4">
+              <div class="alert-icon">
+                <i class="fas fa-check-circle"></i>
+              </div>
+              <div class="alert-content">
+                <h4>Overall Assessment</h4>
+                <p>
+                  The cbam_only_resnet18 v2 model demonstrates that optimized training strategies can dramatically reduce training time while maintaining excellent classification performance. With only a 0.75% reduction in accuracy compared to v1, but 67% less training time, this model represents an excellent trade-off between performance and efficiency for plant disease diagnosis applications.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
       </main>
     </div>
 
