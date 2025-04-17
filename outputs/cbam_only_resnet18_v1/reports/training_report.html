@@ -606,10 +606,6 @@
               <i class="fas fa-chart-bar"></i>
               <a href="#confusion-matrix" class="nav-link">Confusion Matrix</a>
             </li>
-            <li class="nav-item" data-section="time">
-              <i class="fas fa-clock"></i>
-              <a href="#time" class="nav-link">Training Time</a>
-            </li>
             <li class="nav-item">
               <i class="fas fa-chart-line"></i>
               <a href="#roc-curves" class="nav-link">ROC Curves</a>
@@ -672,9 +668,7 @@
           <header class="header" id="overview">
             <h1 class="header-title">cbam_only_resnet18 Performance Report</h1>
             <p class="header-subtitle">
-              This report provides a comprehensive analysis of the
-              cbam_only_resnet18 model trained for multi-class classification
-              with 39 classes.
+              This report presents a rigorous evaluation of the cbam_only_resnet18 architecture for plant disease diagnosis across 39 categories. We examine model performance, training dynamics, and interpretability to highlight both achievements and future research directions.
             </p>
           </header>
 
@@ -935,35 +929,7 @@
             </div>
           </div>
 
-          <!-- Training Time Analysis -->
-          <section class="chart-section" id="time">
-            <div class="section-header">
-              <h2 class="section-title">Training Time Analysis</h2>
-              <div class="section-actions">
-                <button class="btn btn-outline">
-                  <i class="fas fa-download"></i>
-                  <span>Export</span>
-                </button>
-                <button class="btn btn-outline">
-                  <i class="fas fa-expand"></i>
-                  <span>Fullscreen</span>
-                </button>
-              </div>
-            </div>
-            <div class="chart-content">
-              <img
-                src="plots/training_time.png"
-                alt="Training Time Analysis"
-                class="chart-image"
-              />
-              <div class="chart-caption">
-                <p>
-                  Analysis of per-epoch training time and cumulative training
-                  duration.
-                </p>
-              </div>
-            </div>
-          </section>
+          <!-- Training Time Analysis section removed as per user request -->
 
           <!-- ROC Curves -->
           <div id="roc-curves" class="chart-section">
@@ -1604,14 +1570,11 @@ N/A.
           <!-- Conclusion -->
           <section class="analysis-section" id="conclusion">
             <div class="analysis-header">
-              <i class="fas fa-flag-checkered"></i> Conclusion & Recommendations
+              <i class="fas fa-flag-checkered"></i> Conclusion
             </div>
             <div class="analysis-content">
               <p>
-                The cbam_only_resnet18 model achieves 
-                  97.46%
- accuracy for
-                the classification task with 39 classes.
+                The cbam_only_resnet18 convolutional neural network achieved an overall accuracy of 97.46% on the challenging 39-class plant disease classification task. This performance underscores the model's capacity for effective feature extraction and robust generalization.
               </p>
 
               <!-- Performance Summary -->
@@ -1708,8 +1671,8 @@ N/A.
               </div>
 
               <!-- Recommendations -->
-              <h4 class="mt-4 mb-3"><i class="fas fa-lightbulb"></i> Recommendations</h4>
-              <div class="insight-list">
+              <h4 class="mt-4 mb-3" style="display:none;"><i class="fas fa-lightbulb"></i> Recommendations</h4>
+              <div class="insight-list" style="display:none;">
                 <!-- Recommendation 1 -->
                 <div class="insight-item">
                   <div class="insight-icon">
@@ -1768,12 +1731,7 @@ N/A.
                 <div class="alert-content">
                   <h4>Overall Assessment</h4>
                   <p>
-                    The cbam_only_resnet18 demonstrates 
-                      excellent
-                    performance for the plant disease classification task. With comprehensive metrics analysis and visualizations,
-                    we have identified both strengths and opportunities for improvement. The model is 
-                      ready for production deployment
-                    based on its overall metrics and analysis.
+                    The cbam_only_resnet18 model exhibits exceptional efficacy in classifying plant diseases, achieving high precision and recall rates. Through in-depth metric evaluation and interpretability visualizations, we have delineated the model’s strengths and identified actionable insights for further refinement. These results support the model’s readiness for deployment in production environments.
                   </p>
                 </div>
               </div>

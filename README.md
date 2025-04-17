@@ -56,17 +56,11 @@ This repository contains a complete implementation of a plant disease classifica
     - [Accuracy Comparison](#accuracy-comparison)
     - [Performance on Challenging Cases](#performance-on-challenging-cases)
     - [Robustness Analysis](#robustness-analysis)
-    - [Real-world Deployment Results](#real-world-deployment-results)
-  - [🔮 Roadmap](#-roadmap)
-    - [Short-term (Next 3 months)](#short-term-next-3-months)
-    - [Medium-term (6-12 months)](#medium-term-6-12-months)
-    - [Long-term (12+ months)](#long-term-12-months)
-  - [🛟 Troubleshooting](#-troubleshooting)
+  - [Troubleshooting](#troubleshooting)
     - [Common Issues](#common-issues)
       - [Installation Problems](#installation-problems)
       - [CUDA/MPS Issues](#cudamps-issues)
       - [Memory Errors](#memory-errors)
-  - [🤝 Contributing](#-contributing)
 
 ## Overview
 
@@ -522,41 +516,7 @@ The CBAM-augmented ResNet18 model demonstrates significant improvements over sta
 - **Generalization**: Demonstrates ~18% better performance on out-of-distribution test sets from different geographical regions/imaging conditions.
 - **Calibration**: Expected Calibration Error (ECE) reduced by ~45%, indicating more reliable confidence scores.
 
-### Real-world Deployment Results
-
-*(Include results from pilot studies or field tests if available)*
-Field testing across 5 agricultural regions showed:
-
-- ~92% diagnostic agreement with expert plant pathologists.
-- Estimated 3.8x faster average diagnosis time compared to manual inspection.
-- Potential for ~68% reduction in unnecessary pesticide application through targeted treatment.
-
-## 🔮 Roadmap
-
-Our planned features and improvements:
-
-### Short-term (Next 3 months)
-
-- [ ] Mobile-optimized model variants (e.g., using MobileNetv2 or EfficientNet-Lite backbones).
-- [ ] Simple REST API service for easy deployment.
-- [ ] Integration guide for common agricultural IoT platforms.
-- [ ] Enhanced data augmentation strategies (e.g., GridMask, FMix).
-
-### Medium-term (6-12 months)
-
-- [ ] Support for detecting multiple diseases in a single image (multi-label classification).
-- [ ] Disease severity grading (e.g., low, medium, high).
-- [ ] Basic treatment recommendation system based on detected disease.
-- [ ] Time-series analysis capabilities for disease progression monitoring (requires sequential data).
-
-### Long-term (12+ months)
-
-- [ ] Multi-modal learning (fusing image data with sensor data like temperature, humidity).
-- [ ] Active learning pipeline for efficient data annotation and model retraining.
-- [ ] Federated learning support for privacy-preserving collaborative model training.
-- [ ] Integration with drone/robotic platforms for automated field scouting.
-
-## 🛟 Troubleshooting
+## Troubleshooting
 
 ### Common Issues
 
@@ -607,18 +567,3 @@ After installing PyTorch, retry `pip install plantdoc`.
 3. **Enable Mixed Precision**: Use `training.precision: 16-mixed` (requires compatible GPU).
 4. **Reduce Dataloader Workers**: Lower `hardware.num_workers`.
 5. **Use Gradient Accumulation**: Modify training script to accumulate gradients over multiple smaller batches (requires code change, not currently implemented via config).
-
-## 🤝 Contributing
-
-Contributions are welcome! Whether it's reporting bugs, suggesting features, improving documentation, or submitting pull requests, your help is appreciated.
-
-Please follow these general guidelines:
-
-1. **Check Existing Issues**: See if your bug or feature request has already been reported.
-2. **Open an Issue**: For significant changes, please open an issue first to discuss the proposed changes.
-3. **Fork the Repository**: Create your own fork of the project.
-4. **Create a Branch**: Make your changes in a dedicated branch (`git checkout -b feature/your-feature-name`).
-5. **Develop**: Write your code, ensuring it follows the project's style (use `pre-commit run --all-files` to check). Add tests for new functionality.
-6. **Test**: Run the test suite to ensure everything passes.
-7. **Document**: Update documentation (README, docstrings) as needed.
-8. **Submit a Pull Request**: Push your branch to your fork and submit a pull request to the main repository's `main` branch. Provide a clear description of your changes.
