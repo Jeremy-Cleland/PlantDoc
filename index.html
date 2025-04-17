@@ -462,18 +462,26 @@
                 <i class="fas fa-home"></i>
                 <span class="nav-text">Introduction</span>
             </a>
-            <a href="#dataset" class="nav-item">
-                <i class="fas fa-database"></i>
-                <span class="nav-text">Dataset Overview</span>
-            </a>
             <a href="#methodology" class="nav-item">
                 <i class="fas fa-cogs"></i>
                 <span class="nav-text">Methodology</span>
             </a>
+            <a href="#experiments" class="nav-item">
+                <i class="fas fa-flask"></i>
+                <span class="nav-text">Experiments</span>
+            </a>
+            <a href="#conclusion" class="nav-item">
+                <i class="fas fa-flag-checkered"></i>
+                <span class="nav-text">Conclusion</span>
+            </a>
         </div>
         
         <div class="nav-section">
-            <div class="nav-heading">Models</div>
+            <div class="nav-heading">Details</div>
+            <a href="#dataset" class="nav-item">
+                <i class="fas fa-database"></i>
+                <span class="nav-text">Dataset Overview</span>
+            </a>
             <a href="#model-v1" class="nav-item">
                 <i class="fas fa-chart-line"></i>
                 <span class="nav-text">CBAM-ResNet18 v1</span>
@@ -482,25 +490,9 @@
                 <i class="fas fa-chart-bar"></i>
                 <span class="nav-text">CBAM-ResNet18 v2</span>
             </a>
-            <a href="#performance" class="nav-item">
-                <i class="fas fa-tachometer-alt"></i>
-                <span class="nav-text">Performance</span>
-            </a>
-        </div>
-        
-        <div class="nav-section">
-            <div class="nav-heading">Analysis</div>
             <a href="#class-metrics" class="nav-item">
                 <i class="fas fa-list-ol"></i>
                 <span class="nav-text">Class Metrics</span>
-            </a>
-            <a href="#training-progression" class="nav-item">
-                <i class="fas fa-graduation-cap"></i>
-                <span class="nav-text">Training Progression</span>
-            </a>
-            <a href="#conclusion" class="nav-item">
-                <i class="fas fa-flag-checkered"></i>
-                <span class="nav-text">Conclusion</span>
             </a>
         </div>
         
@@ -549,9 +541,26 @@
             </div>
         </section>
 
-        <!-- Dataset Statistics Section -->
-        <section id="dataset" class="content-section">
-            <h2 class="section-title">Dataset Overview</h2>
+        <!-- Dataset Statistics Section - Now part of Methodology -->
+        <section id="methodology" class="content-section">
+            <h2 class="section-title">Methodology</h2>
+            <p>
+                The PlantDoc system leverages a dual-attention enhanced architecture to significantly improve classification performance. The key components of our methodology include:
+            </p>
+            <h3 style="margin-top: 1.5rem; color: var(--accent-tertiary);">CBAM: Dual Attention Mechanism</h3>
+            <p>
+                CBAM sequentially infers attention maps along two separate dimensions:
+            </p>
+            <ol style="margin-left: 1.5rem; margin-top: 0.5rem;">
+                <li><strong>Channel Attention Module:</strong> Focuses on "what" is meaningful in the input image channels by applying attention weights to emphasize important feature channels using average and max pooling operations processed through shared MLPs.</li>
+                <li><strong>Spatial Attention Module:</strong> Focuses on "where" the informative parts are located in the feature map, generating 2D spatial attention using aggregated channel information through convolutional layers.</li>
+                <li><strong>Integration with ResNet:</strong> CBAM blocks are inserted after each residual block in the ResNet18 architecture, refining feature representations at multiple levels of abstraction.</li>
+            </ol>
+            <p>
+                This dual attention mechanism allows the model to dynamically emphasize salient features in both channel and spatial dimensions, leading to improved performance, especially on images with complex backgrounds or subtle disease symptoms.
+            </p>
+
+            <h3 style="margin-top: 1.5rem; color: var(--accent-tertiary);">Dataset Description</h3>
             <p>
                 The PlantDoc project utilizes a comprehensive plant disease dataset with the following characteristics:
             </p>
@@ -587,138 +596,7 @@
                 <img src="outputs/dataset_analysis_report/analysis_dashboard.png" alt="Dataset Analysis Dashboard" class="project-image" style="max-width: 900px;">
             </div>
             
-            <h3 style="margin-top: 1.5rem; color: var(--accent-tertiary);">Class Distribution</h3>
-            <p>
-                The dataset exhibits a significant class imbalance, with the largest class containing 5,507 images (Orange_Haunglongbing_Citrus_greening) and the smallest containing around 1,000 images. The ratio of largest to smallest class is approximately 5.5:1.
-            </p>
-            
-            <div class="image-container">
-                <img src="outputs/dataset_analysis_report/class_distribution.png" alt="Full Class Distribution" class="project-image" style="max-width: 900px;">
-            </div>
-
-            <div class="chart-container">
-                <p>Top 5 largest classes:</p>
-                <div style="margin-top: 1rem;">
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
-                        <span>Orange_Haunglongbing_Citrus_greening</span>
-                        <span>5,507 (8.96%)</span>
-                    </div>
-                    <div class="progress-container">
-                        <div class="progress-bar" style="width: 89.6%;"></div>
-                    </div>
-                </div>
-                <div style="margin-top: 1rem;">
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
-                        <span>Tomato_Yellow_Leaf_Curl_Virus</span>
-                        <span>5,357 (8.71%)</span>
-                    </div>
-                    <div class="progress-container">
-                        <div class="progress-bar" style="width: 87.1%;"></div>
-                    </div>
-                </div>
-                <div style="margin-top: 1rem;">
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
-                        <span>Soybean_healthy</span>
-                        <span>5,090 (8.28%)</span>
-                    </div>
-                    <div class="progress-container">
-                        <div class="progress-bar" style="width: 82.8%;"></div>
-                    </div>
-                </div>
-                <div style="margin-top: 1rem;">
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
-                        <span>Peach_Bacterial_spot</span>
-                        <span>2,297 (3.74%)</span>
-                    </div>
-                    <div class="progress-container">
-                        <div class="progress-bar" style="width: 37.4%;"></div>
-                    </div>
-                </div>
-                <div style="margin-top: 1rem;">
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
-                        <span>Tomato_Bacterial_spot</span>
-                        <span>2,127 (3.46%)</span>
-                    </div>
-                    <div class="progress-container">
-                        <div class="progress-bar" style="width: 34.6%;"></div>
-                    </div>
-                </div>
-            </div>
-            
-            <h3 style="margin-top: 1.5rem; color: var(--accent-tertiary);">Image Properties</h3>
-            <div class="metrics-grid">
-                <div class="metric">
-                    <div class="metric-label">Width Range</div>
-                    <div class="metric-value">204-350 px</div>
-                </div>
-                <div class="metric">
-                    <div class="metric-label">Height Range</div>
-                    <div class="metric-value">192-350 px</div>
-                </div>
-                <div class="metric">
-                    <div class="metric-label">Square Images</div>
-                    <div class="metric-value">97.84%</div>
-                </div>
-                <div class="metric">
-                    <div class="metric-label">Avg. File Size</div>
-                    <div class="metric-value">14.96 KB</div>
-                </div>
-                <div class="metric">
-                    <div class="metric-label">Avg. RGB Values</div>
-                    <div class="metric-value">R=118.5, G=124.6, B=104.6</div>
-                </div>
-                <div class="metric">
-                    <div class="metric-label">Avg. Brightness</div>
-                    <div class="metric-value">115.9</div>
-                </div>
-            </div>
-            
-            <div class="grid-2">
-                <div class="chart-container">
-                    <img src="outputs/dataset_analysis_report/image_dimensions.png" alt="Image Dimensions" class="chart-image">
-                </div>
-                <div class="chart-container">
-                    <img src="outputs/dataset_analysis_report/color_distribution.png" alt="Color Distribution" class="chart-image">
-                </div>
-            </div>
-
-            <div class="grid-2">
-                <div class="chart-container">
-                    <img src="outputs/dataset_analysis_report/brightness_distribution.png" alt="Brightness Distribution" class="chart-image">
-                </div>
-                <div class="chart-container">
-                    <img src="outputs/dataset_analysis_report/aspect_ratio_distribution.png" alt="Aspect Ratio Distribution" class="chart-image">
-                </div>
-            </div>
-            
-            <p style="margin-top: 1.5rem;">
-                The relatively consistent image dimensions and predominantly square aspect ratios make this dataset well-suited for deep learning approaches without requiring extensive preprocessing for size normalization. The color analysis reveals predominant green tones as expected for plant imagery, with disease-specific color variations that help the model learn distinctive features.
-            </p>
-
-            <div class="image-container">
-                <img src="outputs/dataset_analysis_report/class_image_grid.png" alt="Class Image Grid" class="project-image" style="max-width: 900px;">
-            </div>
-        </section>
-
-        <!-- Methodology Section -->
-        <section id="methodology" class="content-section">
-            <h2 class="section-title">Methodology</h2>
-            <p>
-                The PlantDoc system leverages a dual-attention enhanced architecture to significantly improve classification performance. The key components of our methodology include:
-            </p>
-            <h3 style="margin-top: 1.5rem; color: var(--accent-tertiary);">CBAM: Dual Attention Mechanism</h3>
-            <p>
-                CBAM sequentially infers attention maps along two separate dimensions:
-            </p>
-            <ol style="margin-left: 1.5rem; margin-top: 0.5rem;">
-                <li><strong>Channel Attention Module:</strong> Focuses on "what" is meaningful in the input image channels by applying attention weights to emphasize important feature channels using average and max pooling operations processed through shared MLPs.</li>
-                <li><strong>Spatial Attention Module:</strong> Focuses on "where" the informative parts are located in the feature map, generating 2D spatial attention using aggregated channel information through convolutional layers.</li>
-                <li><strong>Integration with ResNet:</strong> CBAM blocks are inserted after each residual block in the ResNet18 architecture, refining feature representations at multiple levels of abstraction.</li>
-            </ol>
-            <p>
-                This dual attention mechanism allows the model to dynamically emphasize salient features in both channel and spatial dimensions, leading to improved performance, especially on images with complex backgrounds or subtle disease symptoms.
-            </p>
-            <h3 style="margin-top: 1.5rem; color: var(--accent-tertiary);">Data and Preprocessing</h3>
+            <h3 style="margin-top: 1.5rem; color: var(--accent-tertiary);">Data Preprocessing and Augmentation</h3>
             <p>
                 The project implements a comprehensive data pipeline including:
             </p>
@@ -737,21 +615,38 @@
             <div class="image-container">
                 <img src="outputs/dataset_analysis_report/tsne_visualization.png" alt="t-SNE Visualization" class="project-image" style="max-width: 900px;">
             </div>
-
-            <div class="image-container">
-                <img src="outputs/cbam_only_resnet18_v1/reports/plots/confusion_matrix.png" alt="Confusion Matrix" class="project-image" style="max-width: 900px;">
-            </div>
         </section>
 
-        <!-- Class Performance Metrics Section -->
-        <section id="performance" class="content-section">
-            <h2 class="section-title">Class Performance Metrics</h2>
+        <!-- Experiments Section - Now includes performance metrics -->
+        <section id="experiments" class="content-section">
+            <h2 class="section-title">Experiments</h2>
             <p>
-                Our models demonstrate excellent performance across all evaluated metrics. The training process shows consistent improvement in accuracy and confidence over time.
+                Multiple experimental configurations were evaluated to determine the optimal architecture and training strategy. Key experiments included:
             </p>
+            <h3 style="margin-top: 1.5rem; color: var(--accent-tertiary);">Training Approach</h3>
+            <ul style="margin-left: 1.5rem; margin-top: 0.5rem;">
+                <li><strong>Mixed Precision Training:</strong> FP16 implementation for faster training without sacrificing accuracy</li>
+                <li><strong>Adaptive Optimization:</strong> Using AdamW optimizer with cosine annealing learning rate scheduling</li>
+                <li><strong>Regularization Techniques:</strong> Dropout (0.15), weight decay (5e-5), and stochastic weight averaging for enhanced generalization</li>
+            </ul>
+            <h3 style="margin-top: 1.5rem; color: var(--accent-tertiary);">Model Variants</h3>
+            <p>
+                Two primary model variants were systematically explored:
+            </p>
+            <ol style="margin-left: 1.5rem; margin-top: 0.5rem;">
+                <li><strong>CBAM-ResNet18 v1:</strong> The initial implementation with baseline attention parameters, trained for 150 epochs</li>
+                <li><strong>CBAM-ResNet18 v2:</strong> An improved version with optimized training parameters and a more efficient training schedule (100 epochs)</li>
+            </ol>
+            <p>
+                Both models were evaluated using a comprehensive set of metrics including accuracy, precision, recall, F1 score, confusion matrices, ROC curves, and precision-recall curves to provide a holistic performance assessment.
+            </p>
+            <div class="image-container">
+                <img src="outputs/cbam_only_resnet18_v1/reports/plots/training_history.png" alt="Training History" class="project-image" style="max-width: 900px;">
+            </div>
 
+            <h3 style="margin-top: 1.5rem; color: var(--accent-tertiary);">Performance Results</h3>
             <div id="model-v1" class="model-section">
-                <h3 style="color: var(--accent-tertiary);">CBAM-ResNet18 v1 Performance</h3>
+                <h4 style="color: var(--accent-tertiary);">CBAM-ResNet18 v1 Performance</h4>
                 <div class="model-metrics">
                     <div class="metric">
                         <div class="metric-label">Accuracy</div>
@@ -781,7 +676,7 @@
             </div>
 
             <div id="model-v2" class="model-section">
-                <h3 style="color: var(--accent-tertiary);">CBAM-ResNet18 v2 Performance</h3>
+                <h4 style="color: var(--accent-tertiary);">CBAM-ResNet18 v2 Performance</h4>
                 <div class="model-metrics">
                     <div class="metric">
                         <div class="metric-label">Accuracy</div>
@@ -810,117 +705,11 @@
                 </div>
             </div>
 
-            <div class="model-section">
-                <h3 style="color: var(--accent-tertiary);">Model Architecture</h3>
-                <div class="model-metrics">
-                    <div class="metric">
-                        <div class="metric-label">Model Size</div>
-                        <div class="metric-value">48.82 MB</div>
-                    </div>
-                    <div class="metric">
-                        <div class="metric-label">Parameters</div>
-                        <div class="metric-value">12,798,646</div>
-                    </div>
-                    <div class="metric">
-                        <div class="metric-label">Base Model</div>
-                        <div class="metric-value">ResNet18</div>
-                    </div>
-                    <div class="metric">
-                        <div class="metric-label">Input Size</div>
-                        <div class="metric-value">224×224</div>
-                    </div>
-                </div>
+            <div class="image-container">
+                <img src="outputs/cbam_only_resnet18_v1/reports/plots/confusion_matrix.png" alt="Confusion Matrix" class="project-image" style="max-width: 900px;">
             </div>
-            
-            <h3 id="training-progression" style="margin-top: 1.5rem; color: var(--accent-tertiary);">Training Progression</h3>
-            
-            <div class="grid-2">
-                <div class="chart-container">
-                    <h4 style="margin-bottom: 1rem;">Model v1 Metrics</h4>
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>Epoch</th>
-                                <th>Accuracy</th>
-                                <th>Mean Confidence</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td>1</td>
-                                <td>77.38%</td>
-                                <td>41.23%</td>
-                            </tr>
-                            <tr>
-                                <td>10</td>
-                                <td>93.98%</td>
-                                <td>82.32%</td>
-                            </tr>
-                            <tr>
-                                <td>20</td>
-                                <td>95.92%</td>
-                                <td>85.79%</td>
-                            </tr>
-                            <tr>
-                                <td>30</td>
-                                <td>96.43%</td>
-                                <td>87.14%</td>
-                            </tr>
-                            <tr>
-                                <td>Final</td>
-                                <td>97.46%</td>
-                                <td>89.25%</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-                
-                <div class="chart-container">
-                    <h4 style="margin-bottom: 1rem;">Model v2 Metrics</h4>
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>Epoch</th>
-                                <th>Accuracy</th>
-                                <th>Mean Confidence</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td>1</td>
-                                <td>77.88%</td>
-                                <td>42.70%</td>
-                            </tr>
-                            <tr>
-                                <td>10</td>
-                                <td>94.22%</td>
-                                <td>81.98%</td>
-                            </tr>
-                            <tr>
-                                <td>20</td>
-                                <td>96.05%</td>
-                                <td>85.92%</td>
-                            </tr>
-                            <tr>
-                                <td>30</td>
-                                <td>96.39%</td>
-                                <td>87.39%</td>
-                            </tr>
-                            <tr>
-                                <td>Final</td>
-                                <td>96.71%</td>
-                                <td>89.03%</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-            
-            <p>
-                Both models demonstrate similar training patterns, with v1 achieving a slightly higher final accuracy (97.46% vs 96.71%) but requiring 50% more training time than v2. The shorter training time of v2 makes it more efficient for rapid development cycles.
-            </p>
-            
-            <h3 id="class-metrics" style="margin-top: 1.5rem; color: var(--accent-tertiary);">Confidence Distribution</h3>
+
+            <h3 id="class-metrics" style="margin-top: 1.5rem; color: var(--accent-tertiary);">Confidence Analysis</h3>
             <p>
                 The models become increasingly well-calibrated over time, as shown by the decreasing Expected Calibration Error (ECE). This indicates that the predicted confidence levels closely match the actual accuracy of predictions.
             </p>
@@ -932,77 +721,6 @@
             <p>
                 By the final epoch, both models show high confidence (>85%) for the vast majority of predictions, with minimal low-confidence predictions. This demonstrates the models' ability to make decisive classifications with high certainty.
             </p>
-
-            <h3 style="margin-top: 1.5rem; color: var(--accent-tertiary);">Class-Specific Confidence Analysis</h3>
-            <p>
-                The following chart shows the mean confidence scores for each class in the PlantDoc dataset. Most classes maintain very high confidence (>90%), indicating strong predictive capability across disease categories.
-            </p>
-
-            <div class="chart-container">
-                <h4 style="margin-bottom: 1rem;">Top 5 Classes by Mean Confidence (V1)</h4>
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>Class</th>
-                            <th>Mean Confidence</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>Apple Cedar Apple Rust</td>
-                            <td>97.52%</td>
-                        </tr>
-                        <tr>
-                            <td>Tomato Early Blight</td>
-                            <td>96.75%</td>
-                        </tr>
-                        <tr>
-                            <td>Apple Black Rot</td>
-                            <td>96.73%</td>
-                        </tr>
-                        <tr>
-                            <td>Grape Black Rot</td>
-                            <td>96.66%</td>
-                        </tr>
-                        <tr>
-                            <td>Cherry Powdery Mildew</td>
-                            <td>96.42%</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <p style="margin-top: 1.5rem;">
-                The model's consistent high confidence scores across disease categories demonstrate its reliability for real-world plant disease diagnosis applications.
-            </p>
-        </section>
-
-        <!-- Experiments Section -->
-        <section class="content-section">
-            <h2 class="section-title">Experiments</h2>
-            <p>
-                Multiple experimental configurations were evaluated to determine the optimal architecture and training strategy. Key experiments included:
-            </p>
-            <h3 style="margin-top: 1.5rem; color: var(--accent-tertiary);">Training Approach</h3>
-            <ul style="margin-left: 1.5rem; margin-top: 0.5rem;">
-                <li><strong>Mixed Precision Training:</strong> FP16 implementation for faster training without sacrificing accuracy</li>
-                <li><strong>Adaptive Optimization:</strong> Using AdamW optimizer with cosine annealing learning rate scheduling</li>
-                <li><strong>Regularization Techniques:</strong> Dropout (0.15), weight decay (5e-5), and stochastic weight averaging for enhanced generalization</li>
-            </ul>
-            <h3 style="margin-top: 1.5rem; color: var(--accent-tertiary);">Model Variants</h3>
-            <p>
-                Two primary model variants were systematically explored:
-            </p>
-            <ol style="margin-left: 1.5rem; margin-top: 0.5rem;">
-                <li><strong>CBAM-ResNet18 v1:</strong> The initial implementation with baseline attention parameters, trained for 150 epochs</li>
-                <li><strong>CBAM-ResNet18 v2:</strong> An improved version with optimized training parameters and a more efficient training schedule (100 epochs)</li>
-            </ol>
-            <p>
-                Both models were evaluated using a comprehensive set of metrics including accuracy, precision, recall, F1 score, confusion matrices, ROC curves, and precision-recall curves to provide a holistic performance assessment.
-            </p>
-            <div class="image-container">
-                <img src="outputs/cbam_only_resnet18_v1/reports/plots/training_history.png" alt="Training History" class="project-image" style="max-width: 900px;">
-            </div>
         </section>
 
         <!-- Conclusion Section -->
