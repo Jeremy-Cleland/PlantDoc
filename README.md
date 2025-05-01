@@ -99,12 +99,6 @@ The CBAM architecture enhances the model's ability to focus on relevant disease 
 - **🔍 SHAP Analysis**: Feature importance visualization
 - **📝 Comprehensive Reporting**: Automated HTML reports with interactive plots
 
-### Deployment & Hardware
-
-- **💻 Multi-platform Support**: CUDA, MPS (Apple Silicon), and CPU optimization
-- **🚀 Efficient Inference**: Optimized for both cloud and edge deployment
-- **🔌 Export Options**: ONNX and TorchScript support
-
 ### Developer Experience
 
 - **🖥️ Intuitive CLI**: Command-line interface for all operations
